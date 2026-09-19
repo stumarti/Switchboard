@@ -10,18 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out Switchboard
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: switchboard
 
       - name: Check out freeink-sdk
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Free-Ink/freeink-sdk
           path: freeink-sdk
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 

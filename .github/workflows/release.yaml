@@ -15,19 +15,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out Switchboard
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: switchboard
           fetch-depth: 0   # full history so `git describe` (gen_version.py) sees the tag
 
       - name: Check out freeink-sdk
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Free-Ink/freeink-sdk
           path: freeink-sdk
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -68,7 +68,7 @@ jobs:
           echo "MERGED_BIN=$OUT" >> "$GITHUB_ENV"
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: switchboard/${{ env.MERGED_BIN }}
           generate_release_notes: true
