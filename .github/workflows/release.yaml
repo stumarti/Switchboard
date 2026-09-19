@@ -68,7 +68,7 @@ jobs:
           echo "MERGED_BIN=$OUT" >> "$GITHUB_ENV"
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: switchboard/${{ env.MERGED_BIN }}
           generate_release_notes: true
