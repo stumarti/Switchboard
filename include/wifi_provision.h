@@ -89,8 +89,7 @@ struct Keyboard {
     if (len > 0) buffer[--len] = 0;
   }
 
-  // Just the password field + hint row (redrawn on every letter — the keys
-  // don't change, so this + a FAST partial refresh is what keeps typing snappy).
+  // Just the password field + hint row. Key presses do not redraw the keyboard.
   void drawField() {
     ui.fillRect(0, 100, Ui::W, kbTop - 100 - 4, Color::White);  // clear the strip
     ui.strokeRect(24, 110, Ui::W - 48, 56, 2, 8);
@@ -122,7 +121,7 @@ struct Keyboard {
     ui.text(hint, 24, 176, Ui::W - 48, 22, TextAlign::Left, Color::DarkGray);
 
     drawKeys();
-    ui.flushFast();
+    ui.flushFull();
   }
 
   void drawKeys() {
@@ -183,7 +182,7 @@ struct Keyboard {
         for (int i = 0; i < n; ++i) {
           if (px >= x && px < x + w) {
             append(r[row][i]);
-            return shift ? 3 : 1;  // shift auto-clears -> the row labels change
+            return 1;
           }
           x += w + gap;
         }
