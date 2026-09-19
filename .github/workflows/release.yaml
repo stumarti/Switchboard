@@ -15,13 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out Switchboard
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: switchboard
           fetch-depth: 0   # full history so `git describe` (gen_version.py) sees the tag
 
       - name: Check out freeink-sdk
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Free-Ink/freeink-sdk
           path: freeink-sdk
