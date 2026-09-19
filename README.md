@@ -1,5 +1,7 @@
 # Switchboard — X4 Pro boot sequence
 
+**[⚡ Flash it from your browser](https://stumarti.github.io/Switchboard/)** — no PlatformIO install needed (Chrome/Edge on desktop only). See [Releases & the web flasher](#releases--the-web-flasher) below.
+
 A PlatformIO firmware for the **Xteink X4 Pro** that runs a boot sequence on
 the e-ink panel:
 
