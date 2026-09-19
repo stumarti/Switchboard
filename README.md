@@ -140,13 +140,18 @@ fail to auto-detect the port.
 ```
 platformio.ini        env:x4pro, links the FreeInk SDK libs by symlink
 include/
-  config.h            Wi-Fi creds, brand strings
+  config.h            Wi-Fi creds, brand strings, FIRMWARE_VERSION fallback
   assets.h            1-bpp Switchboard logo + wifi icon (FreeInk Icon format)
   atkinson_font.h     Atkinson Hyperlegible bitmap fonts (10/12/24/28px + a 68px digit face)
   ui.h                thin drawing surface over EInkDisplay + DisplayTarget
   Logging.h           consumer-provided log shim the SDK libs #include
 src/
   main.cpp            the boot state machine (Splash / Wi-Fi / Home / Debug)
+tools/
+  gen_version.py      derives FIRMWARE_VERSION from `git describe` at build time
+docs/
+  index.html          browser-based flasher (ESP Web Tools), served via GitHub Pages
+  firmware/           latest release's flashable image + manifest.json (CI-published)
 ```
 
 ### Why there's a Logging.h here
@@ -158,6 +163,32 @@ stream. `include/Logging.h` is that shim; it routes every level to Serial. If
 you ever see `fatal error: Logging.h: No such file`, it means the project's
 `include/` dir isn't on the compiler's include path — check that the
 `include_flags` block in `platformio.ini` is intact.
+
+## Releases & the web flasher
+
+Tagging a version kicks off an automatic release build:
+
+```
+git tag v0.4.0
+git push origin v0.4.0
+```
+
+GitHub Actions (`.github/workflows/release.yml`) then builds `x4pro`, merges
+the output into one flat flashable image, attaches it to a GitHub Release,
+and publishes it to `docs/firmware/` for the web flasher below. A separate,
+lighter workflow (`.github/workflows/ci.yml`) runs a plain build-check on
+every push/PR so a broken build gets caught before it reaches the bench.
+
+Once GitHub Pages is turned on for this repo (Settings → Pages → Deploy from
+a branch → `develop` / `/docs`), the latest tagged release is flashable
+straight from a browser, no PlatformIO install required, at:
+
+```
+https://stumarti.github.io/Switchboard/
+```
+
+This only works in **Chrome or Edge on desktop** — Web Serial (what the
+in-browser flasher uses) isn't available in Firefox, Safari, or on mobile.
 
 ## Notes
 

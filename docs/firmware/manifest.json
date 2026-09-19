@@ -1,0 +1,13 @@
+{
+  "name": "Switchboard",
+  "version": "unreleased",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "switchboard-latest.bin", "offset": 0 }
+      ]
+    }
+  ]
+}

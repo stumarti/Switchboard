@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Switchboard — Web Flasher</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 640px;
+    margin: 4rem auto;
+    padding: 0 1.5rem;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  p.tag { color: #888; margin-top: 0; }
+  p.note { color: #888; font-size: 0.9rem; }
+  esp-web-install-button { display: block; margin: 2rem 0; }
+  esp-web-install-button button {
+    font-size: 1rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    border: none;
+    background: #4f8cff;
+    color: white;
+    cursor: pointer;
+  }
+  a { color: #4f8cff; }
+</style>
+</head>
+<body>
+  <h1>Switchboard</h1>
+  <p class="tag">One tap. Every room.</p>
+
+  <p>
+    Plug your X4 Pro in over USB, then click below. This flashes the latest
+    tagged release straight from the browser — no PlatformIO install needed.
+  </p>
+
+  <esp-web-install-button manifest="firmware/manifest.json">
+    <button slot="activate">Connect &amp; flash</button>
+    <span slot="unsupported">
+      Your browser doesn't support Web Serial — try Chrome or Edge on desktop.
+    </span>
+    <span slot="not-allowed">
+      Web Serial is blocked here — this page needs to be served over HTTPS
+      (GitHub Pages does this automatically).
+    </span>
+  </esp-web-install-button>
+
+  <p class="note">
+    Works in Chrome or Edge on desktop only — Web Serial isn't available in
+    Firefox, Safari, or on mobile browsers.
+  </p>
+  <p class="note">
+    See <a href="https://github.com/stumarti/Switchboard/releases">Releases</a>
+    for version history and notes.
+  </p>
+</body>
+</html>
