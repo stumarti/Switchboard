@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Switchboard
+        uses: actions/checkout@v4
+        with:
+          path: switchboard
+
+      - name: Check out freeink-sdk
+        uses: actions/checkout@v4
+        with:
+          repository: Free-Ink/freeink-sdk
+          path: freeink-sdk
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO
+        run: pip install -U platformio
+
+      # Sibling layout matches what the README/platformio.ini expect locally:
+      #   ${{ github.workspace }}/switchboard
+      #   ${{ github.workspace }}/freeink-sdk
+      - name: Build (x4pro)
+        working-directory: switchboard
+        run: pio run -e x4pro

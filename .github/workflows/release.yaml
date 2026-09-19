@@ -1,0 +1,112 @@
+name: Release
+
+# Tag-triggered: `git tag v0.4.0 && git push origin v0.4.0` builds, attaches
+# the flashable image to a GitHub Release, and publishes it to the web
+# flasher under docs/firmware/ (see docs/index.html).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Switchboard
+        uses: actions/checkout@v4
+        with:
+          path: switchboard
+          fetch-depth: 0   # full history so `git describe` (gen_version.py) sees the tag
+
+      - name: Check out freeink-sdk
+        uses: actions/checkout@v4
+        with:
+          repository: Free-Ink/freeink-sdk
+          path: freeink-sdk
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO + esptool
+        run: pip install -U platformio esptool
+
+      - name: Build (x4pro)
+        working-directory: switchboard
+        run: pio run -e x4pro
+
+      # ESP Web Tools flashes ONE file, so the multi-part PlatformIO output
+      # (bootloader/partitions/boot_app0/firmware) gets merged into a single
+      # flat image starting at offset 0.
+      #
+      # NOTE: flash_mode/flash_freq/flash_size below match this project's
+      # board config (dio_opi, default_16MB.csv) as of the version this
+      # workflow was written. If either changes in platformio.ini, check
+      # this step still matches — `pio run -v` prints the actual esptool
+      # args PlatformIO used for `upload`, which is the source of truth.
+      - name: Merge into one flashable image
+        working-directory: switchboard
+        run: |
+          set -euo pipefail
+          BUILD_DIR=.pio/build/x4pro
+          BOOT_APP0=$(find "$HOME/.platformio/packages" -name boot_app0.bin | head -1)
+          if [ -z "$BOOT_APP0" ]; then
+            echo "Could not locate boot_app0.bin in ~/.platformio/packages" >&2
+            exit 1
+          fi
+          OUT="switchboard-${{ github.ref_name }}.bin"
+          python -m esptool --chip esp32s3 merge_bin \
+            -o "$OUT" \
+            --flash_mode dio --flash_freq 80m --flash_size 16MB \
+            0x0000  "$BUILD_DIR/bootloader.bin" \
+            0x8000  "$BUILD_DIR/partitions.bin" \
+            0xe000  "$BOOT_APP0" \
+            0x10000 "$BUILD_DIR/firmware.bin"
+          echo "MERGED_BIN=$OUT" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: switchboard/${{ env.MERGED_BIN }}
+          generate_release_notes: true
+
+      # Push the latest merged image + manifest to docs/firmware/ on
+      # `develop` so the web flasher (docs/index.html) always serves the
+      # newest tagged release. Done as a fresh checkout of the branch
+      # (not the detached tag commit) to avoid fighting a moving branch tip.
+      - name: Update web flasher (docs/firmware)
+        working-directory: switchboard
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/webflasher
+          cp "${{ env.MERGED_BIN }}" /tmp/webflasher/switchboard-latest.bin
+          cat > /tmp/webflasher/manifest.json <<EOF
+          {
+            "name": "Switchboard",
+            "version": "${{ github.ref_name }}",
+            "new_install_prompt_erase": true,
+            "builds": [
+              {
+                "chipFamily": "ESP32-S3",
+                "parts": [
+                  { "path": "switchboard-latest.bin", "offset": 0 }
+                ]
+              }
+            ]
+          }
+          EOF
+
+          git fetch origin develop:develop
+          git checkout develop
+          mkdir -p docs/firmware
+          cp /tmp/webflasher/switchboard-latest.bin docs/firmware/switchboard-latest.bin
+          cp /tmp/webflasher/manifest.json docs/firmware/manifest.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/firmware
+          git commit -m "docs: publish web-flasher build for ${{ github.ref_name }}" || echo "nothing to commit"
+          git push origin develop
