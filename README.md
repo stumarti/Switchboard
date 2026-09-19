@@ -1,293 +1,172 @@
-# CrossPoint Reader
+# Switchboard — X4 Pro boot sequence
 
-[![Fund contributors](https://img.shields.io/badge/%F0%9F%91%91_Fund_contributors-royalty.dev-BB953A?style=for-the-badge&labelColor=1a1a1a)](https://app.royalty.dev/crosspoint-reader/crosspoint-reader)
+A PlatformIO firmware for the **Xteink X4 Pro** that runs a boot sequence on
+the e-ink panel:
 
-CrossPoint is open-source e-reader firmware - community-built, fully hackable, free forever. It's maintained by a growing community of developers and readers who believe your device should do what you want - not what a manufacturer decided for you.
+1. **Splash** — the Switchboard logo (an MDI `remote` mark), name, and slogan.
+2. **Wi-Fi** — runs through the Wi-Fi connection with live status on screen.
+3. **Home** — a blank layout scaffold: a status bar (brand, Wi-Fi signal,
+   battery meter) up top, a footer bar along the bottom, and an otherwise
+   empty content area between them. Not interactive yet — this is where the
+   device's main layout gets nailed down before any real screen is built on
+   top of it.
+4. **Debug** — hold the Home key from the Home screen to reach an interactive
+   hardware self-test: it checks all four buttons, the touchscreen, and the
+   backlight.
 
-### Now running on:
-- **ESP32C3-based** Xteink X4 and X3.
-- **ESP32S3-based** Xteink X4Pro, Seeed reTerminal Sticky, M5PaperMono
+> ### ⚠️ About the `Network.h` error (now fixed in this config)
+>
+> Arduino-ESP32 core 3.x split the `Network` library out of `WiFi`, so
+> `WiFi.h` now `#include`s a sibling `<Network.h>` that PlatformIO's dependency
+> finder must pull in. Two things break that, and both are handled here:
+>
+> - **Wrong platform.** The stock PlatformIO `espressif32` ships the ancient
+>   core 2.0.17 (no `Network.h` at all). This project pins the **pioarduino**
+>   platform (core 3.3.x) — keep that `platform =` URL.
+> - **Aggressive LDF mode.** Setting `lib_ldf_mode = chain+`/`deep+` changes how
+>   the framework's own inter-library dependencies resolve and stops WiFi from
+>   finding Network. This config leaves LDF at its default and instead adds the
+>   framework's `Network/src` path explicitly, so it resolves either way. Don't
+>   add a `lib_ldf_mode` override.
+>
+> If you still hit `Network.h` after pulling this config, it's a stale platform
+> cached from an earlier attempt. Close VS Code and, in PowerShell, delete the
+> framework packages so they re-extract clean:
+>
+> ```powershell
+> Remove-Item -Recurse -Force "$env:USERPROFILE\.platformio\packages\framework-arduinoespressif32*"
+> Remove-Item -Recurse -Force "<your-project-folder>\.pio"
+> ```
+>
+> Then rebuild (the correct core re-downloads — a few hundred MB).
 
-Check [our Devices page](https://crosspointreader.com/devices) for the full list.
 
-![CrossPoint Reader running on Xteink device](./docs/images/cover.jpg)
+## The hardware self-test (stage 4)
 
-> If you're planning to buy an Xteink device, consider purchasing an **X3/X4 Developer Edition** through https://crosspointreader.com. CrossPoint receives a small share of each sale, helping fund development costs.
+The debug screen is interactive — it verifies every input surface and the
+backlight on real hardware:
 
-## What can CrossPoint do?
+- **Buttons** — four check-off boxes that tick the first time each is pressed:
+  **Left** (GPIO0), **Right** (GPIO7), **Power** (GPIO3), and **Home** (the
+  GT911 capacitive key below the panel). On the X4 Pro these *are* the four
+  buttons — there is no separate Back/Confirm key in hardware, so the fourth
+  tested button is the capacitive Home key. A "N / 4 pressed" tally tracks
+  progress.
+- **Touchscreen** — a target box showing live `x=… y=…` coordinates, a running
+  tap count, and a crosshair drawn at your last touch.
+- **Backlight** — steps `0 → 25 → 50 → 75 → 100%` with a level bar. Tap the
+  on-screen "Step backlight" button, or press the **Home** key, to advance it.
+- **Refresh** — the test repaints with the panel's **partial (fast) refresh**,
+  which is what keeps button/touch feedback snappy. Partial refreshes ghost
+  over time, so there's a **"Full refresh"** button that does a clean full
+  refresh and scrubs the accumulated ghosting. A status line shows the current
+  mode and how many partials have piled up since the last full; the test also
+  auto-promotes to a full refresh once that count gets high, so it never looks
+  dirty during a long session.
 
-- **Reader engine**: EPUB 2/3 rendering with embedded-style option, image handling, hyphenation, kerning, adaptive table layouts, native CJK ruby annotations, chapter navigation, footnotes, bookmarks, dictionary lookups ([StarDict](docs/dictionary.md)), go-to-percent, auto page turn, orientation control, focus reading, KOReader progress sync and more.
+**Hold the Home key** to restart the test.
 
-- **Various formats**: native handling for `.epub`, `.xtc/.xtch`, `.txt`, and `.bmp`.
+> The partial/full split is exactly the e-ink tradeoff: fast refresh is
+> responsive but leaves ghosts; full refresh is clean but flashes the whole
+> panel. The button lets you trigger the clean pass on demand.
 
-- **Touch reading**: follow EPUB links and look up words in the dictionary on touch-enabled devices.
+It's a **standalone project** (not a CrossPoint fork). It drives the hardware
+through the FreeInk SDK's stable HAL — the same `EInkDisplay` / `InputManager`
+/ `BoardConfig` libraries CrossPoint uses — linked by `symlink://`, so it runs
+on the real device without vendoring the HAL.
 
-- **Screenshots.**
+## Hardware it targets
 
-- **Custom fonts**: install your favorite fonts on the SD card.
+Selected by `-DFREEINK_DEVICE_X4PRO`, which maps to the SDK's `XteinkX4Pro`
+board profile:
 
-- **Tilt page turn (X3 and Sticky)**.
+- ESP32-S3 (S3R8: 16 MB flash, 8 MB PSRAM), 800×480 e-ink, SSD1677 controller
+- GT911 capacitive touch on the shared I²C bus
+- Nav keys: Left = GPIO0, Right = GPIO7, Power = GPIO3
+- Warm/cool PWM frontlight, PCF8563/BM8563 RTC
 
-- **USB Drive mode (X4Pro)**: access the SD card as USB mass storage.
+The firmware reads its pins from `BoardConfig::ACTIVE`, so nothing is
+hardcoded — swapping the device flag re-targets it.
 
-- **Library workflow**: folder browser, hidden-file toggle, long-press delete, recent books, SD-cache management.
+## One-time setup
 
-- **Wireless workflows**:
-  
-  - File transfer web UI
-  - EPUB Optimizer
-  - Web settings UI/API (edit many device settings from browser)
-  - WebSocket fast uploads
-  - WebDAV handler
-  - AP mode (hotspot) and STA mode (join existing Wi-Fi), both with QR helpers
-  - Calibre wireless connect flow
-  - OPDS browser with saved servers (up to 8), search, pagination, and direct download
-  - OTA update checks and installs from GitHub releases
+1. **Get the FreeInk SDK** next to this project:
+   ```
+   git clone https://github.com/Free-Ink/freeink-sdk
+   ```
+   So your layout is:
+   ```
+   parent/
+     freeink-sdk/
+     switchboard-boot/     <- this project
+   ```
+   If you put it elsewhere, edit `[freeink] sdk = ...` in `platformio.ini`
+   (an absolute path is safest on Windows).
 
-- **Customization**: night mode, multiple themes (Classic, Lyra, Lyra Extended, RoundedRaff), sleep screen modes including transparent overlays, front/side button remapping, status bar controls, power-button behavior, refresh cadence, and more.
+2. **Set your Wi-Fi** in `include/config.h`:
+   ```c
+   #define WIFI_SSID "your-network"
+   #define WIFI_PASS "your-password"
+   ```
+   Leave `WIFI_SSID` empty (`""`) to watch the whole sequence on a bench
+   without a network — the Wi-Fi stage then renders, says "No network
+   configured", and moves on.
 
-- **Localization**: 34 UI languages and counting, including CJK font fallback and RTL support.
+## Build & flash
 
-### Coming soon:
+With the PlatformIO CLI (or the VS Code PlatformIO extension):
 
-- More themes.
-
-- Web plugins.
-
-- Bluetooth pageturner.
-
-- Much more! stay tuned.
-
----
-
-## USB-locked devices (Xteink Unlocker)
-
-Some Xteink units purchased from third-party stores (e.g. AliExpress) ship with USB flashing locked from the factory.
-If your device is locked, you will need to use the **Xteink Unlocker** tool available at
-https://crosspointreader.com/#unlock-tool before you can flash CrossPoint.
-
-**You do not need this tool if you bought your device directly from xteink.com.** Those units are not locked.
-
-**Not sure if your device is locked?** Power it on, connect the USB-C cable, and try flashing via the web flasher first (see
-[Install firmware](#install-firmware) below). If the browser's serial device picker does not show your device, try a different
-USB port or browser before assuming the device is locked. Only reach for the unlocker if the device still doesn't appear.
-
-> ### ⚠️ WARNING: READ THIS BEFORE USING THE UNLOCKER ⚠️
-> 
-> **The only officially supported firmwares in the unlock tool are CrossPoint and CrossInk.**
-> 
-> Flashing any other firmware on a USB-locked device may **permanently brick the device** or leave it **permanently
-> stuck on that firmware with no recovery path**. Once USB flashing is re-locked, your only way back is via OTA, and if
-> the firmware you flashed doesn't support OTA, **there is no way out**.
-
-## Install firmware
-
-### Web installer (recommended)
-
-1. Connect your device to your computer via USB-C and wake/unlock the device
-2. Go to https://crosspointreader.com/#flash-tools, select your device (X3, X4, Xteink X4Pro, Seeed reTerminal Sticky, or M5PaperMono), and choose an official CrossPoint release.
-
-### Web installer (specific version)
-
-1. Connect your device to your computer via USB-C and wake/unlock the device
-2. Download the firmware file for your device from [Releases](https://github.com/crosspoint-reader/crosspoint-reader/releases), or compile yourself.
-3. Go to https://crosspointreader.com/#flash-tools, select your device, click "Custom .bin" and upload the firmware file.
-
-### Revert to Official Firmware
-
-To revert to the official firmware, you can also flash the latest official firmware using https://crosspointreader.com/#flash-tools.
-
-### Command line
-
-1. Install [`esptool`](https://github.com/espressif/esptool):
-
-```bash
-pip install esptool
+```
+pio run -e x4pro -t upload -t monitor
 ```
 
-2. Download the firmware file for your device from the [releases page](https://github.com/crosspoint-reader/crosspoint-reader/releases).
-3. Connect your device via USB-C.
-4. Find the device port. On Linux, run `dmesg` after connecting. On macOS:
+Wake the device before uploading if it has gone to sleep, or PlatformIO may
+fail to auto-detect the port.
 
-```bash
-log stream --predicate 'subsystem == "com.apple.iokit"' --info
+## How to drive it
+
+- **Splash** auto-advances after ~2.5 s (or press any key / tap to skip).
+- **Wi-Fi** advances on its own once connected, failed, or skipped.
+- **Home**: nothing to interact with yet — it's a static layout scaffold.
+  **Hold Home** to jump to the hardware self-test.
+- **Debug / self-test**: press each of the four buttons to tick them off, touch
+  the target box to see live coordinates + a crosshair, and tap "Step backlight"
+  (or the Home key) to step brightness. The screen runs on **partial refresh**;
+  tap **"Full refresh"** to scrub the ghosting. **Hold Home** to restart the
+  test.
+
+## Layout
+
+```
+platformio.ini        env:x4pro, links the FreeInk SDK libs by symlink
+include/
+  config.h            Wi-Fi creds, brand strings
+  assets.h            1-bpp Switchboard logo + wifi icon (FreeInk Icon format)
+  atkinson_font.h     Atkinson Hyperlegible bitmap fonts (10/12/24/28px + a 68px digit face)
+  ui.h                thin drawing surface over EInkDisplay + DisplayTarget
+  Logging.h           consumer-provided log shim the SDK libs #include
+src/
+  main.cpp            the boot state machine (Splash / Wi-Fi / Home / Debug)
 ```
 
-5. Flash an X3 or X4:
+### Why there's a Logging.h here
 
-```bash
-esptool.py --chip esp32c3 --port /dev/ttyACM0 --baud 921600 write_flash 0x10000 /path/to/firmware.bin
-```
+Several FreeInk SDK libraries do `#include <Logging.h>` and call
+`LOG_INF(tag, fmt, ...)`, but the SDK deliberately doesn't ship that header —
+it expects the app to provide one so log output lands in the app's own Serial
+stream. `include/Logging.h` is that shim; it routes every level to Serial. If
+you ever see `fatal error: Logging.h: No such file`, it means the project's
+`include/` dir isn't on the compiler's include path — check that the
+`include_flags` block in `platformio.ini` is intact.
 
-   Flash an Xteink X4Pro, Seeed reTerminal Sticky, or M5PaperMono:
+## Notes
 
-```bash
-esptool.py --chip esp32s3 --port /dev/ttyACM0 --baud 921600 write_flash 0x10000 /path/to/firmware.bin
-```
-
-### Manual
-
-See [Development quick start](#development-quick-start) below.
-
----
-
-## Custom SD-card fonts
-
-Convert your own TTF/OTF files into `.cpfont` files that load from the SD card. No firmware reflash is needed.
-
-1. Go to https://crosspointreader.com/fonts and open the "SD-card font builder" form.
-2. Upload up to four styles (regular, bold, italic, bold-italic), set the family name, point sizes, and Unicode range.
-3. Download the generated `.cpfont` files.
-4. Copy them to your SD card under `/fonts/YourFont/` (or `/.fonts/YourFont/` to hide the folder).
-5. Select the font on the device from the font settings.
-
-Conversion runs the firmware repo's `lib/EpdFont/scripts/fontconvert_sdcard.py` script unmodified, so output matches a local host build.
-
----
-
-## Documentation
-
-- [User Guide](./USER_GUIDE.md)
-- [Web server usage](./docs/webserver.md)
-- [Web server endpoints](./docs/webserver-endpoints.md)
-- [Project scope](./SCOPE.md)
-- [Contributing docs](./docs/contributing/README.md)
-- [Touch and UI development](./docs/contributing/touch-and-ui.md) - how to build new screens on the FreeInkUI activity bases (UiListActivity and friends), plus build envs for the non-Xteink touch devices
-
----
-
-## Development quick start
-
-### Prerequisites
-
-- [pioarduino PlatformIO Core](https://github.com/pioarduino/platformio-core) or [VS Code + pioarduino IDE](https://github.com/pioarduino/pioarduino-vscode-ide)
-- Python 3.8+
-- `clang-format` 21
-- USB-C cable supporting data transfer
-
-### Setup
-
-```bash
-git clone --recursive https://github.com/crosspoint-reader/crosspoint-reader
-cd crosspoint-reader
-
-# if cloned without --recursive:
-git submodule update --init --recursive
-```
-
-### Nix/NixOS
-
-Nix/NixOS users can enter the development shell with either `nix develop` (flakes) or `nix-shell`:
-
-```bash
-nix develop -f nix
-# or
-nix-shell nix
-```
-
-To flash a connected ESP32-C3 device, enable PlatformIO's udev rules in your NixOS configuration:
-
-```nix
-services.udev.packages = with pkgs; [ platformio-core.udev ];
-```
-
-After rebuilding the system configuration, reconnect the device or reload udev rules.
-
-### Build / flash / monitor
-
-```bash
-pio run --target upload
-```
-
-### Contributor pre-PR checks
-
-```bash
-./bin/clang-format-fix
-pio check -e default
-pio run -e default
-```
-
-### Debugging
-
-After flashing the new features, it’s recommended to capture detailed logs from the serial port.
-
-First, make sure all required Python packages are installed:
-
-```python
-python3 -m pip install pyserial colorama matplotlib
-```
-
-After that run the script:
-
-```sh
-# For Linux
-# This was tested on Debian and should work on most Linux systems.
-python3 scripts/debugging_monitor.py
-
-# For macOS
-python3 scripts/debugging_monitor.py /dev/cu.usbmodem2101
-```
-
-Minor adjustments may be required for Windows.
-
----
-
-## Internals
-
-CrossPoint Reader is pretty aggressive about caching data down to the SD card to minimise RAM usage. The ESP32-C3 only has ~380KB of usable RAM, so we have to be careful. A lot of the decisions made in the design of the firmware were based on this constraint.
-
-### Data caching
-
-The first time chapters of a book are loaded, they are cached to the SD card. Subsequent loads are served from the
-cache. This cache directory exists at `.crosspoint` on the SD card. The structure is as follows:
-
-```text
-.crosspoint/
-├── epub_<hash>/         # one directory per book, named by content hash
-│   ├── progress.bin     # reading position (chapter, page, etc.)
-│   ├── cover.bmp        # generated cover image
-│   ├── book.bin         # metadata: title, author, spine, TOC
-│   ├── css_rules.cache  # parsed CSS rule cache
-│   ├── img_*            # rendered image cache files
-│   └── sections/        # per-chapter layout cache
-│       ├── 0.bin
-│       ├── 1.bin
-│       └── ...
-├── settings.json        # device settings
-├── state.json           # resume/runtime state
-└── recent.json          # recent books list
-```
-
-Removing `/.crosspoint` clears all cached metadata and forces a full regeneration on next open. Book deletes, overwrites, and moves done through the firmware or web UI clear or re-key matching caches; manual SD-card edits may leave stale cache directories behind.
-
-For more details on the internal file structures, see the [file formats document](./docs/file-formats.md).
-
----
-
-## Contributing
-
-Contributions are welcome. If you're new to the codebase, start with the [contributing docs](./docs/contributing/README.md). For things to work on, check the [ideas discussion board](https://github.com/crosspoint-reader/crosspoint-reader/discussions/categories/ideas) — leave a comment before starting so we don't duplicate effort.
-
-Everyone here is a volunteer, so please be respectful and patient. For governance and community expectations, see [GOVERNANCE.md](./GOVERNANCE.md).
-
----
-
-## Community forks
-
-One of the best things about open source is that anyone can take the code in a different direction. If you need something outside CrossPoint's [scope](./SCOPE.md), check out the community forks:
-
-- [CrossInk](https://github.com/uxjulia/CrossInk) — UX focused with minimal reading stats and broader customizations for the reading experience.
-
-- [papyrix-reader](https://github.com/bigbag/papyrix-reader) — Adds FB2 and MD format support. Actively maintained with Arabic script support. Custom themes.
-
-- [inx](https://github.com/obijuankenobiii/inx) — Completely reimagines the user interface with tabbed navigation.
-
-- [Witch(hunt) Reader](https://github.com/jpirnay/witchhunt-reader) — More faithful CSS styling and background work for slightly snappier interaction. Weather information panel. Markdown support.
-
-**Note:** Many of these features will make their way into CrossPoint over time. Each project chooses its own priorities and tradeoffs.
-
-Want to build your own device? Be sure to check out the [de-link](https://github.com/iandchasse/de-link) project or [OnePage Reader](https://github.com/MoveCall/onepage-reader).
-
----
-
-CrossPoint Reader is **not affiliated with Xteink or any device manufacturer**.
+- Rendering is landscape-native (800×480); the panel's own framebuffer is
+  drawn into directly via `EInkDisplay::getFrameBuffer()`.
+- Splash and Debug use a **full** e-ink refresh (clean, no ghosting);
+  intermediate screens use **fast** refreshes.
+- Every text face is Atkinson Hyperlegible, baked into `include/atkinson_font.h`
+  at fixed pixel sizes (10/12/24/28px, plus a 68px digits-only face for the
+  temperature readout) — there's no runtime scaling, so a new size means
+  regenerating via `tools/gen_atkinson_fonts.sh` and binding it to a slot in
+  `Ui::begin()` (`ui.h`).
