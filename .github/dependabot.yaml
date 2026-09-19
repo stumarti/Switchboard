@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # This is a PlatformIO/C++ project, so there's no npm/pip manifest for
+  # Dependabot to track — the only ecosystem that applies is the GitHub
+  # Actions workflows themselves (ci.yml / release.yml).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
