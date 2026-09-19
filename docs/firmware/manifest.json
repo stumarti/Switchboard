@@ -1,6 +1,6 @@
 {
   "name": "Switchboard",
-  "version": "unreleased",
+  "version": "v0.1.2",
   "new_install_prompt_erase": true,
   "builds": [
     {
