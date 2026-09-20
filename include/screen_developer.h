@@ -78,15 +78,18 @@ inline int hitTest(int16_t ty) {
   return (i >= 0 && i < kCount) ? i : -1;
 }
 
-inline void draw() {
+// `r` defaults to Fast: draw() is also called from activate()'s toggle rows
+// (control feedback), so entering the screen is the one call site that must
+// override it to Full below.
+inline void draw(Rf r = Rf::Fast) {
   drawList();
-  commitFrame(Rf::Clean);
+  commitFrame(r);
 }
 inline void enter() {
   stage = Stage::Developer;
   sel = 0;
   pressed = -1;
-  draw();
+  draw(Rf::Full);
 }
 
 // Rows 0-3 act here; the last row ("Back") and every other exit gesture are

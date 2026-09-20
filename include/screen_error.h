@@ -46,7 +46,10 @@ inline void drawErrorScreen(const char* barLabel, const char* title, const char*
   if (footer && *footer)
     ui.text(footer, 0, 576 + kPad, Ui::W, 24, TextAlign::Center, Color::DarkGray);
 
-  commitFrame(sleeping ? Rf::Full : Rf::Clean);
+  // Always Full: every draw here is a whole-screen swap (a different error
+  // entirely in screen_err_preview's next()/prev()) with no interactive
+  // control to give feedback for, so there's no "sleeping" special case left.
+  commitFrame(Rf::Full);
 }
 
 // ===========================================================================

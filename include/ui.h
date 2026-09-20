@@ -98,15 +98,31 @@ class Ui {
 
   // Full refresh: clean, no ghosting — use for whole-screen transitions and to
   // scrub accumulated ghosting after a run of partial refreshes. Blocking:
-  // waits out any in-flight async refresh, then runs (~1-1.5 s).
+  // waits out any in-flight async refresh, then runs (~1-1.5 s). Only fired on
+  // content switches/sleep, never from rapid repeated input, so there's no
+  // pipelining win worth the extra shadow buffer here.
   void flushFull() {
     display_.waitRefreshComplete();
     display_.displayBuffer(freeink::FreeInkDisplay::FULL_REFRESH);
   }
-  // Half (balanced) refresh: cleaner than fast, faster than full.
+  // Half (balanced) refresh: cleaner than fast, faster than full — reserved
+  // for commitFrame()'s periodic kCleanEvery ghost-scrub and the manual
+  // "Full refresh" control-panel tile (screen_shade.h), which DO fire from
+  // (or shortly after) a run of rapid taps even though no single control's
+  // own feedback ever requests Half directly — Climate's +/-0.5 step and a
+  // volume drag/tap run are Fast/DU, same as every other control-feedback
+  // redraw (see main.cpp's RefreshEvent table). NON-BLOCKING, same shape as
+  // flushFast() below: pushes the frame and returns once the waveform has
+  // started (~waveform is still developing, ~0.5 s) so the caller can compose
+  // the next frame immediately. Uses the SHADOWED async path (unlike
+  // flushFast's no-shadow one): the UC8279 driver's displayFinish() re-reads
+  // the just-displayed frame to resync its OLD plane, and by then the live
+  // framebuffer may already hold the next composed frame — the shadow keeps a
+  // stable copy of what was actually sent so that resync stays correct
+  // (see FreeInkDisplay::displayAsyncImpl's noShadow-vs-shadow contract).
   void flushHalf() {
     display_.waitRefreshComplete();
-    display_.displayBuffer(freeink::FreeInkDisplay::HALF_REFRESH);
+    display_.displayBufferAsync(freeink::FreeInkDisplay::HALF_REFRESH);
   }
   // Fast / partial refresh, NON-BLOCKING: pushes the frame and returns in
   // ~25 ms while the panel develops it (~0.3 s). The framebuffer is free to

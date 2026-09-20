@@ -389,48 +389,74 @@ static void drawStandbyContent(bool sleeping, int pressed) {
 // Fast -> Clean auto-promotion (kCleanEvery) below whatever mode is picked
 // here — this table is the layer above that, picking the STARTING mode.
 // ===========================================================================
+// Policy (per the UC8279X4 driver's three modes): Fast/DU is the only
+// non-flashing mode, so it's the ONLY mode any in-screen control-feedback
+// event may resolve to — a setpoint nudging, a volume/brightness change, a
+// glyph flipping, a toggle, a chip or tab selecting. Full is the clean
+// flash-from-white for an actual screen change (carousel page-turn,
+// sub-screen push/pop). Half seeds the OLD plane as the inverse of the
+// target — a real charge scrub, but still a full-waveform FLASH exactly like
+// Full, just seeded differently — so it's reserved for the periodic
+// ghost-cleanup cadence (commitFrame()'s kCleanEvery, below) and the manual
+// "Full refresh" control-panel tile (screen_shade.h); no control-feedback
+// call site may request it directly.
 enum class RefreshEvent : uint8_t {
   // A held touch updates a value live, every frame (brightness/volume bars).
   // Same-magnitude repaints in a tight loop — Fast keeps them from stalling
   // the drag; commitFrame()'s kCleanEvery scrubs the accumulated ghosting.
   Drag,
   // A tap changes a small, localized bit of on-screen state: a toggle, a
-  // step button, a chip activating, a blinds/TV/Music control settling. The
-  // default for "something small just changed."
+  // step button, a chip/tab activating, a blinds/TV/Music control settling,
+  // Climate's arc/setpoint redrawing. The default for "something just
+  // changed in response to input." Dense dithered regions (Climate's arc,
+  // Music's album art) still redraw Fast here — they're control feedback,
+  // not a screen switch — and rely on commitFrame()'s periodic kCleanEvery
+  // scrub to clear any ghosting a partial refresh leaves behind, same as
+  // every other repeated-tap surface.
   TapFeedback,
-  // A dense dithered/anti-aliased region redraws: Climate's arc, Music's
-  // album art. These visibly ghost under a partial (Fast) refresh, so they
-  // always get a real scrub even though they're triggered by a plain tap.
-  DitheredRedraw,
-  // The page's CONTENT changes wholesale: a carousel page change, a tab
-  // switch, the jump list opening/closing, async Wi-Fi/weather data landing.
-  // Always a clean scrub — a partial refresh over entirely different content
-  // reads as visual noise, not a "this button did something" cue.
-  ContentSwitch,
-  // The first paint after a deep-sleep wake, straight from cached data.
-  // Always Clean even though nothing dithered is necessarily on screen:
-  // Uc8179Driver::displayStart() (freeink-sdk) only honors Rf::Fast as a true
-  // partial once _oldPlaneValid is set by a completed refresh, which is false
-  // on this first post-wake paint (fresh object, wiped RAM) — Fast would
-  // silently fall back to the same full-style flash Clean already gives, so
-  // asking for Fast here buys nothing.
+  // The user NAVIGATED: a carousel page change, a jump-list open/close, a
+  // Lighting tab switch or chip-list page turn, a sub-screen push/pop. A
+  // real screen change reads as visual noise under a partial refresh, and
+  // navigation is inherently occasional (not a tight repeated-tap loop), so
+  // a full flash-from-white is the right cost here, not the concern it would
+  // be for control feedback.
+  ScreenSwitch,
+  // Content on the CURRENT screen replaces itself without any navigation —
+  // an async Wi-Fi/weather/HA fetch landing while the user is just looking
+  // at the page. Not control feedback (no control was touched) and not a
+  // screen switch (nothing was navigated), so it gets its own bucket: a
+  // Half scrub, same as it always has, so a routine background refresh
+  // doesn't flash the whole panel while the user is mid-read.
+  DataLanding,
+  // The first paint after a deep-sleep wake, straight from cached data. This
+  // is the biggest "screen switch" of all — a fresh paint from an unknown
+  // prior panel state — so it gets the same Full treatment: even if Fast
+  // were requested, Uc8279X4Driver::displayStart() (freeink-sdk) can't honor
+  // it as a true partial until _oldPlaneValid is set by a completed refresh,
+  // which is false here (fresh object, wiped RAM), so it silently runs the
+  // same from-white flash as Full anyway — asking for Full explicitly just
+  // says what actually happens.
   WakeRepaint,
 };
 
 static inline Rf refreshModeFor(RefreshEvent e) {
   switch (e) {
-    case RefreshEvent::Drag:           return Rf::Fast;
-    case RefreshEvent::TapFeedback:    return Rf::Fast;
-    case RefreshEvent::DitheredRedraw: return Rf::Clean;
-    case RefreshEvent::ContentSwitch:  return Rf::Clean;
-    case RefreshEvent::WakeRepaint:    return Rf::Clean;
+    case RefreshEvent::Drag:         return Rf::Fast;
+    case RefreshEvent::TapFeedback:  return Rf::Fast;
+    case RefreshEvent::ScreenSwitch: return Rf::Full;
+    case RefreshEvent::DataLanding:  return Rf::Clean;
+    case RefreshEvent::WakeRepaint:  return Rf::Full;
   }
-  return Rf::Clean;  // unreachable — every enumerator is handled above
+  return Rf::Full;  // unreachable — every enumerator is handled above
 }
 
 // The carousel. `sleeping` adds the moon + forces a clean frame for deep sleep.
 // `pressed` inverts one action-bar button (Climate/Lighting) for tap feedback.
-static void drawStandby(bool sleeping = false, Rf r = Rf::Clean, int pressed = -1) {
+// The default `r` is Full, not Fast/Clean: every real call site below passes
+// an explicit refreshModeFor(...) value, so the default only matters if a
+// future call site forgets to — and a forgotten mode should fail safe to a
+// clean full paint, never a silent flashing Half.
+static void drawStandby(bool sleeping = false, Rf r = Rf::Full, int pressed = -1) {
   if (sleeping) r = Rf::Full;
   drawStandbyContent(sleeping, pressed);
   commitFrame(r);
@@ -538,7 +564,9 @@ static void drawJumpList() {
       ui.text("now", x, static_cast<int16_t>(y + kJumpTileH - 22), kJumpTileW, 18, TextAlign::Center,
               sel ? Color::LightGray : Color::DarkGray, 1, Ui::kFontSmall);
   }
-  commitFrame(Rf::Clean);
+  // Opening the jump list is navigation (matches its Home/Power close below),
+  // not control feedback — Full, not a silent Half default.
+  commitFrame(refreshModeFor(RefreshEvent::ScreenSwitch));
 }
 
 static void jumpTo(int i) {
@@ -547,7 +575,7 @@ static void jumpTo(int i) {
   if (i >= 0 && i < kCarouselPages) {
     carouselPage = static_cast<uint8_t>(i);
     stage = Stage::Standby;
-    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ContentSwitch));
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
   } else if (i == kJumpSettings) {
     screen_settings::enter();
   } else if (i == kJumpErrors) {
@@ -749,7 +777,9 @@ static void enterStandby() {
   screen_shade::open = false;
   jumpOpen = false;
   if (frontlight.present() && !frontlightIsOn()) frontlightSetOn(true);
-  drawStandby(/*sleeping=*/false);
+  // Entering the carousel (from a sub-screen, room pick, or boot) is
+  // navigation, not control feedback.
+  drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
   standbyIdleSinceMs = millis();
   standbyPrevBusy = g_weatherBusy;
   standbyPrevWifi = WiFi.status() == WL_CONNECTED;
@@ -1076,7 +1106,7 @@ void loop() {
       // --- carousel jump list overlay (opened by TAPPING Home) ---
       if (jumpOpen) {
         standbyIdleSinceMs = millis();
-        if (in.homeTap || in.btnPower) { jumpOpen = false; drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ContentSwitch)); break; }
+        if (in.homeTap || in.btnPower) { jumpOpen = false; drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch)); break; }
         if (in.btnLeft)  { jumpSel = (jumpSel + jumpVisibleCount - 1) % jumpVisibleCount; drawJumpList(); break; }
         if (in.btnRight) { jumpSel = (jumpSel + 1) % jumpVisibleCount; drawJumpList(); break; }
         if (in.tap) {
@@ -1142,7 +1172,8 @@ void loop() {
         screen_shade::dirty = false;
         screen_shade::dragging = false;
         standbyIdleSinceMs = millis();
-        screen_shade::draw();
+        // Opening the sheet is a sub-screen push, not control feedback.
+        screen_shade::draw(/*pressedBtn=*/-1, refreshModeFor(RefreshEvent::ScreenSwitch));
         break;
       }
 
@@ -1169,7 +1200,7 @@ void loop() {
         }
         carouselPage = p;
         standbyIdleSinceMs = millis();
-        drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ContentSwitch));
+        drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
         break;
       }
 
@@ -1223,7 +1254,7 @@ void loop() {
         if (tab >= 0 && tab != screen_lighting::tab) {
           screen_lighting::tab = tab;
           standbyIdleSinceMs = millis();
-          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ContentSwitch));  // clean scrub — switches the whole chip list
+          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));  // switches the whole chip list
           break;
         }
         // The page indicator (only present past 12 items on whichever tab is
@@ -1236,7 +1267,7 @@ void loop() {
             int& page = screen_lighting::tab == 0 ? screen_lighting::scenePage : screen_lighting::lightPage;
             page = (page + 1) % pc;
             standbyIdleSinceMs = millis();
-            drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ContentSwitch));
+            drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
             break;
           }
         }
@@ -1279,14 +1310,14 @@ void loop() {
           screen_climate::adjust(plus ? +1 : -1);
           screen_climate::g_pressed = plus ? 1 : 0;
           standbyIdleSinceMs = millis();
-          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::DitheredRedraw), /*pressed=*/screen_climate::g_pressed);
+          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/screen_climate::g_pressed);
           break;
         }
         if (screen_climate::modeButtonHit(in.tx, in.ty)) {
           screen_climate::cycleMode();
           screen_climate::g_pressed = 2;
           standbyIdleSinceMs = millis();
-          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::DitheredRedraw), /*pressed=*/2);
+          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/2);
           break;
         }
         const int mi = screen_climate::modeBtnHit(in.tx, in.ty);
@@ -1294,7 +1325,7 @@ void loop() {
           screen_climate::setMode(haclient::climate.modes[mi]);
           screen_climate::g_pressed = 3 + mi;
           standbyIdleSinceMs = millis();
-          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::DitheredRedraw), /*pressed=*/screen_climate::g_pressed);
+          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/screen_climate::g_pressed);
           break;
         }
       }
@@ -1455,7 +1486,7 @@ void loop() {
           g_wakeUpdating = false;  // the fetch this was tracking is done (or gave up)
           if (wifi && !busy && !globalsclient::ok) { screen_no_ha::enter(); break; }
           if (wifi && !busy && globalsclient::ok && !deviceconfig::ok) { screen_no_room::enter(); break; }
-          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ContentSwitch));
+          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::DataLanding));
         }
         standbyPrevBusy = busy;
         standbyPrevWifi = wifi;
@@ -1512,24 +1543,24 @@ void loop() {
       }
 
       // Once an action settles (or its kick was a no-op), repaint the page with
-      // the confirmed state and clear any pressed-button style. Blinds/
-      // Lighting settle as RefreshEvent::TapFeedback — this fires after EVERY
-      // tap (CLOSE/STOP/OPEN, the lighting toggle/DARKER/BRIGHTER/WARM/
-      // DAYLIGHT/COOL), and a forced HALF scrub on every single one of those
-      // reads as the whole page "reloading" and the button visibly popping
-      // back to normal ("re-enabling") a moment after every press.
-      // commitFrame()'s own kCleanEvery still promotes one of these to a real
-      // scrub periodically, so ghosting doesn't build up — it just doesn't
-      // happen on every tap. Climate settles as RefreshEvent::DitheredRedraw
-      // instead: its arc is a dense dithered-dot band that ghosts visibly
-      // under repeated Fast partial refreshes, so every COOLER/MODE/WARMER
-      // tap does a full scrub of the page.
+      // the confirmed state and clear any pressed-button style — all of these
+      // are RefreshEvent::TapFeedback (Fast/DU): this fires after EVERY tap
+      // (CLOSE/STOP/OPEN, the lighting toggle/DARKER/BRIGHTER/WARM/DAYLIGHT/
+      // COOL, Climate's COOLER/MODE/WARMER, Music's transport/volume), and a
+      // forced flashing scrub on every single one of those reads as the whole
+      // page "reloading" and the button visibly popping back to normal
+      // ("re-enabling") a moment after every press — exactly the flash a
+      // control-feedback repaint must never trigger. This includes Climate's
+      // dithered arc and Music's dithered album art: they DO ghost visibly
+      // under repeated Fast partials, but commitFrame()'s own kCleanEvery
+      // still promotes one of these to a real (Half) scrub periodically, so
+      // ghosting doesn't build up — it just doesn't happen on every tap.
       if (!in.tap) {
         static bool prevLightBusy = false, prevCoverBusy = false, prevItemBusy = false,
                     prevMusicBusy = false, prevTvBusy = false;
         if (screen_climate::g_pressed >= 0 && !screen_climate::g_busy && carouselPage == kPageClimate) {
           screen_climate::g_pressed = -1;
-          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::DitheredRedraw));
+          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
         } else if (carouselPage == kPageBlinds && deviceconfig::blindsItemCount != 2 &&
                    ((prevCoverBusy && !screen_blinds::g_busy) || (screen_blinds::g_pressed >= 0 && !screen_blinds::g_busy))) {
           screen_blinds::g_pressed = -1;
@@ -1548,10 +1579,7 @@ void loop() {
         } else if (carouselPage == kPageMusic &&
                    ((prevMusicBusy && !screen_music::g_busy) || (screen_music::g_pressed >= 0 && !screen_music::g_busy))) {
           screen_music::g_pressed = -1;
-          // Clean, not Fast: a freshly-fetched album art bitmap is a big
-          // dithered image (same reasoning as Climate's arc) that ghosts
-          // badly under a partial refresh.
-          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::DitheredRedraw));
+          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
         } else if (carouselPage == kPageTv &&
                    ((prevTvBusy && !screen_tv::g_busy) || (screen_tv::g_pressed >= 0 && !screen_tv::g_busy))) {
           screen_tv::g_pressed = -1;
@@ -1758,7 +1786,7 @@ void loop() {
       if (in.homeTap || in.homeLong || in.btnLeft || in.btnPower || in.tap) {
         carouselPage = kPageWifi;
         stage = Stage::Standby;
-        drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ContentSwitch));
+        drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
       }
       break;
     }

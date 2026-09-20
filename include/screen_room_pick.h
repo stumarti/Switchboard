@@ -14,14 +14,18 @@ namespace screen_room_pick {
 
 inline int sel = 0;
 
-inline void draw() {
+// `r` defaults to Fast: draw() is also called from main.cpp's Left/Right
+// highlight navigation (control feedback), so enter() overrides it to Full
+// below for both of its own draws (the interim "Loading rooms..." paint and
+// this one).
+inline void draw(Rf r = Rf::Fast) {
   ui.clear();
   drawStatusBar("Select room");
   if (!roomlist::ok) {
     ui.text("No rooms", 0, 300, Ui::W, 28, TextAlign::Center, Color::Black);
     ui.text(roomlist::status, 0, 336, Ui::W, 20, TextAlign::Center, Color::DarkGray, 1,
             Ui::kFontSmall);
-    commitFrame(Rf::Clean);
+    commitFrame(r);
     return;
   }
   const int16_t top = static_cast<int16_t>(kStatusBarH + 12 + kPad);
@@ -41,7 +45,7 @@ inline void draw() {
       ui.text("current", static_cast<int16_t>(Ui::W - 150), static_cast<int16_t>(y + 24), 108, 22,
               TextAlign::Right, s ? Color::LightGray : Color::DarkGray, 1, Ui::kFontSmall);
   }
-  commitFrame(Rf::Clean);
+  commitFrame(r);
 }
 
 inline void enter() {
@@ -51,11 +55,11 @@ inline void enter() {
   ui.clear();
   drawStatusBar("Select room");
   ui.centered("Loading rooms...", 320, 28, Color::DarkGray);
-  commitFrame(Rf::Clean);
+  commitFrame(Rf::Full);  // sub-screen push
   roomlist::fetch();  // small response; brief block on a deliberate action
   for (int i = 0; i < roomlist::count; ++i)
     if (!strcmp(roomlist::rooms[i].slug, deviceconfig::activeSlug)) sel = i;
-  draw();
+  draw(Rf::Full);
 }
 
 inline void pick(int i) {

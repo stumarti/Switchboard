@@ -44,7 +44,7 @@ inline void draw() {
   row("Heap", b);
   ui.text("Home / Left  -  back", 0, static_cast<int16_t>(Ui::H - 40), Ui::W, 20, TextAlign::Center,
           Color::DarkGray, 1, Ui::kFontSmall);
-  commitFrame(Rf::Clean);
+  commitFrame(Rf::Full);  // sub-screen push; this page has no interactive controls
 }
 
 inline void enter() {

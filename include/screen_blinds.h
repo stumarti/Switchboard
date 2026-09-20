@@ -340,8 +340,13 @@ inline void draw(int pressed = -1) {
           0, 84 + kPad, Ui::W, 30, TextAlign::Center, Color::Black);
 
   if (c.hasPosition) {
-    drawBigPct(cx, 156 + kPad, c.position);
-    ui.text("OPEN", 0, 250 + kPad, Ui::W, 20, TextAlign::Center, Color::DarkGray, 1, Ui::kFontSmall);
+    // Single blind: a numeric % is precise but slow to read at a glance, and
+    // this room has exactly one blind to check — a large open/closed icon
+    // (same asset + size the two-blind row layout's per-panel icon uses)
+    // reads faster than a number here.
+    constexpr int16_t kSingleIconSize = 140;
+    const int16_t iconX = static_cast<int16_t>(cx - kSingleIconSize / 2);
+    ui.iconScaled(blindIcon(c), iconX, 150 + kPad, kSingleIconSize, kSingleIconSize);
   } else {
     const bool open = strcmp(c.state, "closed") != 0;
     ui.text(open ? "OPEN" : "CLOSED", 0, 176 + kPad, Ui::W, 56, TextAlign::Center, Color::Black, 1, 0);

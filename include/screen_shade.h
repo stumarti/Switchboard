@@ -102,8 +102,11 @@ inline int16_t tileW() { return static_cast<int16_t>((Ui::W - kShPad * 2 - kTile
 
 // `pressedBtn`: -1 none, 0/1 = Backlight [-]/[+], 2/3 = Warmth [-]/[+] —
 // inverts that button for tap feedback in the same partial refresh as the new
-// level.
-inline void draw(int pressedBtn = -1) {
+// level. `r` defaults to Fast for that ordinary control-feedback redraw
+// (stepper/slider changes, main.cpp's dirty-flag repaint loop); opening the
+// sheet is a sub-screen push, so main.cpp's Home-long-press handler passes
+// Full there instead.
+inline void draw(int pressedBtn = -1, Rf r = Rf::Fast) {
   ui.fillRect(0, kSheetTop, Ui::W, kSheetH, Color::White);
   ui.fillRect(0, kSheetTop, Ui::W, 3, Color::Black);                              // top edge rule
   ui.fillRect(static_cast<int16_t>(Ui::W / 2 - 26), static_cast<int16_t>(kSheetTop + 12), 52, 5,
@@ -126,13 +129,13 @@ inline void draw(int pressedBtn = -1) {
   drawTile(kShPad, tw, kWx_ui_refresh, "Full refresh");
   drawTile(static_cast<int16_t>(kShPad + tw + kTileGap), tw, kWx_ui_cog, "Settings");
 
-  commitFrame(Rf::Fast);
+  commitFrame(r);
 }
 
 inline void close() {
   open = false;
   dragging = false;
-  drawStandby(/*sleeping=*/false, Rf::Clean, -1);  // clean scrub — clears the overlay's ghost
+  drawStandby(/*sleeping=*/false, Rf::Full, -1);  // sub-screen pop — clears the overlay's ghost
 }
 
 // Finger held on a bar: set the value from x.
@@ -177,9 +180,14 @@ inline bool tapDispatch(int16_t px, int16_t py) {
 
   if (py >= kTilesY && py < kTilesY + kTileH) {
     const int16_t tw = tileW();
-    if (px >= kShPad && px < kShPad + tw) {  // Full refresh
+    if (px >= kShPad && px < kShPad + tw) {  // Full refresh: manual ghost-purge scrub
       open = false;
-      drawStandby(/*sleeping=*/false, Rf::Full, -1);
+      // Half, not Full: this is the deliberate manual ghost-cleanup control,
+      // the same DTM1-inverse-seed scrub commitFrame()'s periodic kCleanEvery
+      // runs on its own — not a from-white flash (that's what a screen switch
+      // gets). The tile's label describes the visible effect (a full clean of
+      // every ghost), not the underlying driver mode.
+      drawStandby(/*sleeping=*/false, Rf::Clean, -1);
       return true;
     }
     if (px >= kShPad + tw + kTileGap && px < kShPad + tw + kTileGap + tw) {  // Settings

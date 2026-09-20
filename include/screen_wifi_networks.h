@@ -83,7 +83,7 @@ inline void drawQr() {
   ui.clear();
   drawStatusBar("Wi-Fi networks", false, &kWx_ui_wifi);
   if (g_qrIdx < 0 || g_qrIdx >= globalsclient::wifiNetCount) {
-    commitFrame(Rf::Clean);
+    commitFrame(Rf::Full);  // only ever reached via enterQr() — a sub-screen push
     return;
   }
   const globalsclient::WifiNetItem& n = globalsclient::wifiNets[g_qrIdx];

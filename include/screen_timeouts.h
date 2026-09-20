@@ -84,15 +84,18 @@ inline int hitTest(int16_t ty) {
   return (i >= 0 && i < kCount) ? i : -1;
 }
 
-inline void draw() {
+// `r` defaults to Fast: draw() is also called from main.cpp's Left/Right
+// highlight navigation and cycle()'s value-stepping (control feedback), so
+// enter() overrides it to Full below.
+inline void draw(Rf r = Rf::Fast) {
   drawList();
-  commitFrame(Rf::Clean);
+  commitFrame(r);
 }
 inline void enter() {
   stage = Stage::Timeouts;
   sel = 0;
   pressed = -1;
-  draw();
+  draw(Rf::Full);
 }
 
 // Rows 0-2 cycle their own value on tap/Power; row 3 ("Back") and every other
