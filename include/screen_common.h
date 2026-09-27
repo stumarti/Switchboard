@@ -83,8 +83,13 @@ inline void drawPixelGrid() {
   }
 }
 
+// Send the composed frame to the panel with refresh mode `r` — or, if it's
+// identical to what the panel already shows, do nothing at all (no flash,
+// no partial, no power): a data refresh that changed nothing, or a
+// confirmation repaint that matches the optimistic one, costs no refresh.
 inline void commitFrame(Rf r) {
   if (localsettings::pixelGrid) drawPixelGrid();
+  if (ui.frameIsShown()) return;
   if (r == Rf::Full) {
     ui.flushFull();
     g_fastRun = 0;

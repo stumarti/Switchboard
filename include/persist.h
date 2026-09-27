@@ -65,6 +65,8 @@ struct StatusState {
   haclient::Forecast forecast;
   struct tm clockUtc;
   bool clockValid;
+  struct tm dataChangedUtc;
+  bool dataChangedValid;
   static constexpr const char* kName = "status";
   void capture() {
     weather = haclient::weather;
@@ -72,6 +74,8 @@ struct StatusState {
     forecast = haclient::forecast;
     clockUtc = haclient::clockUtc;
     clockValid = haclient::clockValid;
+    dataChangedUtc = haclient::dataChangedUtc;
+    dataChangedValid = haclient::dataChangedValid;
   }
   void restore() const {
     haclient::weather = weather;
@@ -79,6 +83,8 @@ struct StatusState {
     haclient::forecast = forecast;
     haclient::clockUtc = clockUtc;
     haclient::clockValid = clockValid;
+    haclient::dataChangedUtc = dataChangedUtc;
+    haclient::dataChangedValid = dataChangedValid;
   }
 };
 
@@ -261,6 +267,8 @@ inline void resetState() {
   haclient::forecast = haclient::Forecast{};
   haclient::clockUtc = {};
   haclient::clockValid = false;
+  haclient::dataChangedUtc = {};
+  haclient::dataChangedValid = false;
   haclient::climate = haclient::Climate{};
   for (int i = 0; i < 6; ++i) {
     haclient::climateSensorValue[i] = 0;

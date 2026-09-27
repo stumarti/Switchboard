@@ -28,6 +28,9 @@
 // future call site forgets to — and a forgotten mode should fail safe to a
 // clean full paint, never a silent flashing Half.
 static void drawStandby(bool sleeping = false, Rf r = Rf::Full, int pressed = -1);
+// A value stepper's tap feedback (app/carousel.h); returns the pressed id
+// it drew (-1 if the new value alone showed the tap).
+static int drawStepperFeedback(int pressedIfUnchanged);
 static void enterStandby();
 
 // shared weather/HA data fetch — drives every carousel page; kicked off

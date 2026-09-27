@@ -381,24 +381,18 @@ inline bool handleTap(const InFrame& in) {
       stepHit(in.tx, in.ty, kPlusCx)) {
     const bool plus = stepHit(in.tx, in.ty, kPlusCx);
     adjust(plus ? +1 : -1);
-    g_pressed = plus ? 1 : 0;
-    standbyIdleSinceMs = millis();
-    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/g_pressed);
+    g_pressed = drawStepperFeedback(plus ? 1 : 0);
     return true;
   }
   if (modeButtonHit(in.tx, in.ty)) {
     cycleMode();
-    g_pressed = 2;
-    standbyIdleSinceMs = millis();
-    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/2);
+    g_pressed = drawStepperFeedback(2);
     return true;
   }
   const int mi = modeBtnHit(in.tx, in.ty);
   if (mi >= 0) {
     setMode(haclient::climate.modes[mi]);
-    g_pressed = 3 + mi;
-    standbyIdleSinceMs = millis();
-    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/g_pressed);
+    g_pressed = drawStepperFeedback(3 + mi);
     return true;
   }
   return false;

@@ -128,6 +128,14 @@ inline bool hubToggleOn[kMaxHubToggles] = {};
 inline struct tm clockUtc = {};
 inline bool clockValid = false;
 
+// When what the Status page shows last actually CHANGED (the HA clock at
+// that refresh) — its "Updated" footer. Not simply the last fetch time: a
+// refresh that brings back identical data then draws an identical frame,
+// which commitFrame() skips instead of refreshing the panel just to move a
+// timestamp (every unattended timer wake used to).
+inline struct tm dataChangedUtc = {};
+inline bool dataChangedValid = false;
+
 // --- condition -> display label -----------------------------------------
 inline const char* conditionLabel(const char* c) {
   struct Row { const char* key; const char* label; };

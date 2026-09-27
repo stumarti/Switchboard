@@ -51,10 +51,10 @@ enum class RefreshEvent : uint8_t {
   ScreenSwitch,
   // Content on the CURRENT screen replaces itself without any navigation —
   // an async Wi-Fi/weather/HA fetch landing while the user is just looking
-  // at the page. Not control feedback (no control was touched) and not a
-  // screen switch (nothing was navigated), so it gets its own bucket: a
-  // Half scrub, same as it always has, so a routine background refresh
-  // doesn't flash the whole panel while the user is mid-read.
+  // at the page. Usually a few numbers or a glyph change, so it's Fast: no
+  // flash while the user is mid-read (commitFrame() skips it entirely when
+  // nothing visible changed, and its kCleanEvery cadence still scrubs the
+  // ghosting a run of partials builds up).
   DataLanding,
   // Only the status bar changed — the Wi-Fi glyph flipping as the link goes
   // down (e.g. the idle radio power-down) or comes back, or the "updating"
@@ -76,7 +76,7 @@ inline Rf refreshModeFor(RefreshEvent e) {
     case RefreshEvent::Drag:         return Rf::Fast;
     case RefreshEvent::TapFeedback:  return Rf::Fast;
     case RefreshEvent::ScreenSwitch: return Rf::Full;
-    case RefreshEvent::DataLanding:  return Rf::Clean;
+    case RefreshEvent::DataLanding:  return Rf::Fast;
     case RefreshEvent::StatusGlyph:  return Rf::Fast;
     case RefreshEvent::WakeRepaint:  return Rf::Full;
   }

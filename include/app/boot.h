@@ -7,7 +7,7 @@
 //   Path             When                                       Shows
 //   ───────────────  ─────────────────────────────────────────  ──────────────────────
 //   LowBatteryCheck  timer wake, slept on the charge screen      nothing (gauge read only)
-//   TimerRefresh     timer wake, slept on carousel/error screen  moon frame, only if stale
+//   TimerRefresh     timer wake, slept on carousel/error screen  moon frame, only if it changed
 //   Resume           button wake, OR any cold boot/reset of a    cached carousel at once,
 //                    set-up device with a cache on SD            Wi-Fi + refresh in the
 //                                                                background ("updating" glyph)
@@ -210,13 +210,11 @@ inline void runLowBatteryCheck() {
     sleepFor(SleepReason::ErrorScreen, kErrorRetrySec);
   }
 
-  // Nobody's interacting — revert to the status page. Skip the refresh when
-  // nothing new was fetched and the panel already shows the sleeping status
-  // page (an offline timer wake would otherwise flash for nothing).
-  const bool panelCurrent =
-      !wifi && w.reason == SleepReason::Carousel && rtcstate::g.carouselPage == 0;
+  // Nobody's interacting — revert to the status page. If that frame is
+  // exactly what the panel already shows (nothing new fetched, the data
+  // didn't change), commitFrame() skips the refresh entirely.
   carouselPage = 0;
-  if (!panelCurrent) drawStandby(/*sleeping=*/true);
+  drawStandby(/*sleeping=*/true);
   sleepFor(SleepReason::Carousel,
            static_cast<uint32_t>(deviceconfig::refreshIntervalMin) * 60u);
 }

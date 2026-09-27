@@ -33,11 +33,13 @@ inline void formatDate(char* out, size_t cap) {
   snprintf(out, cap, "%s, %d %s", kDow[t.tm_wday], t.tm_mday, kMon[t.tm_mon]);
 }
 
-// "Updated 14:07 UTC", from the HA Date header on the last fetch.
+// "Updated 14:07 UTC" — when the page's data last changed (the HA Date
+// header of that refresh; see haclient::dataChangedUtc for why not simply
+// the last fetch).
 inline void formatFooter(char* out, size_t cap) {
-  if (haclient::clockValid) {
-    snprintf(out, cap, "Updated %02d:%02d UTC", haclient::clockUtc.tm_hour,
-             haclient::clockUtc.tm_min);
+  if (haclient::dataChangedValid) {
+    snprintf(out, cap, "Updated %02d:%02d UTC", haclient::dataChangedUtc.tm_hour,
+             haclient::dataChangedUtc.tm_min);
   } else {
     snprintf(out, cap, "Not updated yet");
   }

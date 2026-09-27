@@ -9,6 +9,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <esp_rom_crc.h>
 
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -46,6 +47,19 @@ static bool recoverFromUnauthorized() {
   return ok;
 }
 
+// A fingerprint of what the Status page shows (weather, air, forecast, the
+// indoor temperature) — compared across a refresh to tell whether the
+// page's data actually changed (haclient::dataChangedUtc).
+static uint32_t statusSignature() {
+  uint32_t crc = 0;
+  crc = esp_rom_crc32_le(crc, reinterpret_cast<const uint8_t*>(&haclient::weather), sizeof(haclient::weather));
+  crc = esp_rom_crc32_le(crc, reinterpret_cast<const uint8_t*>(&haclient::air), sizeof(haclient::air));
+  crc = esp_rom_crc32_le(crc, reinterpret_cast<const uint8_t*>(&haclient::forecast), sizeof(haclient::forecast));
+  const float indoor = haclient::climate.hasTemp ? haclient::climate.temp : -1000.0f;
+  crc = esp_rom_crc32_le(crc, reinterpret_cast<const uint8_t*>(&indoor), sizeof(indoor));
+  return crc;
+}
+
 // Pull everything the carousel shows, then save what changed to the SD cache
 // (persist.h) so the next wake can paint it before Wi-Fi is up. On any
 // failure the last good cached state is restored (a network blip must not
@@ -74,6 +88,7 @@ static bool refreshStandby() {
   themeclient::checkForUpdate(pairing::token, forceIcons);
   mdiicon::resolveAll(pairing::token, forceIcons ? mdiicon::Fetch::Force : mdiicon::Fetch::IfMissing);
 
+  const uint32_t statusBefore = statusSignature();
   bool gotWeather = false;
   for (int attempt = 0; attempt < 2 && !gotWeather; ++attempt) {
     // 2nd pass: the HA host/token we had was stale (config changed, or a bad
@@ -130,6 +145,10 @@ static bool refreshStandby() {
   }
 
   if (gotWeather && globalsclient::ok && deviceconfig::ok) {
+    if (!haclient::dataChangedValid || statusSignature() != statusBefore) {
+      haclient::dataChangedUtc = haclient::clockUtc;
+      haclient::dataChangedValid = haclient::clockValid;
+    }
     ensureCarouselPageEnabled();  // a config change may have hidden the current page
     persist::save();
   } else {

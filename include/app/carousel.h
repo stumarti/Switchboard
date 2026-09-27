@@ -172,6 +172,24 @@ static void drawStandbyContent(bool sleeping, int pressed) {
 // The carousel. `sleeping` adds the moon + forces a clean frame for deep sleep.
 // `pressed` inverts one action-bar button (Climate/Lighting) for tap feedback.
 // (Default arguments are on the declaration in screen_fwd.h.)
+// Tap feedback for a value stepper (brightness -/+, setpoint -/+, a mode,
+// volume -/+): the new value on screen IS the feedback, so no pressed-button
+// frame — which also makes the confirmation repaint after the re-read
+// identical, so commitFrame() skips it: one refresh per tap, not two. Only
+// when the value couldn't move (already at its limit) does the button draw
+// pressed, as the one sign the tap registered. Returns the pressed id drawn
+// (-1 if none) — the caller's g_pressed.
+static int drawStepperFeedback(int pressedIfUnchanged) {
+  drawStandbyContent(/*sleeping=*/false, /*pressed=*/-1);
+  int pressed = -1;
+  if (ui.frameIsShown()) {
+    pressed = pressedIfUnchanged;
+    drawStandbyContent(/*sleeping=*/false, pressed);
+  }
+  commitFrame(refreshModeFor(RefreshEvent::TapFeedback));
+  return pressed;
+}
+
 static void drawStandby(bool sleeping, Rf r, int pressed) {
   if (sleeping) r = Rf::Full;
   drawStandbyContent(sleeping, pressed);

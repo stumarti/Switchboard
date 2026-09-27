@@ -452,9 +452,7 @@ inline bool handleTap(const InFrame& in) {
       col = 1;
     if (col >= 0) {
       adjust(col == 0 ? -1 : +1);
-      g_pressed = col;
-      standbyIdleSinceMs = millis();
-      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/col);
+      g_pressed = drawStepperFeedback(col);
       return true;
     }
   }
