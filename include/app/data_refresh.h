@@ -27,6 +27,7 @@
 #include "app/wifi_link.h"
 #include "app/net.h"
 #include "app/carousel.h"  // ensureCarouselPageEnabled()
+#include "app/quick_access.h"  // hubDirty / hubActionBusy
 
 // See wifilink::ensureMdns() — kept as the free function screen_fwd.h
 // declares, since every screen's background task calls it by this name.
@@ -60,43 +61,203 @@ static uint32_t statusSignature() {
   return crc;
 }
 
-// Pull everything the carousel shows, then save what changed to the SD cache
-// (persist.h) so the next wake can paint it before Wi-Fi is up. On any
-// failure the last good cached state is restored (a network blip must not
-// blank the screen). Returns true if the weather fetch succeeded. Drives
-// every carousel page in one pass, so it lives here rather than being owned
-// by any one screen. Only ever runs once Wi-Fi is up — with no link there's
-// nothing to do (the clients still hold what boot loaded from the cache).
-static bool refreshStandby() {
-  if (!wifilink::isUp()) return false;
+// ===========================================================================
+// Config: the room's config + the globals (HA connection, Wi-Fi networks)
+// + the theme pack versions.
+// ===========================================================================
 
-  // TEMP DEBUG — confirm whether globals are being (re)fetched or served from
-  // the SD cache. Remove once the blank-Wi-Fi-names issue is resolved.
-  Serial.printf("[globals] refreshStandby: ok=%d (%s)\n", globalsclient::ok,
-                globalsclient::ok ? "skipping fetch, using cached/persisted globals"
-                                   : "will fetch");
+// The server's /bundle ETag for the room it was fetched for, kept across
+// deep sleep: an unchanged bundle then comes back as a bodyless 304.
+RTC_DATA_ATTR static char g_bundleEtag[48] = "";
+RTC_DATA_ATTR static char g_bundleSlug[32] = "";
+// This session's server lacks /bundle or /state (an older Switchboard-
+// Server): use the per-endpoint / direct-to-HA paths instead.
+static bool g_noBundleEndpoint = false;
+static bool g_noStateEndpoint = false;
+
+// Icons: nothing already on SD is re-pulled unless Settings -> Refresh now
+// asked for it (`force`); a theme version bump still downloads the new pack,
+// and any per-item MDI icon the config just introduced is fetched here.
+static void resolveIcons(bool force) {
+  mdiicon::resolveAll(pairing::token, force ? mdiicon::Fetch::Force : mdiicon::Fetch::IfMissing);
+}
+
+enum class ServerResult : uint8_t { Ok, NoEndpoint, Failed };
+
+// GET /api/devices/<slug>/bundle — config + globals + theme versions in one
+// request, conditional on the copy we already hold.
+static ServerResult fetchBundle(bool forceIcons) {
+  char path[96];
+  snprintf(path, sizeof(path), "/api/devices/%s/bundle", deviceconfig::activeSlug);
+  const bool haveCopy = globalsclient::ok && deviceconfig::ok && !forceIcons &&
+                        !strcmp(g_bundleSlug, deviceconfig::activeSlug) && g_bundleEtag[0];
+  char etag[48] = "";
+  httpjson::Conditional cond;
+  cond.ifNoneMatch = haveCopy ? g_bundleEtag : nullptr;
+  cond.etagOut = etag;
+  cond.etagCap = sizeof(etag);
+
+  JsonDocument doc;
+  char status[64];
+  if (!httpjson::get(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, path, pairing::token, doc,
+                     status, sizeof(status), nullptr, 0, nullptr, &cond)) {
+    Serial.printf("[bundle] %s\n", status);
+    if (!strcmp(status, "HTTP 401")) pairing::noteUnauthorized();
+    return !strcmp(status, "HTTP 404") ? ServerResult::NoEndpoint : ServerResult::Failed;
+  }
+  if (cond.notModified) {
+    Serial.println("[bundle] unchanged (304)");
+    resolveIcons(false);
+    return ServerResult::Ok;
+  }
+
+  globalsclient::applyJson(doc["globals"]);
+  sdcache::writeJson(globalsclient::kCacheName, doc["globals"]);
+  deviceconfig::applyJson(doc["config"]);
+  char cache[48];
+  deviceconfig::cacheName(cache, sizeof(cache));
+  sdcache::writeJson(cache, doc["config"]);
+  themeclient::applyVersions(doc["theme"]["iconsVersion"] | "", doc["theme"]["fontsVersion"] | "",
+                             pairing::token, forceIcons);
+  resolveIcons(forceIcons);
+  snprintf(g_bundleEtag, sizeof(g_bundleEtag), "%s", etag);
+  snprintf(g_bundleSlug, sizeof(g_bundleSlug), "%s", deviceconfig::activeSlug);
+  Serial.println("[bundle] updated");
+  return ServerResult::Ok;
+}
+
+// The per-endpoint path (/api/globals, /config, /api/theme) — for an older
+// server, or when /bundle failed.
+static void fetchConfigLegacy(bool forceIcons) {
   if (!globalsclient::ok) globalsclient::fetch();  // HA host/token — rarely changes
   deviceconfig::fetch();                           // entity ids + refresh interval
   if (recoverFromUnauthorized()) {                 // token rotated -> retry with the new one
     if (!globalsclient::ok) globalsclient::fetch();
     deviceconfig::fetch();
   }
-  // Icons: nothing already on SD is re-pulled unless Settings -> Refresh now
-  // asked for it. A theme version bump still downloads the new pack, and any
-  // per-item MDI icon the config just introduced is fetched right here.
-  const bool forceIcons = themeclient::takeRefreshRequest();
   themeclient::checkForUpdate(pairing::token, forceIcons);
-  mdiicon::resolveAll(pairing::token, forceIcons ? mdiicon::Fetch::Force : mdiicon::Fetch::IfMissing);
+  resolveIcons(forceIcons);
+}
 
-  const uint32_t statusBefore = statusSignature();
+static void refreshConfig(bool forceIcons) {
+  if (!g_noBundleEndpoint) {
+    ServerResult r = fetchBundle(forceIcons);
+    if (r == ServerResult::Failed && recoverFromUnauthorized()) r = fetchBundle(forceIcons);
+    if (r == ServerResult::Ok) return;
+    if (r == ServerResult::NoEndpoint) {
+      // A 404 is either an older server (no /bundle) or no such room. The
+      // per-endpoint fetch tells which: if it finds the room, the server
+      // just lacks the endpoint — stop asking for it this session.
+      fetchConfigLegacy(forceIcons);
+      if (deviceconfig::ok) g_noBundleEndpoint = true;
+      return;
+    }
+  }
+  fetchConfigLegacy(forceIcons);
+}
+
+// ===========================================================================
+// Data: every page's live Home Assistant state.
+// ===========================================================================
+
+// GET /api/devices/<slug>/state — the server fetches the room's entities
+// from HA in parallel and returns them trimmed; applied here with the same
+// parsers the direct path uses. A page with a command still in flight is
+// skipped, same as the direct path (its own re-read lands shortly).
+static ServerResult fetchServerState() {
+  char path[96];
+  snprintf(path, sizeof(path), "/api/devices/%s/state", deviceconfig::activeSlug);
+  JsonDocument doc;
+  char status[64], date[40] = "";
+  if (!httpjson::get(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, path, pairing::token, doc,
+                     status, sizeof(status), date, sizeof(date))) {
+    Serial.printf("[state] %s\n", status);
+    if (!strcmp(status, "HTTP 401")) pairing::noteUnauthorized();
+    return !strcmp(status, "HTTP 404") ? ServerResult::NoEndpoint : ServerResult::Failed;
+  }
+  if (date[0]) haclient::parseHttpDate(date);
+
+  JsonObjectConst states = doc["states"].as<JsonObjectConst>();
+  JsonObjectConst errors = doc["errors"].as<JsonObjectConst>();
+  // The state object for `entity`, or null (not configured / HA had none).
+  const auto stateOf = [&](const char* entity) -> JsonVariantConst {
+    return (entity && *entity) ? states[entity] : JsonVariantConst();
+  };
+  // Why an entity has no state — for the page's "unavailable" placeholder.
+  const auto whyMissing = [&](const char* entity, char* out, size_t cap) {
+    if (!entity || !*entity) snprintf(out, cap, "no entity configured");
+    else snprintf(out, cap, "%s", errors[entity] | "no state");
+  };
+
+  const char* we = deviceconfig::weatherEntity;
+  if (!haclient::applyWeather(stateOf(we)))
+    whyMissing(we, haclient::weather.status, sizeof(haclient::weather.status));
+  if (!haclient::applyAir(stateOf(deviceconfig::airQualityEntity)))
+    whyMissing(deviceconfig::airQualityEntity, haclient::air.status, sizeof(haclient::air.status));
+  if (!haclient::applyForecast(doc["forecast"][we].as<JsonArrayConst>()))
+    whyMissing(we, haclient::forecast.status, sizeof(haclient::forecast.status));
+
+  if (!screen_climate::g_busy && !haclient::applyClimate(stateOf(deviceconfig::climateEntity)))
+    whyMissing(deviceconfig::climateEntity, haclient::climate.status, sizeof(haclient::climate.status));
+  for (int i = 0; i < deviceconfig::climateSensorCount && i < 6; ++i)
+    haclient::climateSensorOk[i] = haclient::applySensorValue(
+        stateOf(deviceconfig::climateSensors[i].entity), haclient::climateSensorValue[i]);
+
+  if (deviceconfig::lightGroupEnabled && !screen_lighting::g_busy) {
+    if (!haclient::applyLight(stateOf(deviceconfig::lightGroupEntity)))
+      whyMissing(deviceconfig::lightGroupEntity, haclient::lightGroup.status,
+                 sizeof(haclient::lightGroup.status));
+    for (int i = 0; i < deviceconfig::lightCount && i < deviceconfig::kMaxLights; ++i) {
+      haclient::lightItemOn[i] = false;
+      haclient::applyOnOff(stateOf(deviceconfig::lights[i].entity), haclient::lightItemOn[i]);
+    }
+  }
+
+  if (deviceconfig::blindsGroupEnabled && !screen_blinds::g_busy &&
+      !haclient::applyCover(stateOf(deviceconfig::blindsGroupEntity), haclient::cover))
+    whyMissing(deviceconfig::blindsGroupEntity, haclient::cover.status, sizeof(haclient::cover.status));
+  if (deviceconfig::blindsItemCount == 2)
+    for (int i = 0; i < 2; ++i)
+      if (!screen_blinds::g_itemBusy[i] &&
+          !haclient::applyCover(stateOf(deviceconfig::blindsItems[i].entity), haclient::coverItems[i]))
+        whyMissing(deviceconfig::blindsItems[i].entity, haclient::coverItems[i].status,
+                   sizeof(haclient::coverItems[i].status));
+
+  if (deviceconfig::mediaEnabled && !screen_music::g_busy &&
+      !haclient::applyMedia(stateOf(deviceconfig::mediaEntity)))
+    whyMissing(deviceconfig::mediaEntity, haclient::media.status, sizeof(haclient::media.status));
+  if (deviceconfig::xboxMediaEntity[0] && !screen_xbox::g_busy) {
+    if (!haclient::applyXboxMedia(stateOf(deviceconfig::xboxMediaEntity)))
+      whyMissing(deviceconfig::xboxMediaEntity, haclient::xboxMedia.status,
+                 sizeof(haclient::xboxMedia.status));
+    screen_xbox::loadVisibleArt();  // catches a game/track change even off-page
+  }
+
+  if (!hubActionBusy) {
+    bool changed = false;
+    for (int i = 0; i < deviceconfig::hubItemCount; ++i) {
+      if (deviceconfig::hubItems[i].actionType != deviceconfig::HubAction::Toggle) continue;
+      const bool before = haclient::hubToggleOn[i];
+      haclient::applyOnOff(stateOf(deviceconfig::hubItems[i].actionEntity), haclient::hubToggleOn[i]);
+      changed |= before != haclient::hubToggleOn[i];
+    }
+    if (changed) hubDirty = true;
+  }
+  return ServerResult::Ok;
+}
+
+// The direct path: every entity straight from Home Assistant, one request
+// each — for an older server, or when the server can't reach HA itself.
+// Returns whether the weather came back.
+static bool fetchDataDirect() {
   bool gotWeather = false;
   for (int attempt = 0; attempt < 2 && !gotWeather; ++attempt) {
     // 2nd pass: the HA host/token we had was stale (config changed, or a bad
-    // persist blob poisoned it) — re-pull /api/globals and try once more.
+    // cache poisoned it) — re-pull /api/globals and try once more.
     if (attempt == 1) {
       globalsclient::fetch();
       deviceconfig::fetch();
-      mdiicon::resolveAll(pairing::token, mdiicon::Fetch::IfMissing);  // new names in the re-pulled config
+      resolveIcons(false);  // new names in the re-pulled config
     }
     if (!globalsclient::ok) break;
     const char* h = globalsclient::haHost;
@@ -120,8 +281,7 @@ static bool refreshStandby() {
     if (deviceconfig::lightGroupEnabled && !screen_lighting::g_busy) {
       haclient::fetchLight(h, p, t, deviceconfig::lightGroupEntity);
       // Individual on/off for the Lighting page's Lights tab — one small GET
-      // per configured light (kitchen: 4), so this does add to the refresh's
-      // total time; acceptable at the normal 15+ minute refresh cadence.
+      // per configured light.
       for (int i = 0; i < deviceconfig::lightCount && i < deviceconfig::kMaxLights; ++i)
         haclient::fetchLightOn(h, p, t, deviceconfig::lights[i].entity, haclient::lightItemOn[i]);
     }
@@ -143,6 +303,43 @@ static bool refreshStandby() {
     }
     net::serviceCommands();
   }
+  return gotWeather;
+}
+
+// Server first (one request); the direct path if the server lacks /state,
+// or can't reach Home Assistant itself right now. Returns whether the
+// weather came back.
+static bool refreshData() {
+  if (!g_noStateEndpoint && deviceconfig::ok) {
+    net::serviceCommands();
+    ServerResult r = fetchServerState();
+    if (r == ServerResult::Failed && recoverFromUnauthorized()) r = fetchServerState();
+    if (r == ServerResult::Ok) return haclient::weather.ok;
+    if (r == ServerResult::NoEndpoint) g_noStateEndpoint = true;
+  }
+  return fetchDataDirect();
+}
+
+// ===========================================================================
+// The refresh
+// ===========================================================================
+
+// Pull everything the carousel shows — normally two requests to the server
+// (/bundle, then /state), falling back to the per-endpoint and direct-to-HA
+// paths on an older server — then save what changed to the SD cache
+// (persist.h) so the next wake can paint it before Wi-Fi is up. On failure
+// the last good cached state is restored (a network blip must not blank the
+// screen). Returns true if the weather came back. Only ever runs once Wi-Fi
+// is up — with no link there's nothing to do (the clients still hold what
+// boot loaded from the cache).
+static bool refreshStandby() {
+  if (!wifilink::isUp()) return false;
+
+  const bool forceIcons = themeclient::takeRefreshRequest();
+  refreshConfig(forceIcons);
+
+  const uint32_t statusBefore = statusSignature();
+  const bool gotWeather = refreshData();
 
   if (gotWeather && globalsclient::ok && deviceconfig::ok) {
     if (!haclient::dataChangedValid || statusSignature() != statusBefore) {

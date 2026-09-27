@@ -259,7 +259,7 @@ inline void reset() {
 
 // Fill every field from a /api/devices/<slug>/config document — the same
 // parse for a live fetch and for the copy cached on SD.
-inline void applyJson(const JsonDocument& doc) {
+inline void applyJson(JsonVariantConst doc) {
   reset();
   snprintf(name, sizeof(name), "%s", doc["name"] | SWITCHBOARD_DEVICE_SLUG);
 

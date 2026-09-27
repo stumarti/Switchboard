@@ -51,7 +51,7 @@ inline void reset() {
 // Fill everything from a /api/globals document — the same parse for a live
 // fetch and for the copy cached on SD. Sets `ok` (and returns it): true only
 // if the document carries an HA host + token.
-inline bool applyJson(const JsonDocument& doc) {
+inline bool applyJson(JsonVariantConst doc) {
   reset();
   JsonObjectConst ha = doc["homeAssistant"].as<JsonObjectConst>();
   snprintf(haHost, sizeof(haHost), "%s", ha["host"] | "");

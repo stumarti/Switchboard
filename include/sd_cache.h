@@ -94,7 +94,7 @@ inline bool commit(const char* tmp, const char* path) {
 
 // --- JSON documents ----------------------------------------------------------
 
-inline bool writeJson(const char* name, const JsonDocument& doc) {
+inline bool writeJson(const char* name, JsonVariantConst doc) {
   Lock lock;
   if (!g_ready) return false;
   char path[80], tmp[96];

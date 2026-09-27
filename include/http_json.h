@@ -104,11 +104,27 @@ inline IPAddress resolveHost(const char* host, bool fresh = false) {
 //   filter   : if non-null, a DeserializationOption::Filter document — only
 //              matching keys are kept (keeps big HA responses off the heap).
 // Returns true only on resolve + HTTP 2xx + successful JSON parse.
+// Conditional-request options (all optional):
+//   ifNoneMatch : sent as If-None-Match — the ETag of the copy we already
+//                 hold. A 304 reply is a success with `notModified` set and
+//                 `doc` left empty: keep using that copy.
+//   etagOut     : receives the response's ETag (may be "").
+struct Conditional {
+  const char* ifNoneMatch = nullptr;
+  char* etagOut = nullptr;
+  size_t etagCap = 0;
+  bool notModified = false;
+};
+
 inline bool request(const char* host, uint16_t port, const char* path, const char* bearer,
                     const char* body, JsonDocument& doc, char* status, size_t statusCap,
                     char* dateOut = nullptr, size_t dateCap = 0,
-                    const JsonDocument* filter = nullptr) {
+                    const JsonDocument* filter = nullptr, Conditional* cond = nullptr) {
   if (dateOut && dateCap) dateOut[0] = 0;
+  if (cond) {
+    cond->notModified = false;
+    if (cond->etagOut && cond->etagCap) cond->etagOut[0] = 0;
+  }
 
   HTTPClient http;
   int code = 0;
@@ -136,8 +152,10 @@ inline bool request(const char* host, uint16_t port, const char* path, const cha
       http.addHeader("Authorization", auth);
     }
     if (body) http.addHeader("Content-Type", "application/json");
-    const char* collect[] = {"Date"};
-    http.collectHeaders(collect, 1);
+    if (cond && cond->ifNoneMatch && *cond->ifNoneMatch)
+      http.addHeader("If-None-Match", cond->ifNoneMatch);
+    const char* collect[] = {"Date", "ETag"};
+    http.collectHeaders(collect, 2);
 
     code = body ? http.POST(String(body)) : http.GET();
     char label[24];
@@ -145,6 +163,14 @@ inline bool request(const char* host, uint16_t port, const char* path, const cha
     if (code >= 0 || !*label || attempt == 1) break;
     http.end();
     forgetHost(label);  // stale address — resolve again
+  }
+  if (cond && code == 304 && cond->ifNoneMatch && *cond->ifNoneMatch) {
+    cond->notModified = true;  // what we hold is current
+    if (cond->etagOut && cond->etagCap)
+      snprintf(cond->etagOut, cond->etagCap, "%s", cond->ifNoneMatch);
+    http.end();
+    status[0] = 0;
+    return true;
   }
   if (code < 200 || code >= 300) {
     snprintf(status, statusCap, "HTTP %d", code);
@@ -155,6 +181,10 @@ inline bool request(const char* host, uint16_t port, const char* path, const cha
   if (dateOut && dateCap) {
     const String d = http.header("Date");
     snprintf(dateOut, dateCap, "%s", d.c_str());
+  }
+  if (cond && cond->etagOut && cond->etagCap) {
+    const String e = http.header("ETag");
+    snprintf(cond->etagOut, cond->etagCap, "%s", e.c_str());
   }
 
   const DeserializationError err =
@@ -172,9 +202,10 @@ inline bool request(const char* host, uint16_t port, const char* path, const cha
 
 inline bool get(const char* host, uint16_t port, const char* path, const char* bearer,
                 JsonDocument& doc, char* status, size_t statusCap, char* dateOut = nullptr,
-                size_t dateCap = 0, const JsonDocument* filter = nullptr) {
+                size_t dateCap = 0, const JsonDocument* filter = nullptr,
+                Conditional* cond = nullptr) {
   return request(host, port, path, bearer, /*body=*/nullptr, doc, status, statusCap, dateOut,
-                 dateCap, filter);
+                 dateCap, filter, cond);
 }
 
 inline bool post(const char* host, uint16_t port, const char* path, const char* bearer,

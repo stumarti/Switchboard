@@ -195,6 +195,37 @@ inline void parseHttpDate(const char* s) {
 // --- fetch helpers ------------------------------------------------------
 // Both take the resolved HA host/port/token from globals_client.
 
+// Parse one weather entity's state object into `weather`. Shared by the direct fetch below and the
+// server's /state response (app/data_refresh.h).
+inline bool applyWeather(JsonVariantConst doc) {
+  weather = Weather{};
+  snprintf(weather.condition, sizeof(weather.condition), "%s", doc["state"] | "");
+  snprintf(weather.label, sizeof(weather.label), "%s", conditionLabel(weather.condition));
+
+  JsonObjectConst a = doc["attributes"].as<JsonObjectConst>();
+  if (a["temperature"].is<float>() || a["temperature"].is<int>()) {
+    weather.temp = a["temperature"].as<float>();
+    weather.hasTemp = true;
+  }
+  if (a["wind_speed"].is<float>() || a["wind_speed"].is<int>()) {
+    weather.wind = a["wind_speed"].as<float>();
+    weather.hasWind = true;
+  }
+  snprintf(weather.windUnit, sizeof(weather.windUnit), "%s", a["wind_speed_unit"] | "km/h");
+  if (a["humidity"].is<float>() || a["humidity"].is<int>()) {
+    weather.humidity = a["humidity"].as<int>();
+    weather.hasHumidity = true;
+  }
+  if (a["uv_index"].is<float>() || a["uv_index"].is<int>()) {
+    weather.uv = a["uv_index"].as<float>();
+    weather.hasUv = true;
+  }
+
+  weather.ok = weather.condition[0] != 0;
+  if (!weather.ok) snprintf(weather.status, sizeof(weather.status), "no state");
+  return weather.ok;
+}
+
 inline bool fetchWeather(const char* host, uint16_t port, const char* token,
                          const char* entity) {
   weather = Weather{};
@@ -223,59 +254,13 @@ inline bool fetchWeather(const char* host, uint16_t port, const char* token,
     return false;
   }
   if (date[0]) parseHttpDate(date);
-
-  snprintf(weather.condition, sizeof(weather.condition), "%s", doc["state"] | "");
-  snprintf(weather.label, sizeof(weather.label), "%s", conditionLabel(weather.condition));
-
-  JsonObjectConst a = doc["attributes"].as<JsonObjectConst>();
-  if (a["temperature"].is<float>() || a["temperature"].is<int>()) {
-    weather.temp = a["temperature"].as<float>();
-    weather.hasTemp = true;
-  }
-  if (a["wind_speed"].is<float>() || a["wind_speed"].is<int>()) {
-    weather.wind = a["wind_speed"].as<float>();
-    weather.hasWind = true;
-  }
-  snprintf(weather.windUnit, sizeof(weather.windUnit), "%s", a["wind_speed_unit"] | "km/h");
-  if (a["humidity"].is<float>() || a["humidity"].is<int>()) {
-    weather.humidity = a["humidity"].as<int>();
-    weather.hasHumidity = true;
-  }
-  if (a["uv_index"].is<float>() || a["uv_index"].is<int>()) {
-    weather.uv = a["uv_index"].as<float>();
-    weather.hasUv = true;
-  }
-
-  weather.ok = weather.condition[0] != 0;
-  if (!weather.ok) snprintf(weather.status, sizeof(weather.status), "no state");
-  return weather.ok;
+  return applyWeather(doc.as<JsonVariantConst>());
 }
 
-inline bool fetchClimate(const char* host, uint16_t port, const char* token,
-                         const char* entity) {
+// Parse one climate entity's state object into `climate`. Shared by the direct fetch below and the
+// server's /state response (app/data_refresh.h).
+inline bool applyClimate(JsonVariantConst doc) {
   climate = Climate{};
-  if (!entity || !*entity) {
-    snprintf(climate.status, sizeof(climate.status), "no climate entity");
-    return false;
-  }
-
-  char path[96];
-  snprintf(path, sizeof(path), "/api/states/%s", entity);
-
-  JsonDocument filter;
-  filter["state"] = true;
-  filter["attributes"]["current_temperature"] = true;
-  filter["attributes"]["temperature"] = true;
-  filter["attributes"]["min_temp"] = true;
-  filter["attributes"]["max_temp"] = true;
-  filter["attributes"]["target_temp_step"] = true;
-  filter["attributes"]["hvac_modes"] = true;
-
-  JsonDocument doc;
-  if (!httpjson::get(host, port, path, token, doc, climate.status, sizeof(climate.status),
-                     nullptr, 0, &filter)) {
-    return false;
-  }
 
   snprintf(climate.mode, sizeof(climate.mode), "%s", doc["state"] | "");
 
@@ -303,6 +288,34 @@ inline bool fetchClimate(const char* host, uint16_t port, const char* token,
   return climate.ok;
 }
 
+inline bool fetchClimate(const char* host, uint16_t port, const char* token,
+                         const char* entity) {
+  climate = Climate{};
+  if (!entity || !*entity) {
+    snprintf(climate.status, sizeof(climate.status), "no climate entity");
+    return false;
+  }
+
+  char path[96];
+  snprintf(path, sizeof(path), "/api/states/%s", entity);
+
+  JsonDocument filter;
+  filter["state"] = true;
+  filter["attributes"]["current_temperature"] = true;
+  filter["attributes"]["temperature"] = true;
+  filter["attributes"]["min_temp"] = true;
+  filter["attributes"]["max_temp"] = true;
+  filter["attributes"]["target_temp_step"] = true;
+  filter["attributes"]["hvac_modes"] = true;
+
+  JsonDocument doc;
+  if (!httpjson::get(host, port, path, token, doc, climate.status, sizeof(climate.status),
+                     nullptr, 0, &filter)) {
+    return false;
+  }
+  return applyClimate(doc.as<JsonVariantConst>());
+}
+
 // --- climate service calls (POST /api/services/climate/*) --------------
 // The response is a state list we don't need; HTTP 2xx == the call landed.
 inline bool setClimateTemperature(const char* host, uint16_t port, const char* token,
@@ -328,6 +341,22 @@ inline bool setClimateHvacMode(const char* host, uint16_t port, const char* toke
 }
 
 // --- lights ------------------------------------------------------------
+// Parse the group light's state object into `lightGroup`. Shared by the direct fetch below and the
+// server's /state response (app/data_refresh.h).
+inline bool applyLight(JsonVariantConst doc) {
+  lightGroup = Light{};
+  const char* st = doc["state"] | "";
+  lightGroup.on = strcmp(st, "on") == 0;
+  JsonVariantConst b = doc["attributes"]["brightness"];
+  if (b.is<int>() || b.is<float>()) {
+    lightGroup.brightnessPct = static_cast<int>((b.as<float>() * 100.0f / 255.0f) + 0.5f);
+    lightGroup.hasBrightness = true;
+  }
+  lightGroup.ok = st[0] != 0;
+  if (!lightGroup.ok) snprintf(lightGroup.status, sizeof(lightGroup.status), "no state");
+  return lightGroup.ok;
+}
+
 inline bool fetchLight(const char* host, uint16_t port, const char* token, const char* entity) {
   lightGroup = Light{};
   if (!entity || !*entity) {
@@ -346,16 +375,16 @@ inline bool fetchLight(const char* host, uint16_t port, const char* token, const
                      nullptr, 0, &filter)) {
     return false;
   }
-  const char* st = doc["state"] | "";
-  lightGroup.on = strcmp(st, "on") == 0;
-  JsonVariantConst b = doc["attributes"]["brightness"];
-  if (b.is<int>() || b.is<float>()) {
-    lightGroup.brightnessPct = static_cast<int>((b.as<float>() * 100.0f / 255.0f) + 0.5f);
-    lightGroup.hasBrightness = true;
-  }
-  lightGroup.ok = st[0] != 0;
-  if (!lightGroup.ok) snprintf(lightGroup.status, sizeof(lightGroup.status), "no state");
-  return lightGroup.ok;
+  return applyLight(doc.as<JsonVariantConst>());
+}
+
+// `on` from a state object ("on" -> true). False (and `on` untouched) if it
+// carries no state. Shared by the direct fetches and the server's /state.
+inline bool applyOnOff(JsonVariantConst doc, bool& on) {
+  const char* s = doc["state"] | "";
+  if (!s[0]) return false;
+  on = strcmp(s, "on") == 0;
+  return true;
 }
 
 // Just the on/off state of one individual light entity — for the Lighting
@@ -373,9 +402,20 @@ inline bool fetchLightOn(const char* host, uint16_t port, const char* token, con
   JsonDocument doc;
   char st[48];
   if (!httpjson::get(host, port, path, token, doc, st, sizeof(st), nullptr, 0, &filter)) return false;
+  return applyOnOff(doc.as<JsonVariantConst>(), on);
+}
+
+// A numeric sensor state (HA sends it as a string) -> `value`. False if
+// missing/unknown/unavailable or not numeric.
+inline bool applySensorValue(JsonVariantConst doc, float& value) {
+  value = 0;
   const char* s = doc["state"] | "";
-  on = strcmp(s, "on") == 0;
-  return s[0] != 0;
+  if (!s[0] || !strcmp(s, "unknown") || !strcmp(s, "unavailable")) return false;
+  char* end = nullptr;
+  const float v = strtod(s, &end);
+  if (end == s) return false;  // not numeric
+  value = v;
+  return true;
 }
 
 // A plain numeric sensor reading (e.g. a temperature sensor's own entity) —
@@ -393,13 +433,7 @@ inline bool fetchSensorValue(const char* host, uint16_t port, const char* token,
   JsonDocument doc;
   char st[48];
   if (!httpjson::get(host, port, path, token, doc, st, sizeof(st), nullptr, 0, &filter)) return false;
-  const char* s = doc["state"] | "";
-  if (!s[0] || !strcmp(s, "unknown") || !strcmp(s, "unavailable")) return false;
-  char* end = nullptr;
-  const float v = strtod(s, &end);
-  if (end == s) return false;  // not numeric
-  value = v;
-  return true;
+  return applySensorValue(doc.as<JsonVariantConst>(), value);
 }
 
 // Generic "call this HA service on this entity" (scene.turn_on, light.toggle).
@@ -449,6 +483,23 @@ inline bool setLightBrightness(const char* host, uint16_t port, const char* toke
 }
 
 // --- covers (blinds) -------------------------------------------------
+// A cover's state object -> `out`. Shared by the direct fetches and the
+// server's /state response.
+inline bool applyCover(JsonVariantConst doc, Cover& out) {
+  out = Cover{};
+  const char* st = doc["state"] | "";
+  snprintf(out.state, sizeof(out.state), "%s", st);
+  JsonVariantConst pos = doc["attributes"]["current_position"];
+  if (pos.is<int>() || pos.is<float>()) {
+    int v = static_cast<int>(pos.as<float>() + 0.5f);
+    out.position = v < 0 ? 0 : (v > 100 ? 100 : v);
+    out.hasPosition = true;
+  }
+  out.ok = st[0] != 0;
+  if (!out.ok) snprintf(out.status, sizeof(out.status), "no state");
+  return out.ok;
+}
+
 inline bool fetchCoverInto(const char* host, uint16_t port, const char* token, const char* entity,
                            Cover& out) {
   out = Cover{};
@@ -468,17 +519,7 @@ inline bool fetchCoverInto(const char* host, uint16_t port, const char* token, c
                      &filter)) {
     return false;
   }
-  const char* st = doc["state"] | "";
-  snprintf(out.state, sizeof(out.state), "%s", st);
-  JsonVariantConst pos = doc["attributes"]["current_position"];
-  if (pos.is<int>() || pos.is<float>()) {
-    int v = static_cast<int>(pos.as<float>() + 0.5f);
-    out.position = v < 0 ? 0 : (v > 100 ? 100 : v);
-    out.hasPosition = true;
-  }
-  out.ok = st[0] != 0;
-  if (!out.ok) snprintf(out.status, sizeof(out.status), "no state");
-  return out.ok;
+  return applyCover(doc.as<JsonVariantConst>(), out);
 }
 inline bool fetchCover(const char* host, uint16_t port, const char* token, const char* entity) {
   return fetchCoverInto(host, port, token, entity, cover);
@@ -508,6 +549,37 @@ inline bool setCoverPosition(const char* host, uint16_t port, const char* token,
 // (media_player.media_play_pause / media_next_track / media_previous_track);
 // only volume and mute need their own bodies (a level / a bool), so those two
 // get dedicated helpers, same split as the light brightness/on-off pair.
+// The Music player's state object -> `media`, keeping the last known
+// volume/mute when this report omits them (see fetchMedia()). Shared by the
+// direct fetch and the server's /state response.
+inline bool applyMedia(JsonVariantConst doc) {
+  const bool prevHasVolume = media.hasVolume, prevHasMuted = media.hasMuted, prevMuted = media.muted;
+  const int prevVolumePct = media.volumePct;
+  media = MediaPlayer{};
+  media.hasVolume = prevHasVolume;
+  media.volumePct = prevVolumePct;
+  media.hasMuted = prevHasMuted;
+  media.muted = prevMuted;
+  const char* st = doc["state"] | "";
+  snprintf(media.state, sizeof(media.state), "%s", st);
+  JsonObjectConst a = doc["attributes"].as<JsonObjectConst>();
+  snprintf(media.title, sizeof(media.title), "%s", a["media_title"] | "");
+  snprintf(media.artist, sizeof(media.artist), "%s", a["media_artist"] | "");
+  snprintf(media.picture, sizeof(media.picture), "%s", a["entity_picture"] | "");
+  JsonVariantConst vol = a["volume_level"];
+  if (vol.is<float>() || vol.is<int>()) {
+    media.volumePct = static_cast<int>(vol.as<float>() * 100.0f + 0.5f);
+    media.hasVolume = true;
+  }
+  if (a["is_volume_muted"].is<bool>()) {
+    media.muted = a["is_volume_muted"].as<bool>();
+    media.hasMuted = true;
+  }
+  media.ok = st[0] != 0;
+  if (!media.ok) snprintf(media.status, sizeof(media.status), "no state");
+  return media.ok;
+}
+
 inline bool fetchMedia(const char* host, uint16_t port, const char* token, const char* entity) {
   // Carry the last known volume/mute across fetches: some media_player
   // integrations only report volume_level/is_volume_muted while actively
@@ -540,24 +612,7 @@ inline bool fetchMedia(const char* host, uint16_t port, const char* token, const
                      &filter)) {
     return false;
   }
-  const char* st = doc["state"] | "";
-  snprintf(media.state, sizeof(media.state), "%s", st);
-  JsonObjectConst a = doc["attributes"].as<JsonObjectConst>();
-  snprintf(media.title, sizeof(media.title), "%s", a["media_title"] | "");
-  snprintf(media.artist, sizeof(media.artist), "%s", a["media_artist"] | "");
-  snprintf(media.picture, sizeof(media.picture), "%s", a["entity_picture"] | "");
-  JsonVariantConst vol = a["volume_level"];
-  if (vol.is<float>() || vol.is<int>()) {
-    media.volumePct = static_cast<int>(vol.as<float>() * 100.0f + 0.5f);
-    media.hasVolume = true;
-  }
-  if (a["is_volume_muted"].is<bool>()) {
-    media.muted = a["is_volume_muted"].as<bool>();
-    media.hasMuted = true;
-  }
-  media.ok = st[0] != 0;
-  if (!media.ok) snprintf(media.status, sizeof(media.status), "no state");
-  return media.ok;
+  return applyMedia(doc.as<JsonVariantConst>());
 }
 
 // Same body as fetchMedia() above, into xboxMedia instead of media — kept as
@@ -566,6 +621,20 @@ inline bool fetchMedia(const char* host, uint16_t port, const char* token, const
 // (fetchCover/fetchCoverItem). No volume/mute carry-over here: the Xbox
 // page's hero doesn't expose a volume row, so there's nothing to preserve
 // across a state where the console stops reporting it.
+// Parse the Xbox media_player's state object into `xboxMedia`. Shared by the direct fetch below and the
+// server's /state response (app/data_refresh.h).
+inline bool applyXboxMedia(JsonVariantConst doc) {
+  xboxMedia = MediaPlayer{};
+  const char* st = doc["state"] | "";
+  snprintf(xboxMedia.state, sizeof(xboxMedia.state), "%s", st);
+  JsonObjectConst a = doc["attributes"].as<JsonObjectConst>();
+  snprintf(xboxMedia.title, sizeof(xboxMedia.title), "%s", a["media_title"] | "");
+  snprintf(xboxMedia.picture, sizeof(xboxMedia.picture), "%s", a["entity_picture"] | "");
+  xboxMedia.ok = st[0] != 0;
+  if (!xboxMedia.ok) snprintf(xboxMedia.status, sizeof(xboxMedia.status), "no state");
+  return xboxMedia.ok;
+}
+
 inline bool fetchXboxMedia(const char* host, uint16_t port, const char* token, const char* entity) {
   xboxMedia = MediaPlayer{};
   if (!entity || !*entity) {
@@ -585,14 +654,7 @@ inline bool fetchXboxMedia(const char* host, uint16_t port, const char* token, c
                      0, &filter)) {
     return false;
   }
-  const char* st = doc["state"] | "";
-  snprintf(xboxMedia.state, sizeof(xboxMedia.state), "%s", st);
-  JsonObjectConst a = doc["attributes"].as<JsonObjectConst>();
-  snprintf(xboxMedia.title, sizeof(xboxMedia.title), "%s", a["media_title"] | "");
-  snprintf(xboxMedia.picture, sizeof(xboxMedia.picture), "%s", a["entity_picture"] | "");
-  xboxMedia.ok = st[0] != 0;
-  if (!xboxMedia.ok) snprintf(xboxMedia.status, sizeof(xboxMedia.status), "no state");
-  return xboxMedia.ok;
+  return applyXboxMedia(doc.as<JsonVariantConst>());
 }
 
 inline bool setMediaVolume(const char* host, uint16_t port, const char* token, const char* entity,
@@ -709,26 +771,10 @@ inline const char* aqiCategory(int aqi) {
 // Air-quality index from a plain sensor entity. The state is usually the AQI
 // number; some sensors report a word ("Good") or stash the number in an
 // attribute. Optional — a blank entity just returns false.
-inline bool fetchAir(const char* host, uint16_t port, const char* token, const char* entity) {
+// Parse an air-quality sensor's state object into `air`. Shared by the direct fetch below and the
+// server's /state response (app/data_refresh.h).
+inline bool applyAir(JsonVariantConst doc) {
   air = Air{};
-  if (!entity || !*entity) {
-    snprintf(air.status, sizeof(air.status), "no air entity");
-    return false;
-  }
-
-  char path[96];
-  snprintf(path, sizeof(path), "/api/states/%s", entity);
-
-  JsonDocument filter;
-  filter["state"] = true;
-  filter["attributes"]["air_quality_index"] = true;
-  filter["attributes"]["aqi"] = true;
-
-  JsonDocument doc;
-  if (!httpjson::get(host, port, path, token, doc, air.status, sizeof(air.status), nullptr, 0,
-                     &filter)) {
-    return false;
-  }
 
   JsonVariantConst st = doc["state"];
   JsonObjectConst a = doc["attributes"].as<JsonObjectConst>();
@@ -756,9 +802,34 @@ inline bool fetchAir(const char* host, uint16_t port, const char* token, const c
   return air.ok;
 }
 
+inline bool fetchAir(const char* host, uint16_t port, const char* token, const char* entity) {
+  air = Air{};
+  if (!entity || !*entity) {
+    snprintf(air.status, sizeof(air.status), "no air entity");
+    return false;
+  }
+
+  char path[96];
+  snprintf(path, sizeof(path), "/api/states/%s", entity);
+
+  JsonDocument filter;
+  filter["state"] = true;
+  filter["attributes"]["air_quality_index"] = true;
+  filter["attributes"]["aqi"] = true;
+
+  JsonDocument doc;
+  if (!httpjson::get(host, port, path, token, doc, air.status, sizeof(air.status), nullptr, 0,
+                     &filter)) {
+    return false;
+  }
+  return applyAir(doc.as<JsonVariantConst>());
+}
+
 // 3-day outlook via the weather.get_forecasts service (the current HA way —
 // forecast data left the entity attributes in 2024). `weatherEntity` is the
 // same entity fetchWeather() uses.
+inline bool applyForecast(JsonArrayConst days);  // below
+
 inline bool fetchForecast(const char* host, uint16_t port, const char* token,
                           const char* weatherEntity) {
   forecast = Forecast{};
@@ -785,8 +856,14 @@ inline bool fetchForecast(const char* host, uint16_t port, const char* token,
     return false;
   }
 
-  JsonArrayConst days =
-      doc["service_response"][weatherEntity]["forecast"].as<JsonArrayConst>();
+  return applyForecast(doc["service_response"][weatherEntity]["forecast"].as<JsonArrayConst>());
+}
+
+// A daily forecast array (weather.get_forecasts' per-entity `forecast`) ->
+// `forecast`, first three days. Shared by the direct service call above and
+// the server's /state response.
+inline bool applyForecast(JsonArrayConst days) {
+  forecast = Forecast{};
   static const char* kAbbr[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
   for (JsonVariantConst d : days) {
     if (forecast.count >= 3) break;
@@ -842,10 +919,7 @@ inline bool fetchHubToggleState(const char* host, uint16_t port, const char* tok
   char status[48];
   if (!httpjson::get(host, port, path, token, doc, status, sizeof(status), nullptr, 0, &filter))
     return false;
-  const char* st = doc["state"] | "";
-  if (!*st) return false;
-  out = strcmp(st, "on") == 0;
-  return true;
+  return applyOnOff(doc.as<JsonVariantConst>(), out);
 }
 
 // Toggle-type quick action: always <domain>.turn_on / <domain>.turn_off —

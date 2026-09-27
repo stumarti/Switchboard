@@ -73,25 +73,20 @@ inline void loadAtBoot() {
 // when `force` (Settings -> Refresh now). Best-effort throughout — any
 // failure just means "try again next refresh cycle," the previously loaded
 // theme (or the compiled-in default) keeps showing.
-inline void checkForUpdate(const char* token, bool force = false) {
-  char status[64];
-  JsonDocument doc;
-  if (!httpjson::get(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, "/api/theme", token, doc,
-                     status, sizeof(status))) {
-    return;
-  }
-
-  const char* serverIcons = doc["iconsVersion"] | "";
-  if (*serverIcons && persist::g_ready &&
+// Download whichever pack the server has a different version of (or that
+// isn't loaded from SD, or everything when `force`). The versions come from
+// /api/theme (checkForUpdate() below) or the /bundle response
+// (app/data_refresh.h).
+inline void applyVersions(const char* serverIcons, const char* serverFonts, const char* token,
+                          bool force = false) {
+  if (serverIcons && *serverIcons && persist::g_ready &&
       (force || !iconpack::loaded || strcmp(serverIcons, iconsVersion) != 0)) {
     if (iconpack::downloadAndLoad(token)) {
       snprintf(iconsVersion, sizeof(iconsVersion), "%s", serverIcons);
       saveVersionToNvs("iconsVer", iconsVersion);
     }
   }
-
-  const char* serverFonts = doc["fontsVersion"] | "";
-  if (*serverFonts && persist::g_ready &&
+  if (serverFonts && *serverFonts && persist::g_ready &&
       (force || !fontpack::loaded || strcmp(serverFonts, fontsVersion) != 0)) {
     if (fontpack::downloadAndLoad(token)) {
       snprintf(fontsVersion, sizeof(fontsVersion), "%s", serverFonts);
@@ -101,4 +96,19 @@ inline void checkForUpdate(const char* token, bool force = false) {
   }
 }
 
+// One check-and-update pass. Cheap when nothing changed (one small JSON GET);
+// only downloads a pack when its version differs from what's applied, when
+// the server has one but nothing is loaded from SD (card swapped/wiped), or
+// when `force` (Settings -> Refresh now). Best-effort throughout — any
+// failure just means "try again next refresh cycle," the previously loaded
+// theme (or the compiled-in default) keeps showing.
+inline void checkForUpdate(const char* token, bool force = false) {
+  char status[64];
+  JsonDocument doc;
+  if (!httpjson::get(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, "/api/theme", token, doc,
+                     status, sizeof(status))) {
+    return;
+  }
+  applyVersions(doc["iconsVersion"] | "", doc["fontsVersion"] | "", token, force);
+}
 }  // namespace themeclient
