@@ -56,6 +56,7 @@ inline void enter() {
   drawStatusBar("Select room");
   ui.centered("Loading rooms...", 320, 28, Color::DarkGray);
   commitFrame(Rf::Full);  // sub-screen push
+  ensureMdns();       // the server is an mDNS name; a no-op once it's up
   roomlist::fetch();  // small response; brief block on a deliberate action
   for (int i = 0; i < roomlist::count; ++i)
     if (!strcmp(roomlist::rooms[i].slug, deviceconfig::activeSlug)) sel = i;

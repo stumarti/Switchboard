@@ -81,7 +81,7 @@ inline void onQrReady(esp_qrcode_handle_t h) { g_qrHandle = h; }
 
 inline void drawQr() {
   ui.clear();
-  drawStatusBar("Wi-Fi networks", false, &kWx_ui_wifi);
+  drawStatusBar("Wi-Fi networks", false, &icons::get("wx_ui_wifi"));
   if (g_qrIdx < 0 || g_qrIdx >= globalsclient::wifiNetCount) {
     commitFrame(Rf::Full);  // only ever reached via enterQr() — a sub-screen push
     return;

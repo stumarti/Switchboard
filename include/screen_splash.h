@@ -13,7 +13,7 @@ namespace screen_splash {
 inline void draw() {
   ui.clear();
   // Hero logo, upper-middle of the tall portrait canvas.
-  ui.iconCentered(kLogoRemote, 236);
+  ui.iconCentered(icons::get("logoremote"), 236);
   // Wordmark.
   ui.centered(SWITCHBOARD_NAME, 392, 40);
   // Rule under the wordmark.

@@ -108,6 +108,11 @@ inline Cover cover;
 inline Cover coverItems[2];
 inline Forecast forecast;
 inline MediaPlayer media;
+// The Xbox carousel page's console — a separate MediaPlayer instance (not
+// media[]) since Music and Xbox are two independently-configured
+// media_player entities that can both be active in the same room, same
+// convention as cover vs coverItems[].
+inline MediaPlayer xboxMedia;
 // climate.additionalSensors[] readings, indexed like deviceconfig::
 // climateSensors[] — the Climate page's "area temperatures" footer.
 inline float climateSensorValue[6] = {0, 0, 0, 0, 0, 0};
@@ -542,6 +547,41 @@ inline bool fetchMedia(const char* host, uint16_t port, const char* token, const
   return media.ok;
 }
 
+// Same body as fetchMedia() above, into xboxMedia instead of media — kept as
+// its own copy rather than a shared helper taking an output ref, matching
+// this file's existing convention for a second instance of a similar entity
+// (fetchCover/fetchCoverItem). No volume/mute carry-over here: the Xbox
+// page's hero doesn't expose a volume row, so there's nothing to preserve
+// across a state where the console stops reporting it.
+inline bool fetchXboxMedia(const char* host, uint16_t port, const char* token, const char* entity) {
+  xboxMedia = MediaPlayer{};
+  if (!entity || !*entity) {
+    snprintf(xboxMedia.status, sizeof(xboxMedia.status), "no media entity");
+    return false;
+  }
+  char path[96];
+  snprintf(path, sizeof(path), "/api/states/%s", entity);
+
+  JsonDocument filter;
+  filter["state"] = true;
+  filter["attributes"]["media_title"] = true;
+  filter["attributes"]["entity_picture"] = true;
+
+  JsonDocument doc;
+  if (!httpjson::get(host, port, path, token, doc, xboxMedia.status, sizeof(xboxMedia.status), nullptr,
+                     0, &filter)) {
+    return false;
+  }
+  const char* st = doc["state"] | "";
+  snprintf(xboxMedia.state, sizeof(xboxMedia.state), "%s", st);
+  JsonObjectConst a = doc["attributes"].as<JsonObjectConst>();
+  snprintf(xboxMedia.title, sizeof(xboxMedia.title), "%s", a["media_title"] | "");
+  snprintf(xboxMedia.picture, sizeof(xboxMedia.picture), "%s", a["entity_picture"] | "");
+  xboxMedia.ok = st[0] != 0;
+  if (!xboxMedia.ok) snprintf(xboxMedia.status, sizeof(xboxMedia.status), "no state");
+  return xboxMedia.ok;
+}
+
 inline bool setMediaVolume(const char* host, uint16_t port, const char* token, const char* entity,
                            int pct) {
   if (!entity || !*entity) return false;
@@ -606,6 +646,37 @@ inline bool launchApp(const char* host, uint16_t port, const char* token, const 
   snprintf(body, sizeof(body),
           "{\"entity_id\":\"%s\",\"media_content_id\":\"%s\",\"media_content_type\":\"app\"}", entity,
           pkg);
+  JsonDocument doc, keepNothing;
+  char st[48];
+  return httpjson::post(host, port, "/api/services/media_player/play_media", token, body, doc, st,
+                        sizeof(st), &keepNothing);
+}
+
+// --- Xbox (Xbox carousel page) -------------------------------------------
+// remote.turn_on / remote.turn_off power the console — the Xbox integration's
+// remote entity supports real on/off (unlike TV's Android remote, which only
+// exposes a POWER keyevent toggle via send_command).
+inline bool setXboxPower(const char* host, uint16_t port, const char* token, const char* entity,
+                         bool on) {
+  return callService(host, port, token, "remote", on ? "turn_on" : "turn_off", entity);
+}
+
+// Launch a game by product ID. Content type "app" mirrors launchApp() above
+// (the closest confirmed precedent in this codebase for "launch by id via
+// play_media") — NOT independently confirmed against the Xbox integration's
+// own browse_media response, which is the reliable way to get the exact
+// media_content_type it expects; there's no browse_media client here to
+// check it against (HA's browse_media is a WebSocket-only call, and this
+// app only speaks the REST API). If launches don't register on real
+// hardware, capturing one real browse_media child (e.g. via HA's dev tools)
+// and comparing its media_content_type is the first thing to check.
+inline bool launchXboxGame(const char* host, uint16_t port, const char* token, const char* entity,
+                           const char* productId) {
+  if (!entity || !*entity || !productId || !*productId) return false;
+  char body[192];
+  snprintf(body, sizeof(body),
+          "{\"entity_id\":\"%s\",\"media_content_id\":\"%s\",\"media_content_type\":\"app\"}", entity,
+          productId);
   JsonDocument doc, keepNothing;
   char st[48];
   return httpjson::post(host, port, "/api/services/media_player/play_media", token, body, doc, st,
@@ -727,6 +798,93 @@ inline bool fetchForecast(const char* host, uint16_t port, const char* token,
   forecast.ok = forecast.count > 0;
   if (!forecast.ok) snprintf(forecast.status, sizeof(forecast.status), "no forecast data");
   return forecast.ok;
+}
+
+// --- Quick Access hub (main.cpp's Home-key jump list) --------------------
+// Generic, entity-domain-driven service calls for hub.items[]'s per-button
+// quick action — unlike every other page here, the hub doesn't know its
+// entities' domains ahead of time (they're server config, not a fixed
+// per-page entity), so these infer the service from the entity_id prefix
+// instead of a page-specific hand-written call.
+inline void domainOf(const char* entity, char* out, size_t outCap) {
+  out[0] = 0;
+  if (!entity) return;
+  const char* dot = strchr(entity, '.');
+  const size_t n = dot ? static_cast<size_t>(dot - entity) : strlen(entity);
+  snprintf(out, outCap, "%.*s", static_cast<int>(n < outCap - 1 ? n : outCap - 1), entity);
+}
+
+// A hub toggle button's live state, keyed generically off `state == "on"` —
+// covers light/switch/input_boolean/fan/media_player, the common toggleable
+// domains. `out` is left unchanged on failure (caller keeps showing the last
+// known state rather than flipping to "off" on a transient fetch error).
+inline bool fetchHubToggleState(const char* host, uint16_t port, const char* token,
+                                const char* entity, bool& out) {
+  if (!entity || !*entity) return false;
+  char path[96];
+  snprintf(path, sizeof(path), "/api/states/%s", entity);
+  JsonDocument filter;
+  filter["state"] = true;
+  JsonDocument doc;
+  char status[48];
+  if (!httpjson::get(host, port, path, token, doc, status, sizeof(status), nullptr, 0, &filter))
+    return false;
+  const char* st = doc["state"] | "";
+  if (!*st) return false;
+  out = strcmp(st, "on") == 0;
+  return true;
+}
+
+// Toggle-type quick action: always <domain>.turn_on / <domain>.turn_off —
+// every common toggleable domain (light, switch, input_boolean, fan,
+// media_player, humidifier, siren) follows this pair, so there's no
+// per-direction override to plumb through hub.items[]'s single `service`
+// field (that field is for `run` actions below, a single explicit call).
+inline bool hubToggle(const char* host, uint16_t port, const char* token, const char* entity, bool on) {
+  if (!entity || !*entity) return false;
+  char domain[24];
+  domainOf(entity, domain, sizeof(domain));
+  if (!domain[0]) return false;
+  return callService(host, port, token, domain, on ? "turn_on" : "turn_off", entity);
+}
+
+// Run-type quick action: the explicit `service` ("domain.service") if the
+// config gave one, else scene.turn_on / script.turn_on inferred from the
+// entity's own domain (the two run-style domains this covers without a
+// config-side override) — anything else falls back to <domain>.turn_on,
+// the same guess launchXboxGame's neighbor helpers make elsewhere in this
+// file when there's no better information. `dataFields`, if non-empty, is a
+// raw `"key":value,...` fragment (device_config_client.h's HubItem::
+// actionData) spliced into the body alongside entity_id.
+inline bool hubRun(const char* host, uint16_t port, const char* token, const char* entity,
+                   const char* service, const char* dataFields) {
+  if (!entity || !*entity) return false;
+  char domain[24], svc[32];
+  domainOf(entity, domain, sizeof(domain));
+  if (service && *service) {
+    const char* dot = strchr(service, '.');
+    if (dot) {
+      snprintf(domain, sizeof(domain), "%.*s", static_cast<int>(dot - service), service);
+      snprintf(svc, sizeof(svc), "%s", dot + 1);
+    } else {
+      snprintf(svc, sizeof(svc), "%s", service);
+    }
+  } else if (!strcmp(domain, "scene") || !strcmp(domain, "script")) {
+    snprintf(svc, sizeof(svc), "turn_on");
+  } else {
+    snprintf(svc, sizeof(svc), "turn_on");
+  }
+  if (!domain[0]) return false;
+  char path[80];
+  snprintf(path, sizeof(path), "/api/services/%s/%s", domain, svc);
+  char body[192];
+  if (dataFields && *dataFields)
+    snprintf(body, sizeof(body), "{\"entity_id\":\"%s\",%s}", entity, dataFields);
+  else
+    snprintf(body, sizeof(body), "{\"entity_id\":\"%s\"}", entity);
+  JsonDocument doc, keepNothing;
+  char st[48];
+  return httpjson::post(host, port, path, token, body, doc, st, sizeof(st), &keepNothing);
 }
 
 }  // namespace haclient

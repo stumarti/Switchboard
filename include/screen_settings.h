@@ -12,6 +12,7 @@
 #include "screen_room_pick.h"
 #include "screen_developer.h"
 #include "screen_timeouts.h"
+#include "theme_client.h"  // themeclient::refreshRequested (Refresh now)
 
 namespace screen_settings {
 
@@ -20,15 +21,17 @@ namespace screen_settings {
 // Wi-Fi SSID) rather than a fixed caption. The selected row is a filled black
 // card; the rest sit flush against the background, separated by hairlines.
 struct SettingsItem { const char* title; const freeink::Icon* icon; };
-inline constexpr SettingsItem kItems[] = {
-    {"Select room", &kWx_ui_room},
-    {"Device info", &kWx_ui_info},
-    {"Wi-Fi setup", &kWx_ui_wifi},
-    {"Refresh now", &kWx_ui_refresh},
-    {"Timeouts",    &kWx_ui_refresh},
-    {"Developer",   &kWx_ui_cog},
-    {"Restart",     &kWx_ui_restart},
-    {"Back",        &kWx_ui_back},
+// Not constexpr: icons::get() is a runtime lookup (pack-first, falling back
+// to the compiled-in default — see icons.h), not a compile-time constant.
+inline const SettingsItem kItems[] = {
+    {"Select room", &icons::get("wx_ui_room")},
+    {"Device info", &icons::get("wx_ui_info")},
+    {"Wi-Fi setup", &icons::get("wx_ui_wifi")},
+    {"Refresh now", &icons::get("wx_ui_refresh")},
+    {"Timeouts",    &icons::get("wx_ui_refresh")},
+    {"Developer",   &icons::get("wx_ui_cog")},
+    {"Restart",     &icons::get("wx_ui_restart")},
+    {"Back",        &icons::get("wx_ui_back")},
 };
 inline constexpr int kCount = 8;
 inline int sel = 0;
@@ -77,7 +80,7 @@ inline constexpr int16_t kListTop = static_cast<int16_t>(kStatusBarH + 12 + kPad
 
 inline void drawList() {
   ui.clear();
-  drawStatusBar("Settings", false, &kWx_ui_cog);
+  drawStatusBar("Settings", false, &icons::get("wx_ui_cog"));
   const int16_t top = kListTop;
   for (int i = 0; i < kCount; ++i) {
     const int16_t y = static_cast<int16_t>(top + i * kRowH);
@@ -139,7 +142,11 @@ inline void activate(int i) {
       delay(150);
       ESP.restart();
       break;
-    case 3:  // Refresh now
+    case 3:  // Refresh now — data, plus a forced re-pull of every icon (theme
+             // packs + per-item MDI icons); the only thing that re-pulls icons
+             // already on SD. If a refresh is already running, the request
+             // waits for the next one.
+      themeclient::refreshRequested = true;
       kickWeatherRefresh();
       carouselPage = 0;
       enterStandby();

@@ -84,10 +84,10 @@ inline void draw() {
     char n[12];
     snprintf(n, sizeof(n), "%.1f", static_cast<double>(haclient::climate.temp));
     const fu::Size nsz = ui.measure(n, 0);
-    const int16_t rowW = static_cast<int16_t>(kWx_ui_indoor.w + 10 + lbl.width + nsz.width + 12);
+    const int16_t rowW = static_cast<int16_t>(icons::get("wx_ui_indoor").w + 10 + lbl.width + nsz.width + 12);
     int16_t x = static_cast<int16_t>(cx - rowW / 2);
-    ui.icon(kWx_ui_indoor, x, static_cast<int16_t>(378 + kPad - kWx_ui_indoor.h / 2));
-    x = static_cast<int16_t>(x + kWx_ui_indoor.w + 10);
+    ui.icon(icons::get("wx_ui_indoor"), x, static_cast<int16_t>(378 + kPad - icons::get("wx_ui_indoor").h / 2));
+    x = static_cast<int16_t>(x + icons::get("wx_ui_indoor").w + 10);
     ui.text("Indoor  ", x, 366 + kPad, lbl.width, 24, TextAlign::Left);
     drawDegreesStr(static_cast<int16_t>(x + lbl.width), 366 + kPad, 0, n);
   } else {
@@ -101,25 +101,25 @@ inline void draw() {
     if (haclient::weather.hasWind) {
       snprintf(buf2, sizeof(buf2), "%d %s", static_cast<int>(lroundf(haclient::weather.wind)),
                haclient::weather.windUnit);
-      drawDetailRow(424 + kPad, kWx_ui_wind, "Wind", buf2);
+      drawDetailRow(424 + kPad, icons::get("wx_ui_wind"), "Wind", buf2);
     }
     if (haclient::weather.hasHumidity) {
       snprintf(buf2, sizeof(buf2), "%d%%", haclient::weather.humidity);
-      drawDetailRow(458 + kPad, kWx_ui_humidity, "Humidity", buf2);
+      drawDetailRow(458 + kPad, icons::get("wx_ui_humidity"), "Humidity", buf2);
     }
     if (haclient::weather.hasUv) {
       const float u = haclient::weather.uv;
       const char* band = u < 3 ? "Low" : u < 6 ? "Moderate" : u < 8 ? "High"
                                   : u < 11 ? "Very high" : "Extreme";
       snprintf(buf2, sizeof(buf2), "%.0f  %s", static_cast<double>(u), band);
-      drawDetailRow(506 + kPad, kWx_ui_light, "UV index", buf2);
+      drawDetailRow(506 + kPad, icons::get("wx_ui_light"), "UV index", buf2);
     }
     if (haclient::air.ok) {
       if (haclient::air.has)
         snprintf(buf2, sizeof(buf2), "%d  %s", haclient::air.index, haclient::air.category);
       else
         snprintf(buf2, sizeof(buf2), "%s", haclient::air.category);
-      drawDetailRow(542 + kPad, kWx_ui_air, "Air quality", buf2);
+      drawDetailRow(542 + kPad, icons::get("wx_ui_air"), "Air quality", buf2);
     }
   }
 

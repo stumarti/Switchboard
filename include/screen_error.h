@@ -69,7 +69,7 @@ inline void draw(bool sleeping = false) {
                   "any key  -  Home opens configuration",
                   sleeping ? "retrying in 30 min"
                            : (wifi ? "connected  -  HA unreachable" : "Wi-Fi down"),
-                  sleeping, &kErr_server);
+                  sleeping, &icons::get("err_server"));
 }
 
 inline void enter() {
@@ -92,7 +92,7 @@ inline void draw(bool sleeping = false) {
                   "room in Settings.", "SELECT ROOM",
                   "any key retries  -  Home opens Settings",
                   sleeping ? "retrying in 30 min" : "connected  -  no device config",
-                  sleeping, &kWx_ui_cog);
+                  sleeping, &icons::get("wx_ui_cog"));
 }
 
 inline void enter() {
@@ -132,7 +132,7 @@ inline void enter() {
   snprintf(foot, sizeof(foot), "battery %u%%", g_battPct);
   drawErrorScreen("Battery", "Charge the device", "Battery very low. Plug in a USB-C",
                   "cable to keep the screen updating.", "", "DISMISS", "any key",
-                  foot, /*sleeping=*/false, &kErr_battery);
+                  foot, /*sleeping=*/false, &icons::get("err_battery"));
 }
 
 // Idle on the charge screen: deep-sleep WITHOUT redrawing, so the "Charge the
@@ -160,19 +160,19 @@ struct Entry {
 inline const Entry kEntries[] = {
     {"Wi-Fi", "No Wi-Fi", "Couldn't join a Wi-Fi network.",
      "Check the router and the saved", "password.", "SET UP WI-FI",
-     "any key to retry", "Wi-Fi disconnected", &kWifiEmpty},
+     "any key to retry", "Wi-Fi disconnected", &icons::get("wifiempty")},
     {"Home Assistant", "No Home Assistant", "Wi-Fi is up, but the Switchboard",
      "server isn't answering. Check it's", "online and the room token is set.",
-     "RETRY", "Home opens configuration", "connected  -  HA unreachable", &kErr_server},
+     "RETRY", "Home opens configuration", "connected  -  HA unreachable", &icons::get("err_server")},
     {"Setup", "No room config", "The server has no config for this",
      "device. Add one, or choose another", "room in Settings.", "SELECT ROOM", "",
-     "connected  -  no device config", &kWx_ui_cog},
+     "connected  -  no device config", &icons::get("wx_ui_cog")},
     {"Weather", "Weather unavailable", "No weather entity is set, or HA",
      "returned no reading for it.", "", "OPEN CONFIGURATION", "",
-     "connected  -  no weather", &kErr_cloud},
+     "connected  -  no weather", &icons::get("err_cloud")},
     {"Battery", "Charge the device", "Battery very low. Plug in a USB-C",
      "cable to keep the screen updating.", "", "OK", "any key to dismiss",
-     "battery critically low", &kErr_battery},
+     "battery critically low", &icons::get("err_battery")},
 };
 inline constexpr int kCount = static_cast<int>(sizeof(kEntries) / sizeof(kEntries[0]));
 inline int idx = 0;

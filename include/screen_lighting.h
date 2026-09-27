@@ -149,8 +149,8 @@ inline constexpr int16_t kLcTempGap = 12;
 inline constexpr int16_t kLcTempW   = (kLcW - 2 * kLcTempGap) / 3;
 struct TempPreset { const char* label; int kelvin; const freeink::Icon* icon; };
 inline const TempPreset kTempPresets[3] = {
-    {"WARM", 2700, &kWx_ui_temp_warm}, {"DAY", 4500, &kWx_ui_temp_daylight},
-    {"COOL", 6500, &kWx_ui_temp_cool}};
+    {"WARM", 2700, &icons::get("wx_ui_temp_warm")}, {"DAY", 4500, &icons::get("wx_ui_temp_daylight")},
+    {"COOL", 6500, &icons::get("wx_ui_temp_cool")}};
 inline int16_t tempBtnX(int col) {
   return static_cast<int16_t>(kLcX + col * (kLcTempW + kLcTempGap));
 }
@@ -246,13 +246,13 @@ inline int pctFromX(int16_t tx) {
   return pct < 0 ? 0 : (pct > 100 ? 100 : pct);
 }
 
-// col 0 = DARKER (left, kWx_ui_dimmer), col 1 = BRIGHTER (right, kWx_ui_brighter).
+// col 0 = DARKER (left, icons::get("wx_ui_dimmer")), col 1 = BRIGHTER (right, icons::get("wx_ui_brighter")).
 inline int16_t lcBtnX(int col) { return col == 0 ? kLcDarkerX : kLcBrighterX; }
 inline void drawLcBtn(int col, bool pressed) {
   const int16_t x = lcBtnX(col);
   if (pressed) ui.fillRect(x, kLcRow2Y, kLcBtnSz, kLcBtnSz, Color::Black, 16);
   else         ui.strokeRect(x, kLcRow2Y, kLcBtnSz, kLcBtnSz, 2, 16);
-  const freeink::Icon& ic = col == 0 ? kWx_ui_dimmer : kWx_ui_brighter;
+  const freeink::Icon& ic = col == 0 ? icons::get("wx_ui_dimmer") : icons::get("wx_ui_brighter");
   ui.icon(ic, static_cast<int16_t>(x + (kLcBtnSz - ic.w) / 2),
           static_cast<int16_t>(kLcRow2Y + (kLcBtnSz - ic.h) / 2), pressed ? Color::White : Color::Black);
 }
@@ -330,7 +330,7 @@ inline void draw(int pressed = -1) {
 
   // Row 1: bulb icon (filled+glowing on, plain outline off) + group name +
   // toggle switch.
-  ui.icon(l.on ? kWx_ui_bulb_on : kWx_ui_bulb_off, kLcX, kLcY);
+  ui.icon(l.on ? icons::get("wx_ui_bulb_on") : icons::get("wx_ui_bulb_off"), kLcX, kLcY);
   ui.text(deviceconfig::lightGroupName[0] ? deviceconfig::lightGroupName : "All Lights", kLcTextX,
           static_cast<int16_t>(kLcY + (kLcIconSz - 26) / 2),
           static_cast<int16_t>(kLcToggleX - kLcTextX - 12), 26, TextAlign::Left, Color::Black);
@@ -369,7 +369,8 @@ inline void draw(int pressed = -1) {
       const int n = listVisibleCount(deviceconfig::sceneCount, scenePage);
       const int base = scenePage * kListPageSize;
       drawChips(kChipsY, "", deviceconfig::scenes + base, n, /*onStates=*/nullptr,
-                (lastScene >= base && lastScene < base + n) ? lastScene - base : -1);
+                (lastScene >= base && lastScene < base + n) ? lastScene - base : -1,
+                mdiicon::sceneIcons + base);
       drawPager(scenePage, pc);
     } else {
       ui.text("No scenes configured", 0, kChipsY, Ui::W, 22, TextAlign::Center, Color::DarkGray, 1,
@@ -381,7 +382,8 @@ inline void draw(int pressed = -1) {
       if (lightPage >= pc) lightPage = 0;
       const int n = listVisibleCount(deviceconfig::lightCount, lightPage);
       const int base = lightPage * kListPageSize;
-      drawChips(kChipsY, "", deviceconfig::lights + base, n, haclient::lightItemOn + base);
+      drawChips(kChipsY, "", deviceconfig::lights + base, n, haclient::lightItemOn + base, -1,
+                mdiicon::lightIcons + base);
       drawPager(lightPage, pc);
     } else {
       ui.text("No lights configured", 0, kChipsY, Ui::W, 22, TextAlign::Center, Color::DarkGray, 1,

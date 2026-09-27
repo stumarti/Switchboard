@@ -23,11 +23,12 @@ struct DevItem { const char* title; };
 inline constexpr DevItem kItems[] = {
     {"Pixel grid overlay"},
     {"Disable standby"},
+    {"Quick actions"},
     {"Button checker"},
     {"Hard reset"},
     {"Back"},
 };
-inline constexpr int kCount = 5;
+inline constexpr int kCount = 6;
 inline int sel = 0;
 // Same one-frame-flash-then-act convention as screen_settings::pressed.
 inline int pressed = -1;
@@ -36,8 +37,9 @@ inline const char* subtitleFor(int i) {
   switch (i) {
     case 0: return localsettings::pixelGrid ? "ON" : "OFF";
     case 1: return localsettings::standbyDisabled ? "ON - won't sleep" : "OFF";
-    case 2: return "Buttons, touch, backlight";
-    case 3: return "Wipes room config, reboots";
+    case 2: return localsettings::quickActionsEnabled ? "ON - hub bottom-strip taps" : "OFF";
+    case 3: return "Buttons, touch, backlight";
+    case 4: return "Wipes room config, reboots";
     default: return "Return to Settings";
   }
 }
@@ -47,7 +49,7 @@ inline constexpr int16_t kRowPadX = 24;
 
 inline void drawList() {
   ui.clear();
-  drawStatusBar("Developer", false, &kWx_ui_cog);
+  drawStatusBar("Developer", false, &icons::get("wx_ui_cog"));
   const int16_t top = static_cast<int16_t>(kStatusBarH + 12 + kPad);
   for (int i = 0; i < kCount; ++i) {
     const int16_t y = static_cast<int16_t>(top + i * kRowH);
@@ -92,15 +94,16 @@ inline void enter() {
   draw(Rf::Full);
 }
 
-// Rows 0-3 act here; the last row ("Back") and every other exit gesture are
+// Rows 0-4 act here; the last row ("Back") and every other exit gesture are
 // handled by main.cpp's Stage::Developer case, same as screen_room_pick /
 // screen_settings_info.
 inline void activate(int i) {
   switch (i) {
     case 0: localsettings::setPixelGrid(!localsettings::pixelGrid); draw(); break;
     case 1: localsettings::standbyDisabled = !localsettings::standbyDisabled; draw(); break;
-    case 2: screen_debug::enter(); break;
-    case 3:
+    case 2: localsettings::setQuickActionsEnabled(!localsettings::quickActionsEnabled); draw(); break;
+    case 3: screen_debug::enter(); break;
+    case 4:
       // Wipe the picked room + its cached state first — the rescue path out
       // of a room whose server config wedges the device on every boot (see
       // deviceconfig::resetSlug()'s comment). A plain restart alone would

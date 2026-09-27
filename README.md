@@ -30,12 +30,21 @@ A smart-home remote for the **Xteink X4 Pro** e-reader. One e-ink panel, four bu
 
 ## Setup
 
-1. **Get Switchboard Server running first.** Follow its [README](https://github.com/stumarti/Switchboard-Server) — it's a couple of minutes with `docker compose up -d`. Create at least one room (e.g. "Kitchen") and fill in its Home Assistant entities before moving on.
+1. **Get Switchboard Server running first.** Follow its [README](https://github.com/stumarti/Switchboard-Server) — it's a couple of minutes with `docker compose up -d`. Set an admin password on first open, then create at least one room (e.g. "Kitchen") and fill in its Home Assistant entities before moving on.
 2. **Flash the device.** Easiest way: plug the X4 Pro into your computer over USB and use the [browser flasher](https://stumarti.github.io/Switchboard/) (Chrome or Edge on desktop). Prefer to build it yourself? See [Building from source](#building-from-source) below.
 3. **First boot.** The device shows a splash, then walks you through joining your Wi-Fi (pick your network, type the password on the on-screen keyboard).
-4. **Pick your room.** Tap the **Home** key → **Settings** → **Select room**. This pulls the room list from Switchboard Server and lets you attach this physical remote to one of them. Nothing else to configure on the device itself.
+4. **Pair with the server.** The device registers itself and waits on a "waiting for approval" screen — open Switchboard Server's **Devices** page and approve it there, optionally picking its room in the same step. The device continues on its own within a few seconds of being approved, no further action on the remote itself. See "Pairing" below.
+5. **(Optional) Pick a different room later**, or if you didn't assign one at approval time: tap the **Home** key → **Settings** → **Select room**. This always wins over whatever room the server has assigned by MAC address.
 
-That's it — the carousel now reflects whatever you set up for that room on the server. Move the remote to a different room later by repeating step 4; nothing needs re-flashing.
+That's it — the carousel now reflects whatever you set up for that room on the server. Move the remote to a different room later by repeating step 5; nothing needs re-flashing.
+
+## Pairing
+
+Every physical remote pairs with Switchboard Server once, by MAC address — this is what proves it's allowed to pull a room's config (which includes your Home Assistant token and WiFi password). A never-paired (or revoked) device shows a "waiting for approval" screen on boot and sits there until approved; a device that's already paired skips straight past it, no network round trip needed. Approving a device from the server's **Devices** page is also how its default room gets set — pick a room there, or leave it unset and pick one later on the device itself via **Settings → Select room** (a room picked on the device always wins over the server's assignment). See Switchboard-Server's README for the admin side.
+
+## Theme
+
+An admin can re-skin every icon and the on-screen font from Switchboard Server's **Theme** page (pick a font, search-and-replace any icon from Material Design Icons) — the device downloads the compiled result automatically and loads it from its SD card, no reflashing needed. Nothing to do on the device itself; a re-skin just shows up within one refresh cycle of being published. A device with no SD card, or before anything's been published, just shows the firmware's own built-in look.
 
 ## What each screen does
 

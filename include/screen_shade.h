@@ -126,8 +126,8 @@ inline void draw(int pressedBtn = -1, Rf r = Rf::Fast) {
   }
 
   const int16_t tw = tileW();
-  drawTile(kShPad, tw, kWx_ui_refresh, "Full refresh");
-  drawTile(static_cast<int16_t>(kShPad + tw + kTileGap), tw, kWx_ui_cog, "Settings");
+  drawTile(kShPad, tw, icons::get("wx_ui_refresh"), "Full refresh");
+  drawTile(static_cast<int16_t>(kShPad + tw + kTileGap), tw, icons::get("wx_ui_cog"), "Settings");
 
   commitFrame(r);
 }

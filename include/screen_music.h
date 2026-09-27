@@ -188,7 +188,7 @@ inline void drawVolBtn(int col, bool pressed) {
   const int16_t x = volBtnX(col);
   if (pressed) ui.fillRect(x, kMuRow2Y, kMuBtnSz, kMuBtnSz, Color::Black, 16);
   else         ui.strokeRect(x, kMuRow2Y, kMuBtnSz, kMuBtnSz, 2, 16);
-  const freeink::Icon& ic = col == 0 ? kWx_music_vol_minus : kWx_music_vol_plus;
+  const freeink::Icon& ic = col == 0 ? icons::get("wx_music_vol_minus") : icons::get("wx_music_vol_plus");
   ui.icon(ic, static_cast<int16_t>(x + (kMuBtnSz - ic.w) / 2),
           static_cast<int16_t>(kMuRow2Y + (kMuBtnSz - ic.h) / 2), pressed ? Color::White : Color::Black);
 }
@@ -218,13 +218,13 @@ inline void drawBar(int pressed, bool playing) {
   // Icon centered a bit higher than the small-label default, so the bigger
   // label below it still has clean room within the button box.
   const int16_t gy = static_cast<int16_t>(kBarBtnY + 25);
-  const freeink::Icon& mid = playing ? kWx_music_pause : kWx_music_play;
-  ui.icon(kWx_music_prev, static_cast<int16_t>(barBtnCx(0) - kWx_music_prev.w / 2),
-          static_cast<int16_t>(gy - kWx_music_prev.h / 2), pressed == 0 ? Color::White : Color::Black);
+  const freeink::Icon& mid = playing ? icons::get("wx_music_pause") : icons::get("wx_music_play");
+  ui.icon(icons::get("wx_music_prev"), static_cast<int16_t>(barBtnCx(0) - icons::get("wx_music_prev").w / 2),
+          static_cast<int16_t>(gy - icons::get("wx_music_prev").h / 2), pressed == 0 ? Color::White : Color::Black);
   ui.icon(mid, static_cast<int16_t>(barBtnCx(1) - mid.w / 2),
           static_cast<int16_t>(gy - mid.h / 2), pressed == 1 ? Color::White : Color::Black);
-  ui.icon(kWx_music_next, static_cast<int16_t>(barBtnCx(2) - kWx_music_next.w / 2),
-          static_cast<int16_t>(gy - kWx_music_next.h / 2), pressed == 2 ? Color::White : Color::Black);
+  ui.icon(icons::get("wx_music_next"), static_cast<int16_t>(barBtnCx(2) - icons::get("wx_music_next").w / 2),
+          static_cast<int16_t>(gy - icons::get("wx_music_next").h / 2), pressed == 2 ? Color::White : Color::Black);
 }
 
 inline void draw(int pressed = -1) {
@@ -248,7 +248,7 @@ inline void draw(int pressed = -1) {
   const bool playing = !strcmp(m.state, "playing");
 
   // Row 1: speaker icon + name + MUTE toggle.
-  ui.icon(m.muted ? kWx_music_vol_off : kWx_music_vol_on, kMuX, kMuY);
+  ui.icon(m.muted ? icons::get("wx_music_vol_off") : icons::get("wx_music_vol_on"), kMuX, kMuY);
   ui.text(deviceconfig::mediaName[0] ? deviceconfig::mediaName : "Music", kMuTextX,
           static_cast<int16_t>(kMuY + (kMuIconSz - 26) / 2),
           static_cast<int16_t>(kMuToggleX - kMuTextX - 12), 26, TextAlign::Left, Color::Black);

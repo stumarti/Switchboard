@@ -25,6 +25,12 @@ inline bool pixelGrid = false;
 // sleeping (and draining the battery) after the bench session is over.
 inline bool standbyDisabled = false;
 
+// Settings -> Developer -> Quick actions: global on/off for the Quick
+// Access hub's bottom-third action zone (main.cpp's jump list, when
+// deviceconfig::hubItemCount > 0). Default ON; if accidental strip taps
+// prove annoying in testing, flip this default to false — one line.
+inline bool quickActionsEnabled = true;
+
 // Settings -> Timeouts: the discrete choices every configurable timeout in
 // the project picks from, so they all read from and cycle through one shared
 // scale rather than each inventing its own set of steps.
@@ -72,6 +78,7 @@ inline void load() {
     idleToSleepMin = p.getUShort("idleMin", 3);
     controlPageRevertMin = p.getUShort("ctlMin", 5);
     refreshOverrideMin = p.getUShort("rfrOvrMin", 0);
+    quickActionsEnabled = p.getBool("qaEnabled", true);
     p.end();
   }
 }
@@ -105,6 +112,14 @@ inline void setRefreshOverrideMin(uint16_t m) {
   Preferences p;
   if (p.begin("switchboard", false)) {
     p.putUShort("rfrOvrMin", m);
+    p.end();
+  }
+}
+inline void setQuickActionsEnabled(bool on) {
+  quickActionsEnabled = on;
+  Preferences p;
+  if (p.begin("switchboard", false)) {
+    p.putBool("qaEnabled", on);
     p.end();
   }
 }

@@ -14,6 +14,7 @@
 
 #include "config.h"
 #include "http_json.h"
+#include "pairing_client.h"
 
 namespace globalsclient {
 
@@ -51,8 +52,9 @@ inline bool fetch() {
 
   JsonDocument doc;
   if (!httpjson::get(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, SWITCHBOARD_GLOBALS_PATH,
-                     /*bearer=*/nullptr, doc, status, sizeof(status))) {
+                     pairing::token, doc, status, sizeof(status))) {
     Serial.printf("[globals] fetch FAILED: %s\n", status);
+    if (!strcmp(status, "HTTP 401")) pairing::clear();
     return false;
   }
 

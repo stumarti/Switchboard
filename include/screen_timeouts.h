@@ -50,7 +50,7 @@ inline constexpr int16_t kRowPadX = 24;
 
 inline void drawList() {
   ui.clear();
-  drawStatusBar("Timeouts", false, &kWx_ui_refresh);
+  drawStatusBar("Timeouts", false, &icons::get("wx_ui_refresh"));
   const int16_t top = static_cast<int16_t>(kStatusBarH + 12 + kPad);
   for (int i = 0; i < kCount; ++i) {
     const int16_t y = static_cast<int16_t>(top + i * kRowH);

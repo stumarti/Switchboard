@@ -119,12 +119,12 @@ inline const char* modeLabel(const char* m) {
 // (weather_icons.h's CLIMATE_MODE tier), not the old hand-drawn assets.h set.
 inline const freeink::Icon* modeIcon(const char* m) {
   if (!m || !*m) return nullptr;
-  if (!strcmp(m, "heat")) return &kWx_climate_heat;
-  if (!strcmp(m, "cool")) return &kWx_climate_cool;
-  if (!strcmp(m, "off")) return &kWx_climate_off;
-  if (!strcmp(m, "auto") || !strcmp(m, "heat_cool")) return &kWx_climate_auto;
-  if (!strcmp(m, "fan_only")) return &kWx_climate_fan;
-  if (!strcmp(m, "dry")) return &kWx_ui_humidity;
+  if (!strcmp(m, "heat")) return &icons::get("wx_climate_heat");
+  if (!strcmp(m, "cool")) return &icons::get("wx_climate_cool");
+  if (!strcmp(m, "off")) return &icons::get("wx_climate_off");
+  if (!strcmp(m, "auto") || !strcmp(m, "heat_cool")) return &icons::get("wx_climate_auto");
+  if (!strcmp(m, "fan_only")) return &icons::get("wx_climate_fan");
+  if (!strcmp(m, "dry")) return &icons::get("wx_ui_humidity");
   return nullptr;
 }
 
@@ -292,8 +292,8 @@ inline constexpr int kMaxAreaSensors = 3;
 
 inline void drawAreaRow(int16_t y, const char* label, const char* value) {
   const int16_t pad = 24;
-  ui.icon(kWx_ui_warm, pad, static_cast<int16_t>(y + 14 - kWx_ui_warm.h / 2));
-  ui.text(label, static_cast<int16_t>(pad + kWx_ui_warm.w + 12), y, 220, 34, TextAlign::Left,
+  ui.icon(icons::get("wx_ui_warm"), pad, static_cast<int16_t>(y + 14 - icons::get("wx_ui_warm").h / 2));
+  ui.text(label, static_cast<int16_t>(pad + icons::get("wx_ui_warm").w + 12), y, 220, 34, TextAlign::Left,
           Color::Black, 1, Ui::kFont28);
   ui.text(value, static_cast<int16_t>(Ui::W - pad - 220), y, 220, 34, TextAlign::Right, Color::Black,
           1, Ui::kFont28);
@@ -349,7 +349,7 @@ inline void draw(int pressed = -1) {
     const int16_t ring = 10, ringGap = 4;
     const int16_t rowW = static_cast<int16_t>(iconSz + 10 + numS.width + ringGap + ring);
     int16_t x = static_cast<int16_t>(kRingCx - rowW / 2);
-    ui.iconScaled(kWx_climate_thermo, x, static_cast<int16_t>(rowY + numS.height / 2 - iconSz / 2),
+    ui.iconScaled(icons::get("wx_climate_thermo"), x, static_cast<int16_t>(rowY + numS.height / 2 - iconSz / 2),
                   iconSz, iconSz, Color::DarkGray);
     x = static_cast<int16_t>(x + iconSz + 10);
     ui.text(cur, x, rowY, numS.width, numS.height, TextAlign::Left, Color::DarkGray);

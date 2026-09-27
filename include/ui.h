@@ -19,7 +19,7 @@
 #include <FreeInkUIDisplayTarget.h>
 #include <Icon.h>
 
-#include "atkinson_font.h"
+#include "fonts.h"
 
 // The FreeInkUI drawing types (Rect, Paint, Color, TextStyle, DisplayTarget,
 // Orientation, ...) live in freeink::ui.
@@ -64,11 +64,23 @@ class Ui {
     target_ = new fu::DisplayTarget(
         display_.getFrameBuffer(), display_.getDisplayWidth(), display_.getDisplayHeight(),
         display_.getDisplayWidthBytes(), fu::Orientation::Portrait);
-    target_->setFont(0, fu::kAtkinsonHL24Font);  // override the SDK's bundled default (Noto Sans)
-    target_->setFont(kFontSmall, fu::kAtkinsonHL14Font);
-    target_->setFont(kFontTemp, fu::kAtkinsonHLDigits68Font);
-    target_->setFont(kFont12, fu::kAtkinsonHL12Font);
-    target_->setFont(kFont28, fu::kAtkinsonHL28Font);
+    rebindFonts();  // binds the compile-time defaults — no custom pack can be
+                    // loaded yet, the SD card isn't mounted at this point in
+                    // boot (persist::begin() runs after ui.begin() so the
+                    // splash screen never waits on an SD mount).
+  }
+
+  // Re-binds every font slot from fonts::get() — called by begin() (compiled-
+  // in defaults, SD not mounted yet) and again by theme_client.h once a
+  // custom pack has actually been loaded/downloaded, since
+  // DisplayTarget::setFont() stores the address of whatever's passed and
+  // needs to be told explicitly when that should change.
+  void rebindFonts() {
+    target_->setFont(0, fonts::get("default"));  // override the SDK's bundled default (Noto Sans)
+    target_->setFont(kFontSmall, fonts::get("small"));
+    target_->setFont(kFontTemp, fonts::get("temp"));
+    target_->setFont(kFont12, fonts::get("font12"));
+    target_->setFont(kFont28, fonts::get("font28"));
   }
 
   // Rendered size of `s` in a given font slot (width x line height), for

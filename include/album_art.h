@@ -23,6 +23,7 @@
 
 #include "Icon.h"
 #include "http_json.h"  // httpjson::resolveHost()
+#include "screen_common.h"  // g_jpegDecodeBusy guard (shared with xbox_art.h)
 
 namespace albumart {
 
@@ -126,9 +127,18 @@ inline bool fetch(const char* host, uint16_t port, const char* token, const char
     return false;
   }
 
+  // xbox_art.h decodes onto the same TJpgDec singleton from its own
+  // background task — serialize access (see screen_common.h's
+  // g_jpegDecodeBusy) rather than risk two decodes stomping its shared
+  // callback state.
+  if (!acquireJpegDecoder()) {
+    free(jpg);
+    return false;
+  }
   uint16_t srcW = 0, srcH = 0;
   if (TJpgDec.getJpgSize(&srcW, &srcH, jpg, len) != JDR_OK || srcW == 0 || srcH == 0) {
     free(jpg);
+    releaseJpegDecoder();
     return false;
   }
   // Smallest power-of-2 decode scale that still leaves BOTH dimensions >=
@@ -143,12 +153,14 @@ inline bool fetch(const char* host, uint16_t port, const char* token, const char
       ps_malloc(static_cast<size_t>(detail::g_decW) * detail::g_decH * sizeof(uint16_t)));
   if (!detail::g_rgb) {
     free(jpg);
+    releaseJpegDecoder();
     return false;
   }
 
   TJpgDec.setCallback(detail::onBlock);
   const JRESULT jr = TJpgDec.drawJpg(0, 0, jpg, len);
   free(jpg);
+  releaseJpegDecoder();
   if (jr != JDR_OK) {
     free(detail::g_rgb);
     detail::g_rgb = nullptr;

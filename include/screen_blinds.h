@@ -112,7 +112,7 @@ inline bool anyItemBusy() { return g_itemBusy[0] || g_itemBusy[1]; }
 // "opening" counts as open (it's on its way there); only "closed" reads shut.
 inline const freeink::Icon& blindIcon(const haclient::Cover& c) {
   const bool open = c.hasPosition ? c.position > 0 : strcmp(c.state, "closed") != 0;
-  return open ? kWx_blinds_open : kWx_blinds_closed;
+  return open ? icons::get("wx_blinds_open") : icons::get("wx_blinds_closed");
 }
 
 // --- layout: an "All blinds" panel on top, the two individual blinds pinned
@@ -354,7 +354,8 @@ inline void draw(int pressed = -1) {
 
   if (deviceconfig::blindsItemCount > 0)
     drawChips(screen_lighting::kChipsY, "BLINDS", deviceconfig::blindsItems,
-              deviceconfig::blindsItemCount);
+              deviceconfig::blindsItemCount, /*onStates=*/nullptr, /*selectedIdx=*/-1,
+              mdiicon::blindIcons);
 
   drawBar(pressed);
 }

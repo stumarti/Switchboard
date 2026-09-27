@@ -161,12 +161,12 @@ inline void drawBar(int pressed) {
   drawActionBtn(1, pressed == 6, "HOME", /*font=*/0, kBarLabelH);
   drawActionBtn(2, pressed == 7, "POWER", /*font=*/0, kBarLabelH);
   const int16_t gy = static_cast<int16_t>(kBarBtnY + 25);
-  ui.icon(kWx_tv_back, static_cast<int16_t>(barBtnCx(0) - kWx_tv_back.w / 2),
-          static_cast<int16_t>(gy - kWx_tv_back.h / 2), pressed == 5 ? Color::White : Color::Black);
-  ui.icon(kWx_tv_home, static_cast<int16_t>(barBtnCx(1) - kWx_tv_home.w / 2),
-          static_cast<int16_t>(gy - kWx_tv_home.h / 2), pressed == 6 ? Color::White : Color::Black);
-  ui.icon(kWx_tv_power, static_cast<int16_t>(barBtnCx(2) - kWx_tv_power.w / 2),
-          static_cast<int16_t>(gy - kWx_tv_power.h / 2), pressed == 7 ? Color::White : Color::Black);
+  ui.icon(icons::get("wx_tv_back"), static_cast<int16_t>(barBtnCx(0) - icons::get("wx_tv_back").w / 2),
+          static_cast<int16_t>(gy - icons::get("wx_tv_back").h / 2), pressed == 5 ? Color::White : Color::Black);
+  ui.icon(icons::get("wx_tv_home"), static_cast<int16_t>(barBtnCx(1) - icons::get("wx_tv_home").w / 2),
+          static_cast<int16_t>(gy - icons::get("wx_tv_home").h / 2), pressed == 6 ? Color::White : Color::Black);
+  ui.icon(icons::get("wx_tv_power"), static_cast<int16_t>(barBtnCx(2) - icons::get("wx_tv_power").w / 2),
+          static_cast<int16_t>(gy - icons::get("wx_tv_power").h / 2), pressed == 7 ? Color::White : Color::Black);
 }
 
 // --- volume row: VOL- icon | step blocks | VOL+ icon, same widget/placement
@@ -188,7 +188,7 @@ inline void drawVolBtn(int col, bool pressed) {
   const int16_t x = volBtnX(col);
   if (pressed) ui.fillRect(x, kVolRow2Y, kVolBtnSz, kVolBtnSz, Color::Black, 16);
   else         ui.strokeRect(x, kVolRow2Y, kVolBtnSz, kVolBtnSz, 2, 16);
-  const freeink::Icon& ic = col == 0 ? kWx_music_vol_minus : kWx_music_vol_plus;
+  const freeink::Icon& ic = col == 0 ? icons::get("wx_music_vol_minus") : icons::get("wx_music_vol_plus");
   ui.icon(ic, static_cast<int16_t>(x + (kVolBtnSz - ic.w) / 2),
           static_cast<int16_t>(kVolRow2Y + (kVolBtnSz - ic.h) / 2), pressed ? Color::White : Color::Black);
 }
@@ -255,7 +255,7 @@ inline bool muteToggleHit(int16_t tx, int16_t ty) {
 }
 inline void drawMuteRow(bool muted) {
   const int16_t iconY = static_cast<int16_t>(kMuteY + (kMuteRowH - kMuteIconSz) / 2);
-  ui.icon(muted ? kWx_music_vol_off : kWx_music_vol_on, kShPad, iconY);
+  ui.icon(muted ? icons::get("wx_music_vol_off") : icons::get("wx_music_vol_on"), kShPad, iconY);
   ui.text("Mute", static_cast<int16_t>(kShPad + kMuteIconSz + 10),
           static_cast<int16_t>(kMuteY + (kMuteRowH - 24) / 2), 150, 24, TextAlign::Left, Color::Black);
   drawMuteToggle(muted);
@@ -278,10 +278,10 @@ inline int16_t appBtnX(int i, int n) {
 // don't carry a dedicated icon for) falls back to a generic apps glyph.
 inline const freeink::Icon& appIcon(const char* name) {
   if (name && *name) {
-    if (strcasecmp(name, "netflix") == 0) return kWx_tv_app_netflix;
-    if (strcasecmp(name, "youtube") == 0) return kWx_tv_app_youtube;
+    if (strcasecmp(name, "netflix") == 0) return icons::get("wx_tv_app_netflix");
+    if (strcasecmp(name, "youtube") == 0) return icons::get("wx_tv_app_youtube");
   }
-  return kWx_tv_app_generic;
+  return icons::get("wx_tv_app_generic");
 }
 inline void drawAppRow(int pressed) {
   const int n = deviceconfig::tvAppCount;

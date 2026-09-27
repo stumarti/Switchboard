@@ -40,6 +40,9 @@
 #include "room_list_client.h"
 #include "ha_client.h"
 #include "persist.h"
+#include "pairing_client.h"
+#include "theme_client.h"
+#include "mdi_icon.h"
 
 // screen_fwd.h forward-declares the handful of carousel/sleep-wake entry
 // points defined at the bottom of this file that the screens below call into.
@@ -56,7 +59,7 @@
 // the event queue and reads the shared level state and must NOT call
 // input.update() / input.was*() itself.
 // ===========================================================================
-enum class Ev : uint8_t { BtnLeft, BtnRight, BtnPower, HomeTap, HomeLong, Tap, Swipe };
+enum class Ev : uint8_t { BtnLeft, BtnRight, BtnPower, PowerMenu, HomeTap, HomeLong, Tap, Swipe };
 struct InEvent {
   Ev ev;
   float a, b, c, d;
@@ -66,6 +69,7 @@ struct InEvent {
 // touch coordinates are LOGICAL screen pixels (Ui::touchToLogical applied).
 struct InFrame {
   bool btnLeft, btnRight, btnPower;
+  bool powerMenu;  // Power held for kPowerMenuHoldMs — open the power menu
   bool homeTap, homeLong;
   bool touchPress;   int16_t px, py;              // synthesized touch-down edge
   bool touchHeld;    int16_t hx, hy;              // current position while held
@@ -73,21 +77,51 @@ struct InFrame {
   bool swipe;        int16_t sx0, sy0, sx1, sy1;  // endpoints
 };
 
+// --- power button: a click sleeps/selects, a 10s hold opens the power menu --
+// A Power CLICK fires on release (not press, like Left/Right) so a long hold
+// never also acts as a click — on the carousel a click deep-sleeps at once,
+// which would otherwise swallow every hold before it reached 10s. A release
+// after kPowerClickMaxMs is an abandoned hold and does nothing.
+static constexpr unsigned long kPowerMenuHoldMs = 10000;
+static constexpr unsigned long kPowerClickMaxMs = 1000;
+
 static QueueHandle_t g_inQueue = nullptr;
-static volatile bool     g_powerHeld = false;
-static volatile uint32_t g_powerHeldMs = 0;
 static volatile bool     g_touchDown = false;
 static volatile float    g_touchNx = 0, g_touchNy = 0;
 
 static void inputTask(void*) {
-  const uint8_t btnIdx[3] = {InputManager::BTN_UP, InputManager::BTN_DOWN, InputManager::BTN_POWER};
-  const Ev btnEv[3] = {Ev::BtnLeft, Ev::BtnRight, Ev::BtnPower};
+  const uint8_t btnIdx[2] = {InputManager::BTN_UP, InputManager::BTN_DOWN};
+  const Ev btnEv[2] = {Ev::BtnLeft, Ev::BtnRight};
+  // A Power press already down on the task's first poll (the press that woke
+  // the chip, or one held through the boot sequence) never counts as a
+  // click — waking with Power must not immediately sleep again — but its
+  // hold still counts toward the power menu.
+  bool firstPoll = true;
+  bool powerClickArmed = false;
+  bool powerMenuFired = false;
   for (;;) {
     input.update();
 
     InEvent e{};
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < 2; ++i)
       if (input.wasPressed(btnIdx[i])) { e.ev = btnEv[i]; xQueueSend(g_inQueue, &e, 0); }
+
+    if (input.wasPressed(InputManager::BTN_POWER)) {
+      powerClickArmed = !firstPoll;
+      powerMenuFired = false;
+    }
+    const unsigned long powerHeldMs = input.getPowerButtonHeldTime();
+    if (input.isPressed(InputManager::BTN_POWER) && !powerMenuFired && powerHeldMs >= kPowerMenuHoldMs) {
+      powerMenuFired = true;
+      e.ev = Ev::PowerMenu; xQueueSend(g_inQueue, &e, 0);
+    }
+    if (input.wasReleased(InputManager::BTN_POWER)) {
+      if (powerClickArmed && !powerMenuFired && powerHeldMs < kPowerClickMaxMs) {
+        e.ev = Ev::BtnPower; xQueueSend(g_inQueue, &e, 0);
+      }
+      powerClickArmed = false;
+    }
+    firstPoll = false;
 
     if (input.wasHomeKeyLongPressed()) { e.ev = Ev::HomeLong; xQueueSend(g_inQueue, &e, 0); }
     else if (input.wasHomeKeyTapped()) { e.ev = Ev::HomeTap;  xQueueSend(g_inQueue, &e, 0); }
@@ -101,8 +135,6 @@ static void inputTask(void*) {
       xQueueSend(g_inQueue, &e, 0);
     }
 
-    g_powerHeld = input.isPressed(InputManager::BTN_POWER);
-    g_powerHeldMs = input.getPowerButtonHeldTime();
     float hx, hy;
     g_touchDown = input.isTouchHeldAt(hx, hy);
     if (g_touchDown) { g_touchNx = hx; g_touchNy = hy; }
@@ -212,6 +244,7 @@ static volatile bool g_weatherBusy = false;
 // flWarmPct/applyBrightness/applyWarmth (just defined above) already visible;
 // each is otherwise only included after the screen_*.h's it itself depends on.
 #include "screen_wifi.h"
+#include "screen_pairing.h"
 #include "screen_settings_info.h"
 #include "screen_room_pick.h"
 #include "screen_developer.h"
@@ -224,10 +257,12 @@ static volatile bool g_weatherBusy = false;
 #include "screen_blinds.h"
 #include "screen_music.h"
 #include "screen_tv.h"
+#include "screen_xbox.h"
 #include "screen_wifi_networks.h"
 #include "screen_debug.h"
 #include "screen_error.h"
 #include "screen_splash.h"
+#include "screen_power.h"
 
 // ===========================================================================
 // The carousel — paging through the resting screens. Page 0 is the
@@ -292,19 +327,16 @@ static inline uint32_t revertToStatusSec() {
 // The battery percentage at/below which the charge screen takes over.
 static constexpr uint8_t kLowBatteryPct = 5;
 
-// --- power button: click sleeps/wakes, a 10s hold shuts down ---------------
-static constexpr unsigned long kPowerShutdownHoldMs = 10000;
-
 static const freeink::Icon* carouselIcon(uint8_t page) {
   switch (page) {
-    case 0: return &kNav_status;
-    case 1: return &kNav_lighting;
-    case 2: return &kNav_blinds;
-    case 3: return &kNav_music;
-    case 4: return &kNav_tv;
-    case 5: return &kNav_xbox;
-    case 6: return &kNav_wifi;
-    case 7: return &kNav_climate;
+    case 0: return &icons::get("nav_status");
+    case 1: return &icons::get("nav_lighting");
+    case 2: return &icons::get("nav_blinds");
+    case 3: return &icons::get("nav_music");
+    case 4: return &icons::get("nav_tv");
+    case 5: return &icons::get("nav_xbox");
+    case 6: return &icons::get("nav_wifi");
+    case 7: return &icons::get("nav_climate");
     default: return nullptr;
   }
 }
@@ -362,6 +394,8 @@ static void drawStandbyContent(bool sleeping, int pressed) {
     screen_music::draw(pressed);
   } else if (carouselPage == kPageTv) {
     screen_tv::draw(pressed);
+  } else if (carouselPage == kPageXbox) {
+    screen_xbox::draw(pressed);
   } else if (carouselPage == kPageWifi) {
     screen_wifi_networks::draw();
   } else {
@@ -492,16 +526,16 @@ static int jumpSel = 0;
 
 static const freeink::Icon* jumpIcon(int i) {
   switch (i) {
-    case 0: return &kWx_jump_status;
-    case 1: return &kWx_jump_lighting;
-    case 2: return &kWx_jump_blinds;
-    case 3: return &kWx_jump_music;
-    case 4: return &kWx_jump_tv;
-    case 5: return &kWx_jump_xbox;
-    case 6: return &kWx_jump_wifi;
-    case 7: return &kWx_jump_climate;
-    case kJumpSettings: return &kWx_jump_settings;
-    case kJumpErrors:   return &kWx_jump_errors;
+    case 0: return &icons::get("wx_jump_status");
+    case 1: return &icons::get("wx_jump_lighting");
+    case 2: return &icons::get("wx_jump_blinds");
+    case 3: return &icons::get("wx_jump_music");
+    case 4: return &icons::get("wx_jump_tv");
+    case 5: return &icons::get("wx_jump_xbox");
+    case 6: return &icons::get("wx_jump_wifi");
+    case 7: return &icons::get("wx_jump_climate");
+    case kJumpSettings: return &icons::get("wx_jump_settings");
+    case kJumpErrors:   return &icons::get("wx_jump_errors");
     default: return nullptr;
   }
 }
@@ -542,31 +576,270 @@ static int jumpHitTest(int16_t tx, int16_t ty) {
   return -1;
 }
 
-static void drawJumpList() {
-  rebuildJumpVisible();
-  if (jumpSel >= jumpVisibleCount) jumpSel = 0;
-  ui.clear();
-  drawStatusBar("Jump to");
-  for (int slot = 0; slot < jumpVisibleCount; ++slot) {
-    const int i = jumpVisible[slot];
+// ===========================================================================
+// Quick Access hub — a config-driven grid (deviceconfig::hubItems[]) that
+// takes over this same jump-list grid (kJumpTop/kJumpTileW/kJumpTileH/
+// jumpTilePos above) whenever the server sends hub.items[]. The fixed
+// kJumpItems grid above is the fallback for a room whose config hasn't been
+// migrated to send "hub" yet — both live in drawJumpList() below, branching
+// on deviceconfig::hubItemCount.
+//
+// Each tile is two independent tap zones (see hubZoneHit()): the top 2/3
+// navigates locally (no HA call); the bottom 1/3, when quickActionsEnabled
+// and the item has an action, fires a toggle/run HA service call. This is
+// the one part of the jump list that touches Home Assistant at all — plain
+// navigation never did and still doesn't.
+static int hubPage = 0;
+static constexpr int kHubPerPage = kJumpCount;  // reuses the same 2x5 grid
+
+static int hubPageCount() {
+  return deviceconfig::hubItemCount == 0
+             ? 1
+             : (deviceconfig::hubItemCount + kHubPerPage - 1) / kHubPerPage;
+}
+static void hubClampPage() {
+  const int pc = hubPageCount();
+  if (hubPage >= pc) hubPage = pc - 1;
+  if (hubPage < 0) hubPage = 0;
+}
+
+// target string -> carouselPage, or -1 for anything this app has no screen
+// for (e.g. "vacuum" — falls back to Settings on tap; see hubNavigate()).
+static int hubTargetPage(const char* target) {
+  if (!strcmp(target, "media")) return kPageMusic;
+  if (!strcmp(target, "climate")) return kPageClimate;
+  if (!strcmp(target, "lighting")) return kPageLighting;
+  if (!strcmp(target, "blinds")) return kPageBlinds;
+  if (!strcmp(target, "tv")) return kPageTv;
+  if (!strcmp(target, "xbox")) return kPageXbox;
+  if (!strcmp(target, "guestwifi") || !strcmp(target, "wifi")) return kPageWifi;
+  return -1;
+}
+static const freeink::Icon* hubIconFor(const char* target) {
+  const int page = hubTargetPage(target);
+  if (page >= 0) return jumpIcon(page);
+  return &icons::get("wx_jump_settings");  // unrecognized target: same glyph its Settings fallback uses
+}
+
+// Live on/off for every configured Toggle item, indexed by deviceconfig::
+// hubItems[]'s own index. Small and flat (kMaxHubItems=20 bools) even though
+// only the current page's entries are ever FETCHED (hubLoadPageState()) —
+// storage being flat just means a page you've already visited this session
+// keeps showing its last-known state instead of blanking when you page away
+// and back, which reads better than losing it.
+static bool hubToggleOn[deviceconfig::kMaxHubItems] = {};
+static volatile bool hubStateBusy = false;
+// Set by hubStateTask/hubActionTask when a repaint should follow; consumed
+// (and cleared) by the settle check alongside every other page's g_busy
+// pattern, but keyed on this flag instead of a g_pressed/g_busy pair since
+// the hub's "busy" (an HA call in flight) doesn't gate a press-flash the way
+// every other page's does — the strip's fill IS the state, there's no
+// separate momentary press style to clear.
+static bool hubDirty = false;
+
+static void hubStateTask(void*) {
+  hubStateBusy = true;
+  const char* h = globalsclient::haHost;
+  const uint16_t p = globalsclient::haPort;
+  const char* t = globalsclient::haToken;
+  if (globalsclient::ok) {
+    hubClampPage();
+    const int start = hubPage * kHubPerPage;
+    const int end = start + kHubPerPage < deviceconfig::hubItemCount ? start + kHubPerPage
+                                                                     : deviceconfig::hubItemCount;
+    for (int i = start; i < end; ++i) {
+      if (deviceconfig::hubItems[i].actionType != deviceconfig::HubAction::Toggle) continue;
+      bool on = hubToggleOn[i];
+      if (haclient::fetchHubToggleState(h, p, t, deviceconfig::hubItems[i].actionEntity, on) &&
+          on != hubToggleOn[i]) {
+        hubToggleOn[i] = on;
+        hubDirty = true;
+      }
+    }
+  }
+  hubStateBusy = false;
+  vTaskDelete(nullptr);
+}
+// "Subscribe narrowly" (spec language) translates to REST polling scope
+// here, same as every other page: only fetch state for whichever page's
+// Toggle entities are actually on screen right now, not the whole list.
+static void hubLoadPageState() {
+  if (hubStateBusy || !globalsclient::ok) return;
+  hubStateBusy = true;
+  if (xTaskCreatePinnedToCore(hubStateTask, "sb_hubst", 8192, nullptr, 1, nullptr, 1) != pdPASS)
+    hubStateBusy = false;
+}
+static void hubNextPage() { hubPage = (hubPage + 1) % hubPageCount(); hubLoadPageState(); }
+static void hubPrevPage() { hubPage = (hubPage + hubPageCount() - 1) % hubPageCount(); hubLoadPageState(); }
+
+// The pending/last action-strip tap — a Run flashes its strip once
+// (hubFlashUntilMs), a Toggle just tracks hubToggleOn[] (set optimistically
+// on tap, reconciled from the real fetch this same task does after the call).
+static volatile bool hubActionBusy = false;
+static int hubActionIdx = -1;
+static bool hubActionOn = false;
+static deviceconfig::HubAction hubActionKind = deviceconfig::HubAction::None;
+static int hubFlashIdx = -1;
+static uint32_t hubFlashUntilMs = 0;
+
+static void hubActionTask(void*) {
+  hubActionBusy = true;
+  ensureMdns();
+  const char* h = globalsclient::haHost;
+  const uint16_t p = globalsclient::haPort;
+  const char* t = globalsclient::haToken;
+  if (globalsclient::ok && hubActionIdx >= 0 && hubActionIdx < deviceconfig::hubItemCount) {
+    const deviceconfig::HubItem& it = deviceconfig::hubItems[hubActionIdx];
+    if (hubActionKind == deviceconfig::HubAction::Toggle) {
+      haclient::hubToggle(h, p, t, it.actionEntity, hubActionOn);
+      delay(400);  // let HA apply before reading back, same convention as Climate/Blinds
+      bool on = hubActionOn;
+      haclient::fetchHubToggleState(h, p, t, it.actionEntity, on);
+      hubToggleOn[hubActionIdx] = on;
+    } else if (hubActionKind == deviceconfig::HubAction::Run) {
+      haclient::hubRun(h, p, t, it.actionEntity, it.actionService, it.actionData);
+    }
+  }
+  hubDirty = true;
+  hubActionBusy = false;
+  vTaskDelete(nullptr);
+}
+static void hubFireAction(int idx) {
+  if (hubActionBusy || g_weatherBusy || idx < 0 || idx >= deviceconfig::hubItemCount) return;
+  const deviceconfig::HubItem& it = deviceconfig::hubItems[idx];
+  hubActionIdx = idx;
+  hubActionKind = it.actionType;
+  if (it.actionType == deviceconfig::HubAction::Toggle) {
+    hubActionOn = !hubToggleOn[idx];
+    hubToggleOn[idx] = hubActionOn;  // optimistic; hubActionTask reconciles it
+  } else if (it.actionType == deviceconfig::HubAction::Run) {
+    hubFlashIdx = idx;
+    hubFlashUntilMs = millis() + 600;
+  } else {
+    return;
+  }
+  hubActionBusy = true;
+  if (xTaskCreatePinnedToCore(hubActionTask, "sb_hubact", 8192, nullptr, 1, nullptr, 1) != pdPASS)
+    hubActionBusy = false;
+}
+
+// Returns the visible-page slot (0..kHubPerPage-1) a tap landed in and which
+// zone via `zoneOut` (0 = top 2/3, navigate; 1 = bottom 1/3, action), or -1
+// if the tap missed every tile. Shared by layout and hit-testing — see
+// drawHubGrid() below, which computes the exact same topH split.
+static int hubZoneHit(int16_t tx, int16_t ty, int& zoneOut) {
+  for (int slot = 0; slot < kHubPerPage; ++slot) {
     int16_t x, y;
     jumpTilePos(slot, x, y);
-    const bool sel = slot == jumpSel;
-    const bool cur = i == carouselPage && i < kCarouselPages;
-    if (sel) ui.fillRect(x, y, kJumpTileW, kJumpTileH, Color::Black, 16);
-    else     ui.strokeRect(x, y, kJumpTileW, kJumpTileH, 2, 16);
-    const Color fg = sel ? Color::White : Color::Black;
-    const freeink::Icon* ic = jumpIcon(i);
-    if (ic)
-      ui.icon(*ic, static_cast<int16_t>(x + (kJumpTileW - ic->w) / 2), static_cast<int16_t>(y + 20), fg);
-    ui.text(kJumpItems[i], x, static_cast<int16_t>(y + 76), kJumpTileW, 28, TextAlign::Center, fg);
-    if (cur)
-      ui.text("now", x, static_cast<int16_t>(y + kJumpTileH - 22), kJumpTileW, 18, TextAlign::Center,
-              sel ? Color::LightGray : Color::DarkGray, 1, Ui::kFontSmall);
+    if (tx < x || tx >= x + kJumpTileW || ty < y || ty >= y + kJumpTileH) continue;
+    const int16_t topH = static_cast<int16_t>(kJumpTileH * 2 / 3);
+    zoneOut = (ty - y) < topH ? 0 : 1;
+    return slot;
   }
-  // Opening the jump list is navigation (matches its Home/Power close below),
-  // not control feedback — Full, not a silent Half default.
-  commitFrame(refreshModeFor(RefreshEvent::ScreenSwitch));
+  return -1;
+}
+
+static void hubNavigate(int idx) {
+  jumpOpen = false;
+  standbyIdleSinceMs = millis();
+  const int page = hubTargetPage(deviceconfig::hubItems[idx].target);
+  if (page >= 0 && page < kCarouselPages) {
+    carouselPage = static_cast<uint8_t>(page);
+    stage = Stage::Standby;
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
+  } else {
+    // Unrecognized target (e.g. "vacuum" — no such screen exists here yet):
+    // Settings is a safer fallback than silently doing nothing on tap.
+    screen_settings::enter();
+  }
+}
+
+static void drawHubGrid() {
+  hubClampPage();
+  const int start = hubPage * kHubPerPage;
+  const int shown =
+      deviceconfig::hubItemCount - start < kHubPerPage ? deviceconfig::hubItemCount - start : kHubPerPage;
+  const bool qa = localsettings::quickActionsEnabled;
+  if (hubFlashIdx >= 0 && millis() > hubFlashUntilMs) hubFlashIdx = -1;
+
+  for (int slot = 0; slot < shown; ++slot) {
+    const int gi = start + slot;
+    const deviceconfig::HubItem& it = deviceconfig::hubItems[gi];
+    int16_t x, y;
+    jumpTilePos(slot, x, y);
+    const bool hasAction = qa && it.actionType != deviceconfig::HubAction::None;
+    const int16_t topH = hasAction ? static_cast<int16_t>(kJumpTileH * 2 / 3) : kJumpTileH;
+
+    ui.strokeRect(x, y, kJumpTileW, kJumpTileH, 2, 16);
+    // A custom icon picked for this button (admin UI's icon picker) wins
+    // over the fixed glyph its `target` would otherwise show.
+    const freeink::Icon* ic = mdiicon::hubIcons[gi] ? mdiicon::hubIcons[gi] : hubIconFor(it.target);
+    if (ic)
+      ui.icon(*ic, static_cast<int16_t>(x + (kJumpTileW - ic->w) / 2), static_cast<int16_t>(y + 14),
+              Color::Black);
+    ui.text(it.name, x, static_cast<int16_t>(y + 70), kJumpTileW, 24, TextAlign::Center, Color::Black,
+            1, Ui::kFontSmall);
+    const int page = hubTargetPage(it.target);
+    if (page >= 0 && page == carouselPage && page < kCarouselPages)
+      ui.text("now", x, static_cast<int16_t>(y + topH - 18), kJumpTileW, 16, TextAlign::Center,
+              Color::DarkGray, 1, Ui::kFontSmall);
+
+    if (hasAction) {
+      const int16_t stripY = static_cast<int16_t>(y + topH);
+      const int16_t stripH = static_cast<int16_t>(kJumpTileH - topH);
+      drawDottedLine(static_cast<int16_t>(x + 8), stripY, static_cast<int16_t>(kJumpTileW - 16));
+      const bool on = it.actionType == deviceconfig::HubAction::Toggle && hubToggleOn[gi];
+      const bool filled = hubFlashIdx == gi || on;
+      if (filled)
+        ui.fillRect(x, static_cast<int16_t>(stripY + 1), kJumpTileW, static_cast<int16_t>(stripH - 1),
+                    Color::Black, 14);
+      const Color sfg = filled ? Color::White : Color::Black;
+      const char* label = it.actionType == deviceconfig::HubAction::Toggle ? (on ? "On" : "Off") : "Run";
+      ui.text(label, x, static_cast<int16_t>(stripY + (stripH - 20) / 2), kJumpTileW, 20,
+              TextAlign::Center, sfg, 1, Ui::kFontSmall);
+    }
+  }
+
+  if (hubPageCount() > 1) {
+    char footer[24];
+    snprintf(footer, sizeof(footer), "Page %d of %d", hubPage + 1, hubPageCount());
+    ui.text(footer, 0, static_cast<int16_t>(Ui::H - 26), Ui::W, 20, TextAlign::Center, Color::DarkGray,
+            1, Ui::kFontSmall);
+  }
+}
+
+// `r` defaults to Full (screen entry / page turn); a hub action-strip tap's
+// settle repaint below passes Fast instead — see the RefreshEvent table's
+// policy (control feedback never flashes) at the top of this file, which
+// applies here exactly as it does to every carousel page's own controls.
+static void drawJumpList(Rf r = Rf::Full) {
+  ui.clear();
+  drawStatusBar(deviceconfig::hubItemCount > 0 ? "Quick Access" : "Jump to");
+  if (deviceconfig::hubItemCount > 0) {
+    drawHubGrid();
+  } else {
+    rebuildJumpVisible();
+    if (jumpSel >= jumpVisibleCount) jumpSel = 0;
+    for (int slot = 0; slot < jumpVisibleCount; ++slot) {
+      const int i = jumpVisible[slot];
+      int16_t x, y;
+      jumpTilePos(slot, x, y);
+      const bool sel = slot == jumpSel;
+      const bool cur = i == carouselPage && i < kCarouselPages;
+      if (sel) ui.fillRect(x, y, kJumpTileW, kJumpTileH, Color::Black, 16);
+      else     ui.strokeRect(x, y, kJumpTileW, kJumpTileH, 2, 16);
+      const Color fg = sel ? Color::White : Color::Black;
+      const freeink::Icon* ic = jumpIcon(i);
+      if (ic)
+        ui.icon(*ic, static_cast<int16_t>(x + (kJumpTileW - ic->w) / 2), static_cast<int16_t>(y + 20),
+                fg);
+      ui.text(kJumpItems[i], x, static_cast<int16_t>(y + 76), kJumpTileW, 28, TextAlign::Center, fg);
+      if (cur)
+        ui.text("now", x, static_cast<int16_t>(y + kJumpTileH - 22), kJumpTileW, 18, TextAlign::Center,
+                sel ? Color::LightGray : Color::DarkGray, 1, Ui::kFontSmall);
+    }
+  }
+  commitFrame(r);
 }
 
 static void jumpTo(int i) {
@@ -585,18 +858,20 @@ static void jumpTo(int i) {
 
 // The physical buttons, all active-LOW: Left=GPIO0, Right=GPIO7, Power=GPIO3.
 // (Home is a GT911 capacitive key — it can't wake the chip from deep sleep.)
-static const gpio_num_t kWakePins[] = {GPIO_NUM_0, GPIO_NUM_7, GPIO_NUM_3};
+static constexpr gpio_num_t kPowerPin = GPIO_NUM_3;
+static const gpio_num_t kWakePins[] = {GPIO_NUM_0, GPIO_NUM_7, kPowerPin};
 
-// Deep-sleep the chip, waking on ANY of the physical buttons (a full chip reset
+// Deep-sleep the chip, waking on any button in `wakeMask` (a full chip reset
 // back through setup()) and optionally after `timerUs` microseconds (0 = none).
-// Never returns.
+// Never returns. deepSleepWithWake() below arms every physical button;
+// shutdown() arms Power alone.
 //
 // Mirrors CrossPoint's enterDeepSleep() + HalPowerManager::startDeepSleep():
 // tear down Wi-Fi, panel deep-sleep command, arm ext1 wake, HOLD the master
 // peripheral-rail latch (GPIO1) HIGH — PowerManager::deepSleep() runs
 // esp_sleep_config_gpio_isolate() which otherwise lets the latch float, the
 // rail drops on battery, and the next press cold-boots instead of fast-waking.
-[[noreturn]] static void deepSleepWithWake(uint64_t timerUs) {
+[[noreturn]] static void deepSleepOnPins(uint64_t wakeMask, uint64_t timerUs) {
   // 0. Remember the frontlight state — its rail is cut below, so the wake path
   //    has to put it back deliberately. Let any in-flight async refresh land
   //    first so the panel keeps a complete frame through sleep. Tear down
@@ -621,13 +896,9 @@ static const gpio_num_t kWakePins[] = {GPIO_NUM_0, GPIO_NUM_7, GPIO_NUM_3};
   // 2. Panel deep-sleep command, while its rail is still powered.
   ui.display().deepSleep();
 
-  // 3. Arm wake on every physical button (active-LOW) + the refresh timer.
-  uint64_t mask = 0;
-  for (gpio_num_t p : kWakePins) {
-    pinMode(p, INPUT_PULLUP);
-    mask |= 1ULL << p;
-  }
-  freeink::PowerManager::armWakeOnPins(mask, /*wakeLow=*/true);
+  // 3. Arm wake on the requested buttons (active-LOW) + the refresh timer.
+  for (gpio_num_t p : kWakePins) pinMode(p, INPUT_PULLUP);
+  freeink::PowerManager::armWakeOnPins(wakeMask, /*wakeLow=*/true);
   if (timerUs) esp_sleep_enable_timer_wakeup(timerUs);
 
   // 4. Hold GPIO1 (power.latch0) HIGH through deep sleep.
@@ -657,6 +928,13 @@ static const gpio_num_t kWakePins[] = {GPIO_NUM_0, GPIO_NUM_7, GPIO_NUM_3};
   }
 }
 
+// Deep-sleep waking on ANY of the physical buttons (see deepSleepOnPins).
+[[noreturn]] static void deepSleepWithWake(uint64_t timerUs) {
+  uint64_t mask = 0;
+  for (gpio_num_t p : kWakePins) mask |= 1ULL << p;
+  deepSleepOnPins(mask, timerUs);
+}
+
 // Deep-sleep from the carousel: wake after `timerSec` (0 = only a button wakes),
 // or on a physical button to come back. Never returns. The panel keeps showing
 // whatever frame was last flushed (moon + no frontlight).
@@ -682,6 +960,7 @@ static void ensureMdns() {
 static bool refreshStandby() {
   if (WiFi.status() != WL_CONNECTED) {
     persist::load();
+    mdiicon::resolveAll(nullptr, mdiicon::Fetch::CacheOnly);
     return false;
   }
 
@@ -692,6 +971,12 @@ static bool refreshStandby() {
                                    : "will fetch");
   if (!globalsclient::ok) globalsclient::fetch();  // HA host/token — rarely changes
   deviceconfig::fetch();                           // entity ids + refresh interval
+  // Icons: nothing already on SD is re-pulled unless Settings -> Refresh now
+  // asked for it. A theme version bump still downloads the new pack, and any
+  // per-item MDI icon the config just introduced is fetched right here.
+  const bool forceIcons = themeclient::takeRefreshRequest();
+  themeclient::checkForUpdate(pairing::token, forceIcons);
+  mdiicon::resolveAll(pairing::token, forceIcons ? mdiicon::Fetch::Force : mdiicon::Fetch::IfMissing);
 
   bool gotWeather = false;
   for (int attempt = 0; attempt < 2 && !gotWeather; ++attempt) {
@@ -700,6 +985,7 @@ static bool refreshStandby() {
     if (attempt == 1) {
       globalsclient::fetch();
       deviceconfig::fetch();
+      mdiicon::resolveAll(pairing::token, mdiicon::Fetch::IfMissing);  // new names in the re-pulled config
     }
     if (!globalsclient::ok) break;
     const char* h = globalsclient::haHost;
@@ -730,6 +1016,10 @@ static bool refreshStandby() {
           h, p, t, deviceconfig::climateSensors[i].entity, haclient::climateSensorValue[i]);
     if (deviceconfig::mediaEnabled)
       haclient::fetchMedia(h, p, t, deviceconfig::mediaEntity);
+    if (deviceconfig::xboxMediaEntity[0]) {
+      haclient::fetchXboxMedia(h, p, t, deviceconfig::xboxMediaEntity);
+      screen_xbox::loadVisibleArt();  // catches a game/track change even off-page
+    }
   }
 
   standbyLastFetchMs = millis();
@@ -739,6 +1029,7 @@ static bool refreshStandby() {
     persist::save();
   } else {
     persist::load();  // roll back any half-updated / cleared client state
+    mdiicon::resolveAll(nullptr, mdiicon::Fetch::CacheOnly);  // re-point at the rolled-back config's icons
   }
   return gotWeather;
 }
@@ -814,18 +1105,34 @@ static void standbySleepNow() {
 }
 
 // ===========================================================================
-// Shutdown — a 10s Power hold, from any stage.
+// Power menu (a 10s Power hold, from any stage) -> Restart / Shut down.
 // ===========================================================================
-// A real deep sleep (not the soft Asleep state above): waits for release, arms
-// wake-on-power-button, then powers down. Waking is a full chip reset back
-// through setup()'s Splash / Wi-Fi sequence, same as a fresh boot. Never
-// returns.
+// Shut down: the X4 Pro has no PMIC soft-off, so "off" is a deep sleep with no
+// timer that only the Power button wakes — Left/Right can't turn it on by
+// accident. Every RTC wake-routing flag is cleared first, so setup() sees a
+// plain EXT1 wake with nothing to resume and takes the full cold-boot path
+// (splash, Wi-Fi, pairing, carousel), same as a fresh power-on. Never returns.
 [[noreturn]] static void shutdown() {
+  rtcStandbyActive = false;
+  rtcNoHA = false;
+  rtcLowBattery = false;
+  if (frontlight.present()) frontlight.off();
+  screen_power::drawOff();
+  deepSleepOnPins(1ULL << kPowerPin, /*timerUs=*/0);
+}
+
+// Restart: ESP.restart() reports a non-sleep reset reason, which setup()
+// always treats as a cold boot. Park the SD cache first, like a sleep does.
+[[noreturn]] static void restartDevice() {
+  if (frontlight.present()) frontlight.off();
   ui.clear();
-  ui.centered("Shutting down", 380, 40);
-  ui.centered("press Power to turn on", 430, 26, Color::DarkGray);
-  ui.flushFull();
-  deepSleepWithWake(0);  // no timer — any button wakes it
+  ui.centered("Restarting", 380, 40);
+  commitFrame(Rf::Clean);
+  ui.syncDisplay();
+  persist::shutdown();
+  ESP.restart();
+  while (true) {  // unreachable — satisfy [[noreturn]]
+  }
 }
 
 // Drain the input task's queue + level state into one InFrame (touch coords
@@ -839,6 +1146,7 @@ static InFrame drainInput() {
         case Ev::BtnLeft:  f.btnLeft = true;  Serial.println("[in] button LEFT"); break;
         case Ev::BtnRight: f.btnRight = true; Serial.println("[in] button RIGHT"); break;
         case Ev::BtnPower: f.btnPower = true; Serial.println("[in] button POWER"); break;
+        case Ev::PowerMenu: f.powerMenu = true; Serial.println("[in] POWER held -> power menu"); break;
         case Ev::HomeTap:  f.homeTap = true;  Serial.println("[in] HOME key tap"); break;
         case Ev::HomeLong: f.homeLong = true; Serial.println("[in] HOME key long-press"); break;
         case Ev::Tap:
@@ -930,6 +1238,7 @@ void setup() {
   // Display first — everything else can wait until the panel shows something.
   ui.begin();
   deviceconfig::loadSlug();  // the room this remote drives (NVS; Settings -> Select room)
+  deviceconfig::loadSlugUserPicked();
   localsettings::load();     // on-device debug toggles (NVS; Settings -> Developer)
   // TEMP DEBUG — the SD mount + read sits on the critical path to the first
   // wake paint (replacing what used to be an instant RTC memcpy), so time it
@@ -943,6 +1252,13 @@ void setup() {
     Serial.printf("[persist] SD mount=%lums (ok=%d)  cache load=%lums (ok=%d)\n",
                   static_cast<unsigned long>(t1 - t0), sdOk, static_cast<unsigned long>(t2 - t1),
                   cacheOk);
+    // Load any theme pack already on SD (a no-op, falling back to the
+    // compiled-in default look, if there's no card or no pack yet) — now
+    // that the card is actually mounted, unlike ui.begin() above.
+    themeclient::loadAtBoot();
+    // Per-item MDI icons for the persisted config, straight from SD — so the
+    // wake paint below already shows them, no network needed.
+    mdiicon::resolveAll(nullptr, mdiicon::Fetch::CacheOnly);
   }
 
   // A physical-button wake out of Standby: backlight on immediately, then the
@@ -1055,6 +1371,12 @@ void setup() {
   stage = Stage::Wifi;
   screen_wifi::run();
 
+  // Blocking "waiting for approval" gate for a never-paired (or revoked)
+  // device - a no-op fast-path if NVS already has a valid token. Must run
+  // before anything below talks to the server, since every one of those
+  // calls now requires a paired device's bearer token.
+  if (WiFi.status() == WL_CONNECTED) screen_pairing::run();
+
   // Weather loads in the background — the boot path never blocks on the HA calls.
   if (WiFi.status() == WL_CONNECTED) {
     ensureMdns();
@@ -1081,9 +1403,11 @@ void loop() {
   }
   prevTouchDown = in.touchHeld;
 
-  // --- Power: hold 10s -> shutdown, from any stage ----------------------
-  if (g_powerHeld && g_powerHeldMs >= kPowerShutdownHoldMs) {
-    shutdown();  // noreturn
+  // --- Power: hold 10s -> the power menu, from any stage ------------------
+  if (in.powerMenu && stage != Stage::PowerMenu) {
+    screen_power::enter();
+    delay(5);
+    return;
   }
 
   switch (stage) {
@@ -1103,12 +1427,52 @@ void loop() {
         break;
       }
 
-      // --- carousel jump list overlay (opened by TAPPING Home) ---
+      // --- carousel jump list / Quick Access hub overlay (Home tap opens) --
       if (jumpOpen) {
         standbyIdleSinceMs = millis();
         if (in.homeTap || in.btnPower) { jumpOpen = false; drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch)); break; }
-        if (in.btnLeft)  { jumpSel = (jumpSel + jumpVisibleCount - 1) % jumpVisibleCount; drawJumpList(); break; }
-        if (in.btnRight) { jumpSel = (jumpSel + 1) % jumpVisibleCount; drawJumpList(); break; }
+
+        // A background state fetch or action call finished — same
+        // unconditional per-tick dirty-check convention as screen_shade's
+        // own overlay right above, so it repaints whether or not this tick
+        // also carried a tap.
+        if (deviceconfig::hubItemCount > 0 && hubDirty && !ui.refreshBusy()) {
+          hubDirty = false;
+          drawJumpList(Rf::Fast);
+        }
+
+        if (deviceconfig::hubItemCount > 0) {
+          // Hub mode: Left/Right PAGE the grid (like Xbox's library), not
+          // move a highlight — the hub is tap-driven (dual zones), it has no
+          // highlight-then-Power-to-activate cursor the legacy list below
+          // still does.
+          if (in.btnLeft)  { hubPrevPage(); drawJumpList(Rf::Full); break; }
+          if (in.btnRight) { hubNextPage(); drawJumpList(Rf::Full); break; }
+          if (in.tap) {
+            int zone = 0;
+            const int slot = hubZoneHit(in.tx, in.ty, zone);
+            if (slot >= 0) {
+              const int gi = hubPage * kHubPerPage + slot;
+              if (gi < deviceconfig::hubItemCount) {
+                const bool hasAction =
+                    localsettings::quickActionsEnabled &&
+                    deviceconfig::hubItems[gi].actionType != deviceconfig::HubAction::None;
+                if (zone == 0 || !hasAction) {
+                  hubNavigate(gi);
+                } else {
+                  hubFireAction(gi);
+                  drawJumpList(Rf::Fast);  // optimistic strip flip / flash, no flash-class refresh
+                }
+              }
+            }
+          }
+          break;
+        }
+
+        // Legacy fixed grid: Left/Right move a highlight, tap (or Power on
+        // the highlighted tile, same convention as Settings/Timeouts) jumps.
+        if (in.btnLeft)  { jumpSel = (jumpSel + jumpVisibleCount - 1) % jumpVisibleCount; drawJumpList(Rf::Fast); break; }
+        if (in.btnRight) { jumpSel = (jumpSel + 1) % jumpVisibleCount; drawJumpList(Rf::Fast); break; }
         if (in.tap) {
           const int slot = jumpHitTest(in.tx, in.ty);
           if (slot >= 0) jumpTo(jumpVisible[slot]);
@@ -1177,13 +1541,19 @@ void loop() {
         break;
       }
 
-      // Tap Home -> the jump list (pick any carousel page, Settings, Self-test)
+      // Tap Home -> the jump list / Quick Access hub (pick any carousel
+      // page, Settings, Self-test; or a hub tile's nav/action zones).
       if (in.homeTap) {
         input.suppressTouchContact();
         jumpOpen = true;
-        rebuildJumpVisible();
-        jumpSel = jumpSlotFor(carouselPage);
         standbyIdleSinceMs = millis();
+        if (deviceconfig::hubItemCount > 0) {
+          hubClampPage();
+          hubLoadPageState();  // fetch this page's toggle strips as it opens
+        } else {
+          rebuildJumpVisible();
+          jumpSel = jumpSlotFor(carouselPage);
+        }
         drawJumpList();
         break;
       }
@@ -1461,6 +1831,39 @@ void loop() {
         }
       }
 
+      // Xbox page: the power capsule, then a library row -> launch. Both are
+      // fire-and-forget background calls, same convention as TV above; the
+      // row press-flash clears once screen_xbox::task() settles, below.
+      if (carouselPage == kPageXbox && in.tap) {
+        if (screen_xbox::powerHit(in.tx, in.ty)) {
+          screen_xbox::togglePower();
+          standbyIdleSinceMs = millis();
+          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/0);
+          break;
+        }
+        const int slot = screen_xbox::rowHit(in.tx, in.ty);
+        if (slot >= 0) {
+          const int gi = screen_xbox::displayIndex(screen_xbox::page * screen_xbox::kRowsPerPage + slot);
+          if (gi >= 0) {
+            screen_xbox::launch(deviceconfig::xboxGames[gi].productId);
+            screen_xbox::g_pressed = slot + 1;
+            standbyIdleSinceMs = millis();
+            drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/slot + 1);
+            break;
+          }
+        }
+        const int footerDir = screen_xbox::footerHit(in.tx, in.ty);
+        if (footerDir >= 0) {
+          if (footerDir == 0) screen_xbox::prevPage(); else screen_xbox::nextPage();
+          standbyIdleSinceMs = millis();
+          // A page turn swaps every row's thumbnail at once — the same
+          // dense-content-swap reasoning as Lighting's chip-list pager, so
+          // it gets ScreenSwitch (Full), not TapFeedback.
+          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
+          break;
+        }
+      }
+
       // Wifi page: tap a network row -> straight to its QR screen (no
       // press-flash needed, same as Settings -> Select room's row tap).
       if (carouselPage == kPageWifi && in.tap) {
@@ -1541,6 +1944,15 @@ void loop() {
           screen_music::kick(screen_music::Act::Refresh);
         }
       }
+      // Xbox: same 30s re-poll while a game is running, so the hero/"Playing"
+      // row catches a title change (or the console going idle) promptly.
+      if (carouselPage == kPageXbox && !screen_xbox::g_busy && !g_weatherBusy) {
+        static uint32_t lastXboxPoll = 0;
+        if (!strcmp(haclient::xboxMedia.state, "playing") && millis() - lastXboxPoll > 30000) {
+          lastXboxPoll = millis();
+          screen_xbox::kickRefresh();
+        }
+      }
 
       // Once an action settles (or its kick was a no-op), repaint the page with
       // the confirmed state and clear any pressed-button style — all of these
@@ -1557,7 +1969,7 @@ void loop() {
       // ghosting doesn't build up — it just doesn't happen on every tap.
       if (!in.tap) {
         static bool prevLightBusy = false, prevCoverBusy = false, prevItemBusy = false,
-                    prevMusicBusy = false, prevTvBusy = false;
+                    prevMusicBusy = false, prevTvBusy = false, prevXboxBusy = false;
         if (screen_climate::g_pressed >= 0 && !screen_climate::g_busy && carouselPage == kPageClimate) {
           screen_climate::g_pressed = -1;
           drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
@@ -1584,12 +1996,21 @@ void loop() {
                    ((prevTvBusy && !screen_tv::g_busy) || (screen_tv::g_pressed >= 0 && !screen_tv::g_busy))) {
           screen_tv::g_pressed = -1;
           drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+        } else if (carouselPage == kPageXbox &&
+                   ((prevXboxBusy && !screen_xbox::g_busy) ||
+                    (screen_xbox::g_pressed >= 0 && !screen_xbox::g_busy) || screen_xbox::g_artDirty)) {
+          // Also fires on g_artDirty alone (art finishing in the background
+          // after a page turn) — g_pressed may already be -1 then, that's fine.
+          screen_xbox::g_pressed = -1;
+          screen_xbox::g_artDirty = false;
+          drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
         }
         prevLightBusy = screen_lighting::g_busy;
         prevCoverBusy = screen_blinds::g_busy;
         prevItemBusy = screen_blinds::anyItemBusy();
         prevMusicBusy = screen_music::g_busy;
         prevTvBusy = screen_tv::g_busy;
+        prevXboxBusy = screen_xbox::g_busy;
       }
 
       // Critically low battery -> the charge screen, once per wake.
@@ -1779,6 +2200,33 @@ void loop() {
           screen_settings::enter();
         }
       }
+      break;
+    }
+
+    case Stage::PowerMenu: {
+      // Cancel (or the auto-cancel timeout) goes back to the carousel on the
+      // page it was on — the menu can open over any stage, and the carousel
+      // is the one screen every stage can safely return to.
+      int act = -1;
+      if (in.btnLeft || in.btnRight) {
+        const int d = in.btnLeft ? screen_power::kCount - 1 : 1;
+        screen_power::sel = (screen_power::sel + d) % screen_power::kCount;
+        screen_power::openedMs = millis();
+        screen_power::draw();
+        break;
+      }
+      if (in.btnPower) act = screen_power::sel;
+      else if (in.tap) act = screen_power::hitTest(in.ty);
+      else if (in.homeTap) act = screen_power::kCancel;
+      if (act < 0) {
+        if (millis() - screen_power::openedMs > screen_power::kAutoCancelMs) enterStandby();
+        break;
+      }
+      screen_power::pressed = act;
+      screen_power::draw();
+      if (act == screen_power::kRestart) restartDevice();    // noreturn
+      if (act == screen_power::kShutdown) shutdown();        // noreturn
+      enterStandby();
       break;
     }
 

@@ -12,8 +12,7 @@
 #include <WiFi.h>
 
 #include "ui.h"
-#include "assets.h"
-#include "weather_icons.h"
+#include "icons.h"
 #include "device_config_client.h"
 #include "local_settings.h"
 
@@ -29,7 +28,7 @@ inline BatteryMonitor battery;
 // (main.cpp); everything else is one screen_*.h.
 enum class Stage : uint8_t {
   Splash, Wifi, Standby, Settings, SettingsInfo, RoomPick, Developer, Timeouts, Debug, NoHA,
-  NoRoom, ErrPreview, LowBattery, WifiQr
+  NoRoom, ErrPreview, LowBattery, WifiQr, PowerMenu
 };
 inline Stage stage = Stage::Splash;
 
@@ -117,6 +116,24 @@ inline void pollBattery(bool force = false) {
   if (battery.readPercentageChecked(p) && p >= 1 && p <= 100) g_battPct = static_cast<uint8_t>(p);
 }
 
+// TJpg_Decoder (album_art.h, xbox_art.h) is one global decoder instance
+// (TJpgDec) with file-scope callback state, not something two concurrent
+// decodes can share safely. Every JPEG-decode call site acquires this before
+// touching TJpgDec and releases it in every return path — a simple spin-wait
+// (bounded) rather than a FreeRTOS primitive, matching this file's existing
+// plain-flag busy-gating style (g_busy/g_weatherBusy) elsewhere.
+inline volatile bool g_jpegDecodeBusy = false;
+inline bool acquireJpegDecoder(uint32_t timeoutMs = 4000) {
+  const uint32_t deadline = millis() + timeoutMs;
+  while (g_jpegDecodeBusy) {
+    if (millis() > deadline) return false;
+    delay(5);
+  }
+  g_jpegDecodeBusy = true;
+  return true;
+}
+inline void releaseJpegDecoder() { g_jpegDecodeBusy = false; }
+
 // --- shared chrome layout ---------------------------------------------------
 inline constexpr int16_t kStatusBarH = 52;
 inline constexpr int16_t kFooterBarH = 72;
@@ -195,8 +212,9 @@ inline void drawStatusBar(const char* leftLabel, bool showMoon = false,
 
   int16_t rightEdge = static_cast<int16_t>(Ui::W - 16);
   if (showMoon) {
-    const int16_t moonX = static_cast<int16_t>(rightEdge - kMoon.w);
-    ui.icon(kMoon, moonX, static_cast<int16_t>(kStatusIconMidY - kMoon.h / 2));
+    const freeink::Icon& moon = icons::get("moon");
+    const int16_t moonX = static_cast<int16_t>(rightEdge - moon.w);
+    ui.icon(moon, moonX, static_cast<int16_t>(kStatusIconMidY - moon.h / 2));
     rightEdge = static_cast<int16_t>(moonX - 8);
   }
 
@@ -205,14 +223,15 @@ inline void drawStatusBar(const char* leftLabel, bool showMoon = false,
   const int16_t battY = static_cast<int16_t>(kStatusIconMidY - kBattH / 2);
   drawBatteryGlyph(battX, battY, g_battPct);
 
-  const freeink::Icon& wifiIcon = wifiConnected ? kWifiRadiating : kWifiEmpty;
+  const freeink::Icon& wifiIcon = icons::get(wifiConnected ? "wifiradiating" : "wifiempty");
   const int16_t wifiX = static_cast<int16_t>(battX - 10 - wifiIcon.w);
   const int16_t wifiY = static_cast<int16_t>(kStatusIconMidY - wifiIcon.h / 2);
   ui.icon(wifiIcon, wifiX, wifiY);
 
   if (updating) {
-    const int16_t updX = static_cast<int16_t>(wifiX - 10 - kWx_ui_refresh.w);
-    ui.icon(kWx_ui_refresh, updX, static_cast<int16_t>(kStatusIconMidY - kWx_ui_refresh.h / 2));
+    const freeink::Icon& refresh = icons::get("wx_ui_refresh");
+    const int16_t updX = static_cast<int16_t>(wifiX - 10 - refresh.w);
+    ui.icon(refresh, updX, static_cast<int16_t>(kStatusIconMidY - refresh.h / 2));
   }
 
   // Solid rule under the bar.
@@ -253,9 +272,14 @@ inline void chipPos(int16_t y0, int i, int16_t& x, int16_t& y) {
 // `onStates`, if given, draws a small on/off bulb icon before each item's
 // label (the Lighting page's individual-lights tab). `selectedIdx`, if >= 0,
 // draws that one item filled black instead of outlined (the Lighting page's
-// scenes tab, marking the last one activated). Neither is used by Blinds.
+// scenes tab, marking the last one activated). `customIcons`, if given, is
+// one resolved icon pointer per item (see mdi_icon.h) — a non-null entry
+// wins over `onStates`' bulb glyph (lights) or the plain centered text with
+// no icon at all (scenes/blinds, which have no onStates); a null entry for
+// that item just falls back to whatever this function already drew for it.
 inline void drawChips(int16_t y0, const char* heading, const deviceconfig::LightItem* items, int n,
-                      const bool* onStates = nullptr, int selectedIdx = -1) {
+                      const bool* onStates = nullptr, int selectedIdx = -1,
+                      const freeink::Icon* const* customIcons = nullptr) {
   ui.text(heading, kShPad, static_cast<int16_t>(y0 - 24), 200, 20, TextAlign::Left, Color::DarkGray,
           1, Ui::kFontSmall);
   for (int i = 0; i < n; ++i) {
@@ -265,8 +289,14 @@ inline void drawChips(int16_t y0, const char* heading, const deviceconfig::Light
     if (sel) ui.fillRect(x, y, kChipW, kChipH, Color::Black, 14);
     else     ui.strokeRect(x, y, kChipW, kChipH, 2, 14);
     const Color fg = sel ? Color::White : Color::Black;
-    if (onStates) {
-      const freeink::Icon& ic = onStates[i] ? kWx_ui_bulb_on : kWx_ui_bulb_off;
+    const freeink::Icon* custom = customIcons ? customIcons[i] : nullptr;
+    if (custom) {
+      ui.icon(*custom, static_cast<int16_t>(x + 10), static_cast<int16_t>(y + (kChipH - custom->h) / 2), fg);
+      ui.text(items[i].name, static_cast<int16_t>(x + 10 + custom->w + 8),
+              static_cast<int16_t>(y + (kChipH - 24) / 2),
+              static_cast<int16_t>(kChipW - 10 - custom->w - 8 - 8), 24, TextAlign::Left, fg);
+    } else if (onStates) {
+      const freeink::Icon& ic = icons::get(onStates[i] ? "wx_ui_bulb_on" : "wx_ui_bulb_off");
       ui.icon(ic, static_cast<int16_t>(x + 10), static_cast<int16_t>(y + (kChipH - ic.h) / 2), fg);
       ui.text(items[i].name, static_cast<int16_t>(x + 10 + ic.w + 8),
               static_cast<int16_t>(y + (kChipH - 24) / 2),
