@@ -19,6 +19,7 @@
 #include "screen_common.h"
 #include "refresh_policy.h"
 #include "app/input.h"
+#include "app/net.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -27,56 +28,59 @@
 
 namespace screen_music {
 
-inline volatile bool g_busy = false;
+// Commands in flight or awaiting their re-read (app/net.h).
+inline volatile uint8_t g_busy = 0;
 // -1 none, 0/1/2 = PREV/PLAY-PAUSE/NEXT (bottom bar), 3/4 = VOL-/VOL+.
 inline int g_pressed = -1;
 enum class Act : uint8_t { PlayPause, Next, Prev, Volume, Mute, Refresh };
-inline Act g_act = Act::Refresh;
 
-inline void task(void*) {
-  g_busy = true;
-  ensureMdns();
-  const char* h = globalsclient::haHost;
-  const uint16_t p = globalsclient::haPort;
-  const char* t = globalsclient::haToken;
+// --- commands (run on the network worker, app/net.h) -------------------
+// Re-read the player — and the album art, but only when the track actually
+// changed (entity_picture's URL changes with it). Not playing / no art ->
+// drop whatever we were showing rather than let it go stale.
+inline void readbackMedia(int) {
   const char* e = deviceconfig::mediaEntity;
-  if (globalsclient::ok && e && *e) {
-    switch (g_act) {
-      case Act::PlayPause: haclient::callService(h, p, t, "media_player", "media_play_pause", e); break;
-      case Act::Next:      haclient::callService(h, p, t, "media_player", "media_next_track", e); break;
-      case Act::Prev:      haclient::callService(h, p, t, "media_player", "media_previous_track", e); break;
-      case Act::Volume:    haclient::setMediaVolume(h, p, t, e, haclient::media.volumePct); break;
-      case Act::Mute:      haclient::setMediaMute(h, p, t, e, haclient::media.muted); break;
-      default: break;
-    }
-    if (g_act != Act::Refresh) delay(400);  // let HA apply before we read back
-    haclient::fetchMedia(h, p, t, e);
-
-    // Album art: only worth a fetch (a JPEG download + decode) when the
-    // track actually changed — entity_picture's URL changes with it. Not
-    // playing / no art -> drop whatever we were showing rather than let it
-    // go stale.
-    if (haclient::media.ok && haclient::media.picture[0]) {
-      if (strcmp(haclient::media.picture, albumart::g_sourceUrl) != 0)
-        albumart::fetch(h, p, t, haclient::media.picture);
-    } else {
-      albumart::clear();
-    }
+  if (!e[0]) return;
+  const net::Ha a = net::ha();
+  haclient::fetchMedia(a.h, a.p, a.t, e);
+  if (haclient::media.ok && haclient::media.picture[0]) {
+    if (strcmp(haclient::media.picture, albumart::g_sourceUrl) != 0)
+      albumart::fetch(a.h, a.p, a.t, haclient::media.picture);
+  } else {
+    albumart::clear();
   }
-  g_busy = false;
-  vTaskDelete(nullptr);
+}
+inline void execMedia(const net::Command& c) {
+  const char* e = deviceconfig::mediaEntity;
+  if (!e[0]) return;
+  const net::Ha a = net::ha();
+  switch (static_cast<Act>(c.i)) {
+    case Act::PlayPause: haclient::callService(a.h, a.p, a.t, "media_player", "media_play_pause", e); break;
+    case Act::Next:      haclient::callService(a.h, a.p, a.t, "media_player", "media_next_track", e); break;
+    case Act::Prev:      haclient::callService(a.h, a.p, a.t, "media_player", "media_previous_track", e); break;
+    // Volume / mute send the CURRENT optimistic value, so a drag or a run
+    // of VOL taps coalesces into one call.
+    case Act::Volume:    haclient::setMediaVolume(a.h, a.p, a.t, e, haclient::media.volumePct); break;
+    case Act::Mute:      haclient::setMediaMute(a.h, a.p, a.t, e, haclient::media.muted); break;
+    default: break;
+  }
 }
 
 inline void kick(Act act) {
-  if (g_busy || g_weatherBusy) return;
-  g_act = act;
-  g_busy = true;
-  // A bigger stack than the other pages' tasks: album-art fetches decode a
-  // JPEG (TJpg_Decoder's own workspace lives on the heap, but the HTTP
-  // client + local buffers here are meaningfully heavier than a plain HA
-  // state GET).
-  if (xTaskCreatePinnedToCore(task, "sb_media", 16384, nullptr, 1, nullptr, 1) != pdPASS)
-    g_busy = false;
+  net::Command c;
+  c.exec = act == Act::Refresh ? nullptr : execMedia;
+  c.readback = readbackMedia;
+  c.busy = &g_busy;
+  c.i = static_cast<int>(act);
+  // Transport presses are each sent; value-setting ones and a plain re-read
+  // coalesce with a queued twin.
+  if (act == Act::Volume)  c.coalesceKey = net::key("volume", deviceconfig::mediaEntity);
+  if (act == Act::Mute)    c.coalesceKey = net::key("mute", deviceconfig::mediaEntity);
+  if (act == Act::Refresh) {
+    c.coalesceKey = net::key("media?", deviceconfig::mediaEntity);
+    c.optional = true;  // a poll: never wakes an idle radio
+  }
+  net::post(c);
 }
 
 // PLAY/PAUSE toggles optimistically between the two states (media_player has

@@ -17,6 +17,7 @@
 #include "local_settings.h"
 #include "app/carousel.h"
 #include "app/input.h"
+#include "app/net.h"
 #include "screen_settings.h"
 #include "screen_error.h"
 
@@ -152,99 +153,95 @@ static const freeink::Icon* hubIconFor(const char* target) {
 static bool (&hubToggleOn)[haclient::kMaxHubToggles] = haclient::hubToggleOn;
 static_assert(haclient::kMaxHubToggles == deviceconfig::kMaxHubItems,
               "hub toggle state must have one slot per hub item");
-static volatile bool hubStateBusy = false;
-// Set by hubStateTask/hubActionTask when a repaint should follow; consumed
-// (and cleared) by the settle check alongside every other page's g_busy
-// pattern, but keyed on this flag instead of a g_pressed/g_busy pair since
-// the hub's "busy" (an HA call in flight) doesn't gate a press-flash the way
-// every other page's does — the strip's fill IS the state, there's no
-// separate momentary press style to clear.
-static bool hubDirty = false;
+// Hub commands in flight (app/net.h): the page's toggle-state reads, and
+// the action strips' toggle/run calls.
+static volatile uint8_t hubStateBusy = 0;
+static volatile uint8_t hubActionBusy = 0;
+// Set when a background state read or action lands and the overlay should
+// repaint; consumed (and cleared) by tickQuickAccess(). Keyed on this flag
+// rather than a g_pressed/g_busy pair: the strip's fill IS the state,
+// there's no separate momentary press style to clear.
+static volatile bool hubDirty = false;
 
-static void hubStateTask(void*) {
-  hubStateBusy = true;
-  const char* h = globalsclient::haHost;
-  const uint16_t p = globalsclient::haPort;
-  const char* t = globalsclient::haToken;
-  if (globalsclient::ok) {
-    hubClampPage();
-    const int start = hubPage * kHubPerPage;
-    const int end = start + kHubPerPage < deviceconfig::hubItemCount ? start + kHubPerPage
-                                                                     : deviceconfig::hubItemCount;
-    for (int i = start; i < end; ++i) {
-      if (deviceconfig::hubItems[i].actionType != deviceconfig::HubAction::Toggle) continue;
-      bool on = hubToggleOn[i];
-      if (haclient::fetchHubToggleState(h, p, t, deviceconfig::hubItems[i].actionEntity, on) &&
-          on != hubToggleOn[i]) {
-        hubToggleOn[i] = on;
-        hubDirty = true;
-      }
+// Re-read the on/off of every Toggle item on hub page `page`.
+static void hubReadPageState(int page) {
+  const net::Ha a = net::ha();
+  const int start = page * kHubPerPage;
+  const int end = start + kHubPerPage < deviceconfig::hubItemCount ? start + kHubPerPage
+                                                                   : deviceconfig::hubItemCount;
+  for (int i = start; i < end; ++i) {
+    if (deviceconfig::hubItems[i].actionType != deviceconfig::HubAction::Toggle) continue;
+    bool on = hubToggleOn[i];
+    if (haclient::fetchHubToggleState(a.h, a.p, a.t, deviceconfig::hubItems[i].actionEntity, on) &&
+        on != hubToggleOn[i]) {
+      hubToggleOn[i] = on;
+      hubDirty = true;
     }
   }
-  hubStateBusy = false;
-  vTaskDelete(nullptr);
 }
 // "Subscribe narrowly" (spec language) translates to REST polling scope
 // here, same as every other page: only fetch state for whichever page's
 // Toggle entities are actually on screen right now, not the whole list.
 static void hubLoadPageState() {
-  if (hubStateBusy || !globalsclient::ok) return;
-  hubStateBusy = true;
-  if (xTaskCreatePinnedToCore(hubStateTask, "sb_hubst", 8192, nullptr, 1, nullptr, 1) != pdPASS)
-    hubStateBusy = false;
+  if (!globalsclient::ok) return;
+  hubClampPage();
+  net::Command c;
+  c.readback = hubReadPageState;
+  c.readbackArg = hubPage;
+  c.busy = &hubStateBusy;
+  c.coalesceKey = net::key("hub?", String(hubPage).c_str());
+  net::post(c);
 }
 static void hubNextPage() { hubPage = (hubPage + 1) % hubPageCount(); hubLoadPageState(); }
 static void hubPrevPage() { hubPage = (hubPage + hubPageCount() - 1) % hubPageCount(); hubLoadPageState(); }
 
-// The pending/last action-strip tap — a Run flashes its strip once
-// (hubFlashUntilMs), a Toggle just tracks hubToggleOn[] (set optimistically
-// on tap, reconciled from the real fetch this same task does after the call).
-static volatile bool hubActionBusy = false;
-static int hubActionIdx = -1;
-static bool hubActionOn = false;
-static deviceconfig::HubAction hubActionKind = deviceconfig::HubAction::None;
+// The last action-strip tap — a Run flashes its strip once (hubFlashUntilMs),
+// a Toggle just tracks hubToggleOn[] (set optimistically on tap, reconciled
+// by the re-read after the call).
 static int hubFlashIdx = -1;
 static uint32_t hubFlashUntilMs = 0;
 
-static void hubActionTask(void*) {
-  hubActionBusy = true;
-  ensureMdns();
-  const char* h = globalsclient::haHost;
-  const uint16_t p = globalsclient::haPort;
-  const char* t = globalsclient::haToken;
-  if (globalsclient::ok && hubActionIdx >= 0 && hubActionIdx < deviceconfig::hubItemCount) {
-    const deviceconfig::HubItem& it = deviceconfig::hubItems[hubActionIdx];
-    if (hubActionKind == deviceconfig::HubAction::Toggle) {
-      haclient::hubToggle(h, p, t, it.actionEntity, hubActionOn);
-      delay(400);  // let HA apply before reading back, same convention as Climate/Blinds
-      bool on = hubActionOn;
-      haclient::fetchHubToggleState(h, p, t, it.actionEntity, on);
-      hubToggleOn[hubActionIdx] = on;
-    } else if (hubActionKind == deviceconfig::HubAction::Run) {
-      haclient::hubRun(h, p, t, it.actionEntity, it.actionService, it.actionData);
-    }
-  }
+static void hubReadToggle(int idx) {
+  if (idx < 0 || idx >= deviceconfig::hubItemCount) return;
+  const net::Ha a = net::ha();
+  bool on = hubToggleOn[idx];
+  if (haclient::fetchHubToggleState(a.h, a.p, a.t, deviceconfig::hubItems[idx].actionEntity, on))
+    hubToggleOn[idx] = on;
   hubDirty = true;
-  hubActionBusy = false;
-  vTaskDelete(nullptr);
+}
+// Sends the CURRENT optimistic on/off, so rapid taps coalesce to the last.
+static void hubExecToggle(const net::Command& c) {
+  if (c.i < 0 || c.i >= deviceconfig::hubItemCount) return;
+  const net::Ha a = net::ha();
+  haclient::hubToggle(a.h, a.p, a.t, deviceconfig::hubItems[c.i].actionEntity, hubToggleOn[c.i]);
+}
+static void hubExecRun(const net::Command& c) {
+  if (c.i < 0 || c.i >= deviceconfig::hubItemCount) return;
+  const deviceconfig::HubItem& it = deviceconfig::hubItems[c.i];
+  const net::Ha a = net::ha();
+  haclient::hubRun(a.h, a.p, a.t, it.actionEntity, it.actionService, it.actionData);
+  hubDirty = true;
 }
 static void hubFireAction(int idx) {
-  if (hubActionBusy || g_weatherBusy || idx < 0 || idx >= deviceconfig::hubItemCount) return;
+  if (idx < 0 || idx >= deviceconfig::hubItemCount) return;
   const deviceconfig::HubItem& it = deviceconfig::hubItems[idx];
-  hubActionIdx = idx;
-  hubActionKind = it.actionType;
+  net::Command c;
+  c.busy = &hubActionBusy;
+  c.i = idx;
   if (it.actionType == deviceconfig::HubAction::Toggle) {
-    hubActionOn = !hubToggleOn[idx];
-    hubToggleOn[idx] = hubActionOn;  // optimistic; hubActionTask reconciles it
+    hubToggleOn[idx] = !hubToggleOn[idx];  // optimistic; the re-read reconciles it
+    c.exec = hubExecToggle;
+    c.readback = hubReadToggle;
+    c.readbackArg = idx;
+    c.coalesceKey = net::key("hub", it.actionEntity);
   } else if (it.actionType == deviceconfig::HubAction::Run) {
     hubFlashIdx = idx;
     hubFlashUntilMs = millis() + 600;
+    c.exec = hubExecRun;  // every Run tap is sent
   } else {
     return;
   }
-  hubActionBusy = true;
-  if (xTaskCreatePinnedToCore(hubActionTask, "sb_hubact", 8192, nullptr, 1, nullptr, 1) != pdPASS)
-    hubActionBusy = false;
+  net::post(c);
 }
 
 // Returns the visible-page slot (0..kHubPerPage-1) a tap landed in and which

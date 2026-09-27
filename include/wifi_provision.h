@@ -19,6 +19,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <InputManager.h>
 #include "ui.h"
 
@@ -389,8 +390,16 @@ static bool run(Ui& ui, InputManager& input, uint32_t savedTimeoutMs,
   };
 
   // --- 1. Try saved credentials silently --------------------------------
-  // WiFi.begin() with no args reuses the last SSID/pass ESP32 stored in NVS.
-  WiFi.begin();
+  // The last SSID/pass ESP32 stored in NVS, passed explicitly so a join
+  // never inherits a BSSID/channel lock (see app/wifi_link.h's fast join).
+  {
+    wifi_config_t conf = {};
+    if (esp_wifi_get_config(WIFI_IF_STA, &conf) == ESP_OK && conf.sta.ssid[0])
+      WiFi.begin(reinterpret_cast<const char*>(conf.sta.ssid),
+                 reinterpret_cast<const char*>(conf.sta.password));
+    else
+      WiFi.begin();
+  }
   paintSaved(0);
   if (joinWait(savedTimeoutMs, paintSaved)) {
     snprintf(g_resultLine, sizeof(g_resultLine), "%s  %s",

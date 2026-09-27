@@ -15,6 +15,7 @@
 #include "icons.h"
 #include "device_config_client.h"
 #include "local_settings.h"
+#include "app/wifi_link.h"
 
 using Color = freeink::ui::Color;
 using TextAlign = freeink::ui::TextAlign;
@@ -203,7 +204,10 @@ inline void drawStatusBar(const char* leftLabel, bool showMoon = false,
   ui.text(leftLabel, labelX, kStatusTitleY, static_cast<int16_t>(280 - labelX + 16), kStatusTitleH,
           TextAlign::Left, Color::Black, 1, /*font 0 = 24px face*/ 0);
 
-  const bool wifiConnected = WiFi.status() == WL_CONNECTED;
+  // Connected, or only powered down while idle (it rejoins the moment it's
+  // needed) — an idle power-down must not look like, or repaint as, a lost
+  // link.
+  const bool wifiConnected = wifilink::showsConnected();
 
   int16_t rightEdge = static_cast<int16_t>(Ui::W - 16);
   if (showMoon) {

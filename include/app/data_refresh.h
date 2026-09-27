@@ -19,7 +19,12 @@
 #include "mdi_icon.h"
 #include "screen_common.h"
 #include "screen_xbox.h"
+#include "screen_climate.h"
+#include "screen_lighting.h"
+#include "screen_blinds.h"
+#include "screen_music.h"
 #include "app/wifi_link.h"
+#include "app/net.h"
 #include "app/carousel.h"  // ensureCarouselPageEnabled()
 
 // See wifilink::ensureMdns() — kept as the free function screen_fwd.h
@@ -82,11 +87,22 @@ static bool refreshStandby() {
     const char* h = globalsclient::haHost;
     const uint16_t p = globalsclient::haPort;
     const char* t = globalsclient::haToken;
+    // Between each group of requests, send any press that came in meanwhile
+    // (net::serviceCommands()) — a tap never waits for the refresh. And a
+    // page with a command still in flight (its g_busy) is skipped: its own
+    // re-read will land shortly, and fetching it now could overwrite what
+    // the user just changed on screen with the pre-command state.
     gotWeather = haclient::fetchWeather(h, p, t, deviceconfig::weatherEntity);
-    haclient::fetchClimate(h, p, t, deviceconfig::climateEntity);
     haclient::fetchAir(h, p, t, deviceconfig::airQualityEntity);
     haclient::fetchForecast(h, p, t, deviceconfig::weatherEntity);
-    if (deviceconfig::lightGroupEnabled) {
+    net::serviceCommands();
+    if (!screen_climate::g_busy) haclient::fetchClimate(h, p, t, deviceconfig::climateEntity);
+    // Climate page's additional-sensor footer (kitchen: Window/Wall/Thermostat).
+    for (int i = 0; i < deviceconfig::climateSensorCount && i < 6; ++i)
+      haclient::climateSensorOk[i] = haclient::fetchSensorValue(
+          h, p, t, deviceconfig::climateSensors[i].entity, haclient::climateSensorValue[i]);
+    net::serviceCommands();
+    if (deviceconfig::lightGroupEnabled && !screen_lighting::g_busy) {
       haclient::fetchLight(h, p, t, deviceconfig::lightGroupEntity);
       // Individual on/off for the Lighting page's Lights tab — one small GET
       // per configured light (kitchen: 4), so this does add to the refresh's
@@ -94,23 +110,23 @@ static bool refreshStandby() {
       for (int i = 0; i < deviceconfig::lightCount && i < deviceconfig::kMaxLights; ++i)
         haclient::fetchLightOn(h, p, t, deviceconfig::lights[i].entity, haclient::lightItemOn[i]);
     }
-    if (deviceconfig::blindsGroupEnabled)
+    net::serviceCommands();
+    if (deviceconfig::blindsGroupEnabled && !screen_blinds::g_busy)
       haclient::fetchCover(h, p, t, deviceconfig::blindsGroupEntity);
     // Two individual blinds, no group entity to read a combined position from
     // -> the Blinds page's side-by-side panel layout needs each one's own state.
     if (deviceconfig::blindsItemCount == 2)
       for (int i = 0; i < 2; ++i)
-        haclient::fetchCoverItem(h, p, t, deviceconfig::blindsItems[i].entity, i);
-    // Climate page's additional-sensor footer (kitchen: Window/Wall/Thermostat).
-    for (int i = 0; i < deviceconfig::climateSensorCount && i < 6; ++i)
-      haclient::climateSensorOk[i] = haclient::fetchSensorValue(
-          h, p, t, deviceconfig::climateSensors[i].entity, haclient::climateSensorValue[i]);
-    if (deviceconfig::mediaEnabled)
+        if (!screen_blinds::g_itemBusy[i])
+          haclient::fetchCoverItem(h, p, t, deviceconfig::blindsItems[i].entity, i);
+    net::serviceCommands();
+    if (deviceconfig::mediaEnabled && !screen_music::g_busy)
       haclient::fetchMedia(h, p, t, deviceconfig::mediaEntity);
-    if (deviceconfig::xboxMediaEntity[0]) {
+    if (deviceconfig::xboxMediaEntity[0] && !screen_xbox::g_busy) {
       haclient::fetchXboxMedia(h, p, t, deviceconfig::xboxMediaEntity);
       screen_xbox::loadVisibleArt();  // catches a game/track change even off-page
     }
+    net::serviceCommands();
   }
 
   if (gotWeather && globalsclient::ok && deviceconfig::ok) {
@@ -123,21 +139,14 @@ static bool refreshStandby() {
   return gotWeather;
 }
 
-// Background weather refresh — so a wake never blocks on the HA calls.
-// (g_weatherBusy itself lives in screen_common.h — every screen's own kick()
-// gates on it too, so an action's background task never races the weather
-// task over shared mDNS/HTTP resources.)
-static void weatherTask(void*) {
-  g_weatherBusy = true;
-  ensureMdns();
-  refreshStandby();
-  g_weatherBusy = false;
-  vTaskDelete(nullptr);
-}
+// Ask the network worker (app/net.h) for a refresh — it runs there, so a
+// wake never blocks on the HA calls. g_weatherBusy stays set until it's done.
+static void kickWeatherRefresh() { net::requestRefresh(); }
 
-static void kickWeatherRefresh() {
-  if (g_weatherBusy) return;
-  g_weatherBusy = true;  // set before create so a racing caller can't double-spawn
-  if (xTaskCreatePinnedToCore(weatherTask, "sb_wx", 8192, nullptr, 1, nullptr, 1) != pdPASS)
-    g_weatherBusy = false;
-}
+// The worker's refresh job (registered by startNetwork()).
+static void runRefreshJob() { refreshStandby(); }
+
+// Start the network worker. Every interactive boot path calls this once,
+// after the cached config is loaded; the unattended timer paths don't need
+// it (they call refreshStandby() directly and go back to sleep).
+static void startNetwork() { net::start(runRefreshJob); }

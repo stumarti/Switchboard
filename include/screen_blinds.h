@@ -10,6 +10,7 @@
 #include "screen_common.h"
 #include "refresh_policy.h"
 #include "app/input.h"
+#include "app/net.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -18,41 +19,61 @@
 
 namespace screen_blinds {
 
-inline volatile bool g_busy = false;
+// Commands in flight or awaiting their re-read (app/net.h): the group bar,
+// and each of the two row-layout panels independently.
+inline volatile uint8_t g_busy = 0;
+inline volatile uint8_t g_itemBusy[2] = {0, 0};
 inline int g_pressed = -1;
 enum class Act : uint8_t { Open, Close, Stop, Refresh };
-inline Act g_act = Act::Refresh;
 
-inline void task(void*) {
-  g_busy = true;
-  ensureMdns();
-  const char* h = globalsclient::haHost;
-  const uint16_t p = globalsclient::haPort;
-  const char* t = globalsclient::haToken;
+// --- commands (run on the network worker, app/net.h) -------------------
+inline const char* serviceFor(Act act) {
+  return act == Act::Open ? "open_cover" : act == Act::Close ? "close_cover" : "stop_cover";
+}
+inline void readbackGroup(int) {
   const char* e = deviceconfig::blindsGroupEntity;
-  if (globalsclient::ok && e && *e) {
-    if (g_act != Act::Refresh) {
-      const char* svc = g_act == Act::Open    ? "open_cover"
-                        : g_act == Act::Close  ? "close_cover"
-                                               : "stop_cover";
-      haclient::callService(h, p, t, "cover", svc, e);
-      delay(600);
-    }
-    haclient::fetchCover(h, p, t, e);
+  const net::Ha a = net::ha();
+  if (e[0]) haclient::fetchCover(a.h, a.p, a.t, e);
+}
+inline void readbackItem(int i) {
+  if (i < 0 || i > 1) return;
+  const char* e = deviceconfig::blindsItems[i].entity;
+  const net::Ha a = net::ha();
+  if (e[0]) haclient::fetchCoverItem(a.h, a.p, a.t, e, i);
+}
+inline void execCover(const net::Command& c) {
+  const net::Ha a = net::ha();
+  if (c.s1[0]) haclient::callService(a.h, a.p, a.t, "cover", serviceFor(static_cast<Act>(c.i)), c.s1);
+}
+
+// Open / close / stop are each sent, in order (stop right after open must
+// not be merged away); a plain Refresh is a re-read only, and coalesces.
+inline void postCover(Act act, const char* entity, net::ReadbackFn readback, int readbackArg,
+                      volatile uint8_t* busy) {
+  if (!entity || !entity[0]) return;
+  net::Command c;
+  c.exec = act == Act::Refresh ? nullptr : execCover;
+  c.readback = readback;
+  c.readbackArg = readbackArg;
+  c.busy = busy;
+  c.i = static_cast<int>(act);
+  snprintf(c.s1, sizeof(c.s1), "%s", entity);
+  if (act == Act::Refresh) {
+    c.coalesceKey = net::key("cover?", entity);
+    c.optional = true;  // a poll: never wakes an idle radio
   }
-  g_busy = false;
-  vTaskDelete(nullptr);
+  net::post(c);
 }
 
 inline void kick(Act act) {
-  if (g_busy || g_weatherBusy) return;
-  g_act = act;
-  g_busy = true;
-  if (xTaskCreatePinnedToCore(task, "sb_cover", 8192, nullptr, 1, nullptr, 1) != pdPASS)
-    g_busy = false;
+  postCover(act, deviceconfig::blindsGroupEntity, readbackGroup, 0, &g_busy);
+}
+inline void kickItem(int i, Act act) {
+  if (i < 0 || i > 1) return;
+  postCover(act, deviceconfig::blindsItems[i].entity, readbackItem, i, &g_itemBusy[i]);
 }
 
-// CLOSE / STOP / OPEN: update the state pill optimistically, then POST + re-read.
+// CLOSE / STOP / OPEN: update the state pill optimistically, then send.
 inline void command(Act act) {
   haclient::Cover& c = haclient::cover;
   if (act == Act::Open)  snprintf(c.state, sizeof(c.state), "opening");
@@ -60,46 +81,8 @@ inline void command(Act act) {
   kick(act);
 }
 
-// --- per-item control (the two-blind side-by-side layout, below) -----------
-// Independent from the group's g_busy/g_act/kick/command above: each panel
-// commands its own cover entity (deviceconfig::blindsItems[i]) and gates on
-// its own busy flag, so tapping one blind's buttons doesn't block the other's.
-inline volatile bool g_itemBusy[2] = {false, false};
-inline Act g_itemAct[2] = {Act::Refresh, Act::Refresh};
-
-inline void itemTask(void* argIdx) {
-  const int i = static_cast<int>(reinterpret_cast<intptr_t>(argIdx));
-  g_itemBusy[i] = true;
-  ensureMdns();
-  const char* h = globalsclient::haHost;
-  const uint16_t p = globalsclient::haPort;
-  const char* t = globalsclient::haToken;
-  const char* e = deviceconfig::blindsItems[i].entity;
-  if (globalsclient::ok && e && *e) {
-    if (g_itemAct[i] != Act::Refresh) {
-      const char* svc = g_itemAct[i] == Act::Open    ? "open_cover"
-                        : g_itemAct[i] == Act::Close  ? "close_cover"
-                                                       : "stop_cover";
-      haclient::callService(h, p, t, "cover", svc, e);
-      delay(600);
-    }
-    haclient::fetchCoverItem(h, p, t, e, i);
-  }
-  g_itemBusy[i] = false;
-  vTaskDelete(nullptr);
-}
-
-inline void kickItem(int i, Act act) {
-  if (i < 0 || i > 1 || g_itemBusy[i] || g_weatherBusy) return;
-  g_itemAct[i] = act;
-  g_itemBusy[i] = true;
-  if (xTaskCreatePinnedToCore(itemTask, "sb_cov_i", 8192,
-                             reinterpret_cast<void*>(static_cast<intptr_t>(i)), 1, nullptr,
-                             1) != pdPASS)
-    g_itemBusy[i] = false;
-}
-
-// CLOSE / STOP / OPEN for one panel — mirrors command() above but per-item.
+// Same, for one panel of the two-blind side-by-side layout — each panel
+// commands its own cover entity (deviceconfig::blindsItems[i]).
 inline void commandItem(int i, Act act) {
   if (i < 0 || i > 1) return;
   haclient::Cover& c = haclient::coverItems[i];

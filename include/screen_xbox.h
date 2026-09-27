@@ -32,6 +32,7 @@
 #include "screen_common.h"
 #include "refresh_policy.h"
 #include "app/input.h"
+#include "app/net.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -40,74 +41,75 @@
 
 namespace screen_xbox {
 
-inline volatile bool g_busy = false;
+// Commands in flight or awaiting their re-read (app/net.h).
+inline volatile uint8_t g_busy = 0;
 // -1 none; 0 = power toggle; 1..6 = library rows (row i on the current page).
 inline int g_pressed = -1;
 enum class Act : uint8_t { Power, Launch, Refresh };
-inline Act g_act = Act::Power;
-inline bool g_powerOn = false;      // optimistic target for the pending Power action
-inline char g_launchId[48] = "";    // productId for the pending Launch action
+inline bool g_powerOn = false;  // the power capsule's optimistic state (last toggle's target)
 
-// Defined further down (after the art cache) — forward-declared so task()
-// can refresh the hero art right after every state fetch it does.
+// Defined further down (after the art cache) — forward-declared so the
+// state re-read can refresh the hero art right after every fetch.
 inline void loadVisibleArt();
 
-inline void task(void*) {
-  g_busy = true;
-  ensureMdns();
-  const char* h = globalsclient::haHost;
-  const uint16_t p = globalsclient::haPort;
-  const char* t = globalsclient::haToken;
-  if (globalsclient::ok) {
-    if (g_act == Act::Power) {
-      haclient::setXboxPower(h, p, t, deviceconfig::xboxRemoteEntity, g_powerOn);
-      delay(500);
-    } else if (g_act == Act::Launch) {
-      // Tapping a game while the console is off/unknown wakes it first —
-      // real hardware needs several seconds to start accepting media
-      // commands after remote.turn_on, so this delay is a best guess, not a
-      // confirmed boot time; lengthen it here if launches land before the
-      // console's ready to receive them.
-      const bool needsWake = strcmp(haclient::xboxMedia.state, "on") != 0 &&
-                             strcmp(haclient::xboxMedia.state, "playing") != 0 &&
-                             strcmp(haclient::xboxMedia.state, "idle") != 0;
-      if (needsWake) {
-        haclient::setXboxPower(h, p, t, deviceconfig::xboxRemoteEntity, true);
-        delay(4000);
-      }
-      haclient::launchXboxGame(h, p, t, deviceconfig::xboxMediaEntity, g_launchId);
-      delay(600);
-    }
-    haclient::fetchXboxMedia(h, p, t, deviceconfig::xboxMediaEntity);
-    // Whatever just happened (power flip, launch, or a plain periodic poll)
-    // may have changed which game is running — refresh the hero (and, since
-    // the playing game moves to the front of the list, possibly row 0 too).
-    loadVisibleArt();
+// --- commands (run on the network worker, app/net.h) -------------------
+// Whatever just happened (power flip, launch, or a plain periodic poll) may
+// have changed which game is running — refresh the hero (and, since the
+// playing game moves to the front of the list, possibly row 0 too).
+inline void readbackXbox(int) {
+  const net::Ha a = net::ha();
+  haclient::fetchXboxMedia(a.h, a.p, a.t, deviceconfig::xboxMediaEntity);
+  loadVisibleArt();
+}
+inline void execPower(const net::Command& c) {
+  const net::Ha a = net::ha();
+  haclient::setXboxPower(a.h, a.p, a.t, deviceconfig::xboxRemoteEntity, c.on);
+}
+inline void execLaunch(const net::Command& c) {
+  const net::Ha a = net::ha();
+  // Tapping a game while the console is off/unknown wakes it first — real
+  // hardware needs several seconds to start accepting media commands after
+  // remote.turn_on, so this delay is a best guess, not a confirmed boot
+  // time; lengthen it here if launches land before the console's ready.
+  const bool needsWake = strcmp(haclient::xboxMedia.state, "on") != 0 &&
+                         strcmp(haclient::xboxMedia.state, "playing") != 0 &&
+                         strcmp(haclient::xboxMedia.state, "idle") != 0;
+  if (needsWake) {
+    haclient::setXboxPower(a.h, a.p, a.t, deviceconfig::xboxRemoteEntity, true);
+    delay(4000);
   }
-  g_busy = false;
-  vTaskDelete(nullptr);
+  haclient::launchXboxGame(a.h, a.p, a.t, deviceconfig::xboxMediaEntity, c.s1);
 }
 
-inline void kick(Act act) {
-  if (g_busy || g_weatherBusy) return;
-  g_act = act;
-  g_busy = true;
-  if (xTaskCreatePinnedToCore(task, "sb_xbox", 8192, nullptr, 1, nullptr, 1) != pdPASS) g_busy = false;
+inline net::Command makeCommand(net::ExecFn exec) {
+  net::Command c;
+  c.exec = exec;
+  c.readback = readbackXbox;
+  c.busy = &g_busy;
+  return c;
 }
 inline void togglePower() {
   g_powerOn = strcmp(haclient::xboxMedia.state, "off") == 0 ||
-             strcmp(haclient::xboxMedia.state, "") == 0 ||
-             strcmp(haclient::xboxMedia.state, "unavailable") == 0;
-  kick(Act::Power);
+              strcmp(haclient::xboxMedia.state, "") == 0 ||
+              strcmp(haclient::xboxMedia.state, "unavailable") == 0;
+  net::Command c = makeCommand(execPower);
+  c.on = g_powerOn;
+  net::post(c);
 }
 inline void launch(const char* productId) {
-  snprintf(g_launchId, sizeof(g_launchId), "%s", productId);
-  kick(Act::Launch);
+  net::Command c = makeCommand(execLaunch);
+  snprintf(c.s1, sizeof(c.s1), "%s", productId);
+  net::post(c);
 }
-// Periodic/background state refresh (no service call) — mirrors
+// Periodic/background state re-read (no service call) — mirrors
 // screen_music.h's Act::Refresh, polled from app/stages.h while this page is
 // showing and the console might be mid-session.
-inline void kickRefresh() { kick(Act::Refresh); }
+inline void kickRefresh() {
+  net::Command c = makeCommand(nullptr);
+  c.coalesceKey = net::key("xbox?");
+  c.optional = true;  // a poll: never wakes an idle radio
+  net::post(c);
+}
 
 // --- library paging: the playing game (if any) is moved to the front, then
 // the rest keep deviceconfig order. Recomputed on demand (cheap — at most
@@ -151,7 +153,7 @@ inline uint8_t* g_heroBits = nullptr;
 inline char g_heroKey[64] = "";  // productId (or "off"/"standby") this hero art was built for
 inline uint8_t* g_rowBits[kRowsPerPage] = {};
 inline char g_rowKey[kRowsPerPage][48] = {};
-inline volatile bool g_artBusy = false;
+inline volatile uint8_t g_artBusy = 0;  // an art fetch queued/running (app/net.h)
 inline bool g_artDirty = false;  // set by the art task when a repaint should follow
 
 inline void freeHero() {
@@ -163,8 +165,7 @@ inline void freeRow(int slot) {
   g_rowKey[slot][0] = 0;
 }
 
-inline void artTask(void*) {
-  g_artBusy = true;
+inline void fetchVisibleArt(int) {
   const char* h = globalsclient::haHost;
   const uint16_t p = globalsclient::haPort;
   const char* t = globalsclient::haToken;
@@ -202,19 +203,18 @@ inline void artTask(void*) {
     snprintf(g_rowKey[slot], sizeof(g_rowKey[slot]), "%s", pid);
     g_artDirty = true;
   }
-
-  g_artBusy = false;
-  vTaskDelete(nullptr);
 }
-// Kick a background art refresh for whatever's visible now. Cheap to call
-// often (page turns, state landing) — it no-ops per-slot for anything
-// already cached under the right key, so a repeat call mostly just confirms
-// nothing changed.
+// Queue an art refresh for whatever's visible now, on the network worker.
+// Cheap to call often (page turns, state landing): queued calls coalesce,
+// and it no-ops per-slot for anything already cached under the right key.
 inline void loadVisibleArt() {
-  if (g_artBusy || !globalsclient::ok) return;
-  g_artBusy = true;  // set here (not just in the task) so back-to-back calls this frame coalesce
-  if (xTaskCreatePinnedToCore(artTask, "sb_xbart", 8192, nullptr, 1, nullptr, 1) != pdPASS)
-    g_artBusy = false;
+  if (!globalsclient::ok) return;
+  net::Command c;
+  c.readback = fetchVisibleArt;
+  c.busy = &g_artBusy;
+  c.coalesceKey = net::key("xbox-art");
+  c.optional = true;  // art alone never wakes an idle radio
+  net::post(c);
 }
 
 // --- layout ---------------------------------------------------------------

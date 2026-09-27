@@ -28,7 +28,7 @@
 #include "app/rtc_state.h"
 #include "app/frontlight.h"
 #include "app/wifi_link.h"
-#include "app/quick_access.h"  // hubStateBusy / hubActionBusy
+#include "app/net.h"
 #include "screen_power.h"
 
 // Set by boot.h once ui.begin() has run. The low-battery timer check never
@@ -107,15 +107,10 @@ static const gpio_num_t kWakePins[] = {GPIO_NUM_0, GPIO_NUM_7, kPowerPin};
   }
 }
 
-// True while any background task could still be touching the network or the
-// SD card: the shared refresh, every screen's action/state task, the hub's
-// tasks, and a JPEG decode in progress.
-static bool anyBackgroundBusy() {
-  return g_weatherBusy || screen_lighting::g_busy || screen_climate::g_busy ||
-         screen_blinds::g_busy || screen_blinds::g_itemBusy[0] || screen_blinds::g_itemBusy[1] ||
-         screen_music::g_busy || screen_tv::g_busy || screen_xbox::g_busy ||
-         screen_xbox::g_artBusy || hubStateBusy || hubActionBusy || g_jpegDecodeBusy;
-}
+// True while background work could still be touching the network or the SD
+// card: anything queued or running on the network worker (every screen's
+// commands, their re-reads, the shared refresh), or a JPEG decode.
+static bool anyBackgroundBusy() { return net::busy() || g_jpegDecodeBusy; }
 
 // Let in-flight background work land before sleeping or restarting. Bounded:
 // a wedged HTTP call must not keep the device awake forever — every client

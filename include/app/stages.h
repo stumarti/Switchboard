@@ -111,19 +111,25 @@ static void settleShowingPage() {
 static bool syncCarouselWithNetwork() {
   const bool busy = g_weatherBusy;
   const bool wifi = wifilink::isUp();
+  const bool shown = wifilink::showsConnected();
   bool repaint = false;
 
-  if (wifi && !standbyPrevWifi) {
+  // A refresh is only due when the link has been down for real — not when
+  // it's just come back from an idle power-down (the data is still fresh
+  // from before; the commands that woke it re-read what they changed).
+  if (wifi && !standbyPrevWifi && !standbyPrevShown) {
     if (!busy) kickWeatherRefresh();
     if (!g_weatherBusy) repaint = true;  // couldn't start one — still show the link
-  } else if (!wifi && standbyPrevWifi) {
-    repaint = true;
   }
+  // Repaint only when the status bar's Wi-Fi glyph would actually change.
+  if (shown != standbyPrevShown && !(shown && g_weatherBusy)) repaint = true;
+  standbyPrevShown = shown;
 
   if (standbyPrevBusy && !busy) {
     g_wakeUpdating = false;
     standbyPrevBusy = false;
     standbyPrevWifi = wifi;
+    standbyPrevShown = shown;
     // The server no longer approves this remote: restart into the pairing
     // screen (boot.h's first-run path) rather than sitting on No-HA.
     if (!pairing::paired) restartDevice();
@@ -435,6 +441,25 @@ static void tickDebug(const InFrame& in) {
     const bool autoFull = screen_debug::partialsSinceFull >= 40;
     screen_debug::draw(/*full=*/forceFull || autoFull);
   }
+}
+
+// ===========================================================================
+// Radio
+// ===========================================================================
+
+// Wi-Fi off once nothing has needed it for this long: no input, and no
+// network work (commands, re-reads, a refresh, a poll). The next press
+// posts a command, which rejoins — fast, straight to the remembered AP
+// (app/wifi_link.h) — and the status bar never shows the link as lost.
+static constexpr uint32_t kRadioIdleOffMs = 60000;
+
+static void powerDownIdleRadio() {
+  if (wifilink::state != wifilink::State::Up || net::busy()) return;
+  const uint32_t now = millis();
+  if (now - standbyIdleSinceMs < kRadioIdleOffMs) return;
+  if (now - net::g_lastActivityMs < kRadioIdleOffMs) return;
+  Serial.println("[wifi] idle -> radio off");
+  wifilink::idleOff();
 }
 
 // ===========================================================================

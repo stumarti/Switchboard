@@ -26,6 +26,7 @@
 #include "screen_common.h"
 #include "refresh_policy.h"
 #include "app/input.h"
+#include "app/net.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -33,67 +34,65 @@
 
 namespace screen_tv {
 
-inline volatile bool g_busy = false;
+// Commands in flight (app/net.h). TV commands have no state to read back.
+inline volatile uint8_t g_busy = 0;
 // -1 none; 0-4 = dpad (up,left,ok,right,down); 5-7 = bottom bar
 // (back,home,power); 8 = mute toggle; 9/10 = vol-/vol+; 100+i = app icon i.
 inline int g_pressed = -1;
-enum class Act : uint8_t { Command, App, Volume, Mute };
-inline Act g_act = Act::Command;
-inline char g_cmd[16] = "";
-inline int g_appIdx = -1;
 
 // Local-only optimistic volume indicator — see the header note above.
 inline int g_volPct = 50;
-inline int g_volSteps = 0;  // signed relative keyevents the task should send
+// Signed relative keyevents not yet sent. Taps and drags ADD to it; the one
+// queued Volume command sends whatever has accumulated when it runs, so a
+// fast run of VOL taps is never lost and never sent twice.
+inline int g_volSteps = 0;
 inline bool g_muted = false;
 
-inline void task(void*) {
-  g_busy = true;
-  ensureMdns();
-  const char* h = globalsclient::haHost;
-  const uint16_t p = globalsclient::haPort;
-  const char* t = globalsclient::haToken;
-  if (globalsclient::ok) {
-    switch (g_act) {
-      case Act::App:
-        if (g_appIdx >= 0 && g_appIdx < deviceconfig::tvAppCount)
-          haclient::launchApp(h, p, t, deviceconfig::tvMediaEntity, deviceconfig::tvApps[g_appIdx].pkg);
-        break;
-      case Act::Volume: {
-        const char* cmd = g_volSteps > 0 ? "VOLUME_UP" : "VOLUME_DOWN";
-        const int n = g_volSteps > 0 ? g_volSteps : -g_volSteps;
-        for (int i = 0; i < n; ++i) {
-          haclient::sendRemoteCommand(h, p, t, deviceconfig::tvRemoteEntity, cmd);
-          if (i + 1 < n) delay(150);  // let the TV register discrete keyevents
-        }
-        break;
-      }
-      case Act::Mute:
-        haclient::sendRemoteCommand(h, p, t, deviceconfig::tvRemoteEntity, "MUTE");
-        break;
-      case Act::Command:
-      default:
-        if (g_cmd[0]) haclient::sendRemoteCommand(h, p, t, deviceconfig::tvRemoteEntity, g_cmd);
-        break;
-    }
+// --- commands (run on the network worker, app/net.h) -------------------
+inline void execKey(const net::Command& c) {
+  const net::Ha a = net::ha();
+  if (c.s1[0]) haclient::sendRemoteCommand(a.h, a.p, a.t, deviceconfig::tvRemoteEntity, c.s1);
+}
+inline void execApp(const net::Command& c) {
+  if (c.i < 0 || c.i >= deviceconfig::tvAppCount) return;
+  const net::Ha a = net::ha();
+  haclient::launchApp(a.h, a.p, a.t, deviceconfig::tvMediaEntity, deviceconfig::tvApps[c.i].pkg);
+}
+inline void execVolume(const net::Command&) {
+  portENTER_CRITICAL(&net::g_mux);
+  const int steps = g_volSteps;
+  g_volSteps = 0;
+  portEXIT_CRITICAL(&net::g_mux);
+  const char* cmd = steps > 0 ? "VOLUME_UP" : "VOLUME_DOWN";
+  const int n = steps > 0 ? steps : -steps;
+  const net::Ha a = net::ha();
+  for (int i = 0; i < n; ++i) {
+    haclient::sendRemoteCommand(a.h, a.p, a.t, deviceconfig::tvRemoteEntity, cmd);
+    if (i + 1 < n) delay(150);  // let the TV register discrete keyevents
   }
-  g_busy = false;
-  vTaskDelete(nullptr);
 }
 
-inline void kick(Act act) {
-  if (g_busy || g_weatherBusy) return;
-  g_act = act;
-  g_busy = true;
-  if (xTaskCreatePinnedToCore(task, "sb_tv", 8192, nullptr, 1, nullptr, 1) != pdPASS) g_busy = false;
+inline void postTv(net::ExecFn exec, uint32_t coalesceKey = 0) {
+  net::Command c;
+  c.exec = exec;
+  c.busy = &g_busy;
+  c.coalesceKey = coalesceKey;
+  net::post(c);
 }
+// A D-pad / BACK / HOME / POWER key: every press is sent, in order.
 inline void kickCommand(const char* cmd) {
-  snprintf(g_cmd, sizeof(g_cmd), "%s", cmd);
-  kick(Act::Command);
+  net::Command c;
+  c.exec = execKey;
+  c.busy = &g_busy;
+  snprintf(c.s1, sizeof(c.s1), "%s", cmd);
+  net::post(c);
 }
 inline void kickApp(int idx) {
-  g_appIdx = idx;
-  kick(Act::App);
+  net::Command c;
+  c.exec = execApp;
+  c.busy = &g_busy;
+  c.i = idx;
+  net::post(c);
 }
 
 // --- D-pad: a plus-shape in a 3x3 grid (corners empty) --------------------
@@ -219,14 +218,24 @@ inline int pctFromX(int16_t tx) {
 }
 inline void setVolumePct(int pct) {
   const int from = g_volPct;
-  g_volPct = pct < 0 ? 0 : (pct > 100 ? 100 : pct);
-  g_volSteps = (g_volPct - from) / 10;
-  if (g_volSteps != 0) kick(Act::Volume);
+  const int to = pct < 0 ? 0 : (pct > 100 ? 100 : pct);
+  const int steps = (to - from) / 10;
+  if (steps == 0) return;
+  g_volPct = from + steps * 10;  // keep the indicator on the keyevents actually sent
+  portENTER_CRITICAL(&net::g_mux);
+  g_volSteps += steps;
+  portEXIT_CRITICAL(&net::g_mux);
+  postTv(execVolume, net::key("tvvol"));
 }
 inline void adjustVolume(int dir) { setVolumePct(g_volPct + dir * 10); }
+// MUTE is a toggle keyevent on the TV: every press is sent.
 inline void toggleMute() {
   g_muted = !g_muted;
-  kick(Act::Mute);
+  net::Command c;
+  c.exec = execKey;
+  c.busy = &g_busy;
+  snprintf(c.s1, sizeof(c.s1), "%s", "MUTE");
+  net::post(c);
 }
 
 // --- mute row: speaker icon + label + toggle, directly above the volume

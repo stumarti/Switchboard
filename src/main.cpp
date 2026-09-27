@@ -12,7 +12,8 @@
 //   rtc_state.h          the one record that survives deep sleep
 //   input.h              the input task + one InFrame per loop() tick
 //   frontlight.h         lamp levels and their trip through deep sleep
-//   wifi_link.h          non-blocking Wi-Fi join / give-up / radio off
+//   wifi_link.h          non-blocking Wi-Fi join / give-up / idle radio-off
+//   net.h                the network worker: every command + the refresh
 //   carousel.h           paging, drawing and sleeping the resting screens
 //   quick_access.h       the Home-tap jump list / Quick Access hub
 //   data_refresh.h       the shared server + Home Assistant pull
@@ -84,5 +85,6 @@ void loop() {
   pollBattery();     // self-throttled to ~1.5 s
   wifilink::poll();  // advance the background join / give-up
   tickStage(in);
+  powerDownIdleRadio();  // Wi-Fi off once nothing has needed it for a while
   delay(5);
 }

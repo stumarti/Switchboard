@@ -241,6 +241,7 @@ inline void runResume(const Wake& w) {
     // until it's dismissed (enterStandby() starts the join then).
     screen_low_battery::enter();
     startInputTask();
+    startNetwork();
     return;
   }
 
@@ -263,9 +264,11 @@ inline void runResume(const Wake& w) {
   standbyIdleSinceMs = millis();
 
   startInputTask();
+  startNetwork();
   wifilink::beginJoin();  // non-blocking; the refresh kicks when it lands
   standbyPrevBusy = false;
   standbyPrevWifi = false;
+  standbyPrevShown = false;
 }
 
 // Not set up yet: splash, then the blocking Wi-Fi and pairing setup screens
@@ -296,8 +299,9 @@ inline void runFirstRun() {
   wifilink::beginJoin();  // provisioning already joined — this just marks the link Up
   if (!screen_pairing::run(kPairingTimeoutMs)) sleepSetupPaused("still waiting for approval");
 
-  // Data loads in the background — never block on the HA calls.
-  ensureMdns();
+  // Data loads in the background, on the network worker — never block on
+  // the HA calls.
+  startNetwork();
   kickWeatherRefresh();
   startInputTask();  // hand input off to its own task from here on
 
