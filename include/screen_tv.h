@@ -24,6 +24,8 @@
 #include <strings.h>
 
 #include "screen_common.h"
+#include "refresh_policy.h"
+#include "app/input.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -326,6 +328,100 @@ inline void draw(int pressed = -1) {
   drawVolBtn(1, pressed == 10);
   drawVolBlocks(g_volPct);
   drawBar(pressed);
+}
+
+// --- input (the carousel dispatches here while this page is showing) --
+
+// TV page: same drag convention for its volume row.
+inline bool handleDrag(const InFrame& in) {
+  if (in.touchPress && barHit(in.px, in.py)) dragging = true;
+  if (dragging) {
+    if (in.touchHeld) {
+      setVolumePct(pctFromX(in.hx));
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::Drag));
+    } else {
+      dragging = false;
+    }
+    return true;
+  }
+  return false;
+}
+
+// TV page: D-pad, MUTE toggle, VOL-/VOL+/tap-to-set volume row, an app
+// icon, then the BACK/HOME/POWER bar — every button is a one-shot
+// remote/media_player call, no state to read back (unlike Music's
+// play/pause/volume level).
+inline bool handleTap(const InFrame& in) {
+  const int dp = dpadHit(in.tx, in.ty);
+  if (dp >= 0) {
+    kickCommand(kDpadCmds[dp]);
+    g_pressed = dp;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/dp);
+    return true;
+  }
+  if (muteToggleHit(in.tx, in.ty)) {
+    toggleMute();
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  if (in.ty >= kVolRow2Y && in.ty < kVolRow2Y + kVolBtnSz) {
+    int col = -1;
+    if (in.tx >= kVolDownX && in.tx < kVolDownX + kVolBtnSz)
+      col = 0;
+    else if (in.tx >= kVolUpX && in.tx < kVolUpX + kVolBtnSz)
+      col = 1;
+    if (col >= 0) {
+      adjustVolume(col == 0 ? -1 : +1);
+      g_pressed = 9 + col;
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/9 + col);
+      return true;
+    }
+  }
+  if (barHit(in.tx, in.ty)) {
+    setVolumePct(pctFromX(in.tx));
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  const int ap = appsHit(in.tx, in.ty);
+  if (ap >= 100) {
+    kickApp(ap - 100);
+    g_pressed = ap;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/ap);
+    return true;
+  }
+  if (in.ty >= kBarBtnY) {
+    const int col = in.tx < Ui::W / 3 ? 0 : in.tx < Ui::W * 2 / 3 ? 1 : 2;
+    kickCommand(kBarCmds[col]);
+    g_pressed = 5 + col;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/5 + col);
+    return true;
+  }
+  return false;
+}
+
+// Once this page's action task settles (or its kick was a no-op), the page
+// repaints with the confirmed state and drops any pressed-button style —
+// always RefreshEvent::TapFeedback (Fast): a flashing scrub after every tap
+// reads as the whole page "reloading". commitFrame()'s kCleanEvery still
+// promotes one of these to a Half scrub periodically, so ghosting (even on
+// dense dithered art) doesn't build up.
+//
+// Call every non-tap carousel tick, whichever page is showing, so the busy
+// edge is tracked continuously; returns true only for the showing page.
+inline bool settleCheck(bool showing) {
+  static bool prevBusy = false;
+  const bool busy = g_busy;
+  const bool settle = showing && ((prevBusy && !busy) || (g_pressed >= 0 && !busy));
+  prevBusy = busy;
+  if (settle) g_pressed = -1;
+  return settle;
 }
 
 }  // namespace screen_tv

@@ -108,9 +108,10 @@ inline void activate(int i) {
       // of a room whose server config wedges the device on every boot (see
       // deviceconfig::resetSlug()'s comment). A plain restart alone would
       // just boot straight back into the same bad room.
+      waitForBackgroundIdle();  // no refresh may re-save the cache after the wipe
       deviceconfig::resetSlug();
       persist::wipe();
-      ESP.restart();
+      restartDevice();
       break;
     default: break;
   }

@@ -33,6 +33,8 @@
 #include <math.h>
 
 #include "screen_common.h"
+#include "refresh_policy.h"
+#include "app/input.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -365,6 +367,54 @@ inline void draw(int pressed = -1) {
 
   // --- dotted rule + area-sensor footer -------------------------------
   drawAreaSensors();
+}
+
+// --- input (the carousel dispatches here while this page is showing) --
+
+// Climate page: the arc's MINUS/PLUS step buttons (circular hit-test),
+// the center mode button (cycles hvac_modes), and the HVAC mode bar
+// (tap a mode to jump straight to it).
+inline bool handleTap(const InFrame& in) {
+  if (stepHit(in.tx, in.ty, kMinusCx) ||
+      stepHit(in.tx, in.ty, kPlusCx)) {
+    const bool plus = stepHit(in.tx, in.ty, kPlusCx);
+    adjust(plus ? +1 : -1);
+    g_pressed = plus ? 1 : 0;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/g_pressed);
+    return true;
+  }
+  if (modeButtonHit(in.tx, in.ty)) {
+    cycleMode();
+    g_pressed = 2;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/2);
+    return true;
+  }
+  const int mi = modeBtnHit(in.tx, in.ty);
+  if (mi >= 0) {
+    setMode(haclient::climate.modes[mi]);
+    g_pressed = 3 + mi;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/g_pressed);
+    return true;
+  }
+  return false;
+}
+
+// Once this page's action task settles (or its kick was a no-op), the page
+// repaints with the confirmed state and drops any pressed-button style —
+// always RefreshEvent::TapFeedback (Fast): a flashing scrub after every tap
+// reads as the whole page "reloading". commitFrame()'s kCleanEvery still
+// promotes one of these to a Half scrub periodically, so ghosting (even on
+// dense dithered art) doesn't build up.
+//
+// Call every non-tap carousel tick, whichever page is showing, so the busy
+// edge is tracked continuously; returns true only for the showing page.
+inline bool settleCheck(bool showing) {
+  const bool settle = showing && g_pressed >= 0 && !g_busy;
+  if (settle) g_pressed = -1;
+  return settle;
 }
 
 }  // namespace screen_climate

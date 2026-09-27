@@ -8,6 +8,8 @@
 // ===========================================================================
 
 #include "screen_common.h"
+#include "refresh_policy.h"
+#include "app/input.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -358,6 +360,96 @@ inline void draw(int pressed = -1) {
               mdiicon::blindIcons);
 
   drawBar(pressed);
+}
+
+// --- input (the carousel dispatches here while this page is showing) --
+
+// Blinds page, two individual blinds: the row layout's CLOSE/STOP/OPEN
+// buttons — row 0 is always "All blinds", rows 1/2 are the two items.
+// Otherwise the single CLOSE / STOP / OPEN action bar: one partial refresh
+// shows the pressed button + the optimistic new value; the "action settled"
+// repaint (settleCheck()) clears the press.
+inline bool handleTap(const InFrame& in) {
+  if (deviceconfig::blindsItemCount == 2) {
+    const int hit = rowBtnHit(in.tx, in.ty);
+    if (hit >= 0) {
+      const int row = hit / 3, col = hit % 3;
+      const Act act = col == 0 ? Act::Close : col == 1 ? Act::Stop : Act::Open;
+      if (row == 0) commandAll(act);
+      else          commandItem(row - 1, act);
+      g_pressed = hit;
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/hit);
+      return true;
+    }
+    return false;
+  }
+  if (in.ty < kBarBtnY) return false;
+  const int col = in.tx < Ui::W / 3 ? 0 : in.tx < Ui::W * 2 / 3 ? 1 : 2;
+  if (col == 0) command(Act::Close);
+  else if (col == 1) command(Act::Stop);
+  else command(Act::Open);
+  g_pressed = col;
+  standbyIdleSinceMs = millis();
+  drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/col);
+  return true;
+}
+
+// Once this page's action task settles (or its kick was a no-op), the page
+// repaints with the confirmed state and drops any pressed-button style —
+// always RefreshEvent::TapFeedback (Fast): a flashing scrub after every tap
+// reads as the whole page "reloading". commitFrame()'s kCleanEvery still
+// promotes one of these to a Half scrub periodically, so ghosting (even on
+// dense dithered art) doesn't build up.
+//
+// Call every non-tap carousel tick, whichever page is showing, so the busy
+// edge is tracked continuously; returns true only for the showing page.
+inline bool settleCheck(bool showing) {
+  static bool prevCoverBusy = false, prevItemBusy = false;
+  const bool cover = g_busy;
+  const bool items = anyItemBusy();
+  bool settle = false;
+  if (showing) {
+    if (deviceconfig::blindsItemCount != 2)
+      settle = (prevCoverBusy && !cover) || (g_pressed >= 0 && !cover);
+    else
+      settle = (prevItemBusy && !items) || (prevCoverBusy && !cover) ||
+               (g_pressed >= 0 && !items && !cover);
+  }
+  prevCoverBusy = cover;
+  prevItemBusy = items;
+  if (settle) g_pressed = -1;
+  return settle;
+}
+
+// While a cover is opening/closing, re-poll its position every 2.5 s so the
+// page tracks the movement; settleCheck() repaints when each read lands.
+// Covers the single group bar, each of the two row-layout panels, and — in
+// the row layout — the "All blinds" row's real group entity when the room
+// has one (otherwise that row is synthesized from the two items' state,
+// which the per-item poll already keeps live).
+inline bool isMoving(const char* state) {
+  return !strcmp(state, "opening") || !strcmp(state, "closing");
+}
+inline void pollWhileMoving() {
+  if (g_weatherBusy) return;
+  static uint32_t lastGroupPoll = 0;
+  static uint32_t lastItemPoll[2] = {0, 0};
+  const bool twoItems = deviceconfig::blindsItemCount == 2;
+  if (twoItems) {
+    for (int i = 0; i < 2; ++i) {
+      if (g_itemBusy[i]) continue;
+      if (isMoving(haclient::coverItems[i].state) && millis() - lastItemPoll[i] > 2500) {
+        lastItemPoll[i] = millis();
+        kickItem(i, Act::Refresh);
+      }
+    }
+  }
+  if ((!twoItems || hasRealGroup()) && !g_busy && isMoving(haclient::cover.state) &&
+      millis() - lastGroupPoll > 2500) {
+    lastGroupPoll = millis();
+    kick(Act::Refresh);
+  }
 }
 
 }  // namespace screen_blinds

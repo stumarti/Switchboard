@@ -30,6 +30,8 @@
 #include <strings.h>  // strcasecmp — matching xboxMedia.title against configured game names
 
 #include "screen_common.h"
+#include "refresh_policy.h"
+#include "app/input.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -371,6 +373,77 @@ inline void draw(int pressed = -1) {
   // Art loads from nextPage()/prevPage() and task()'s post-fetch refresh, not
   // from here — draw() runs on every tap/repaint and must stay cheap; it
   // just renders whatever's already in g_heroBits/g_rowBits.
+}
+
+// --- input (the carousel dispatches here while this page is showing) --
+
+// Xbox page: the power capsule, then a library row -> launch. Both are
+// fire-and-forget background calls, same convention as TV above; the
+// row press-flash clears once task() settles, below.
+inline bool handleTap(const InFrame& in) {
+  if (powerHit(in.tx, in.ty)) {
+    togglePower();
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/0);
+    return true;
+  }
+  const int slot = rowHit(in.tx, in.ty);
+  if (slot >= 0) {
+    const int gi = displayIndex(page * kRowsPerPage + slot);
+    if (gi >= 0) {
+      launch(deviceconfig::xboxGames[gi].productId);
+      g_pressed = slot + 1;
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/slot + 1);
+      return true;
+    }
+  }
+  const int footerDir = footerHit(in.tx, in.ty);
+  if (footerDir >= 0) {
+    if (footerDir == 0) prevPage(); else nextPage();
+    standbyIdleSinceMs = millis();
+    // A page turn swaps every row's thumbnail at once — the same
+    // dense-content-swap reasoning as Lighting's chip-list pager, so
+    // it gets ScreenSwitch (Full), not TapFeedback.
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
+    return true;
+  }
+  return false;
+}
+
+// Once this page's action task settles (or its kick was a no-op), the page
+// repaints with the confirmed state and drops any pressed-button style —
+// always RefreshEvent::TapFeedback (Fast): a flashing scrub after every tap
+// reads as the whole page "reloading". commitFrame()'s kCleanEvery still
+// promotes one of these to a Half scrub periodically, so ghosting (even on
+// dense dithered art) doesn't build up.
+//
+// Call every non-tap carousel tick, whichever page is showing, so the busy
+// edge is tracked continuously; returns true only for the showing page.
+// Also fires on g_artDirty alone (art finishing in the background after a
+// page turn) — g_pressed may already be -1 then, that's fine.
+inline bool settleCheck(bool showing) {
+  static bool prevBusy = false;
+  const bool busy = g_busy;
+  const bool settle =
+      showing && ((prevBusy && !busy) || (g_pressed >= 0 && !busy) || g_artDirty);
+  prevBusy = busy;
+  if (settle) {
+    g_pressed = -1;
+    g_artDirty = false;
+  }
+  return settle;
+}
+
+// Same 30 s re-poll as Music while a game is running, so the hero/"Playing"
+// row catches a title change (or the console going idle) promptly.
+inline void pollWhilePlaying() {
+  if (g_busy || g_weatherBusy) return;
+  static uint32_t lastPoll = 0;
+  if (!strcmp(haclient::xboxMedia.state, "playing") && millis() - lastPoll > 30000) {
+    lastPoll = millis();
+    kickRefresh();
+  }
 }
 
 }  // namespace screen_xbox

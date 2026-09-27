@@ -30,19 +30,41 @@ using TextAlign = freeink::ui::TextAlign;
 // Result of the whole provisioning flow, surfaced to the debug screen.
 inline char g_resultLine[64] = "";
 
+// Give up after this long with no input on any provisioning screen (0 =
+// never) — run() then returns false with g_timedOut set, and the boot path
+// sleeps instead of sitting awake on a picker nobody is looking at.
+inline uint32_t g_idleTimeoutMs = 0;
+inline uint32_t g_lastInputMs = 0;
+inline bool g_timedOut = false;
+inline void noteInput() { g_lastInputMs = millis(); }
+inline bool idleExpired() {
+  if (g_idleTimeoutMs == 0 || millis() - g_lastInputMs <= g_idleTimeoutMs) return false;
+  g_timedOut = true;
+  return true;
+}
+
 // ---- small helpers --------------------------------------------------------
 
-// Poll the join for up to timeoutMs, pumping a caller status callback ~every
-// 400 ms so the screen can animate. Returns true if connected.
+// Poll the join for up to timeoutMs, pumping a caller status callback every
+// ~1.2 s so the screen can animate (a fast partial refresh each — the
+// caller's first paint, tick 0, is the only full one). Returns true if
+// connected.
 template <typename PaintFn>
 static bool joinWait(uint32_t timeoutMs, PaintFn paint) {
   const uint32_t start = millis();
   int tick = 0;
   while (WiFi.status() != WL_CONNECTED && (millis() - start) < timeoutMs) {
-    delay(400);
+    delay(1200);
     paint(++tick);
   }
   return WiFi.status() == WL_CONNECTED;
+}
+
+// Status-screen commit for joinWait's paint callbacks: a full refresh for
+// the first frame, a fast partial for each animation tick after it.
+static void commitJoinFrame(Ui& ui, int tick) {
+  if (tick == 0) ui.flushFull();
+  else           ui.flushFast();
 }
 
 // ---- on-screen keyboard ---------------------------------------------------
@@ -208,13 +230,17 @@ struct Keyboard {
   }
 
   // Run the keyboard until OK. Returns the typed password (may be empty for
-  // open networks). Blocks, pumping input.
+  // open networks), or nullptr if it sat idle past g_idleTimeoutMs. Blocks,
+  // pumping input.
   const char* run(const char* ssid) {
     draw(ssid);
+    noteInput();
     for (;;) {
       input.update();
+      if (idleExpired()) return nullptr;
       float nx, ny;
       if (input.wasTouchTap(nx, ny)) {
+        noteInput();
         const int r = handleTap(nx, ny);
         if (r == 2) break;              // OK
         if (r == 1) drawField();        // letter/space/del -> just the field (fast)
@@ -228,8 +254,8 @@ struct Keyboard {
 
 // ---- AP scan + list -------------------------------------------------------
 
-// Scan and render a selectable AP list; returns the chosen SSID index, or -1 if
-// the user asked to rescan (we loop), or -2 to skip. Fills ssidOut/openOut.
+// Scan and render a selectable AP list; returns the chosen SSID index, or -3
+// if it sat idle past g_idleTimeoutMs. Fills ssidOut/openOut.
 static int pickNetwork(Ui& ui, InputManager& input, char* ssidOut, size_t ssidCap,
                        bool* openOut) {
   for (;;) {
@@ -259,9 +285,12 @@ static int pickNetwork(Ui& ui, InputManager& input, char* ssidOut, size_t ssidCa
     const int maxShow = 8;
     if (n > maxShow) n = maxShow;
 
-    // selection loop
+    // selection loop — the first paint after a scan is a full refresh;
+    // moving the highlight is a fast partial one.
     int sel = 0;
     bool needRedraw = true;
+    bool fullRedraw = true;
+    noteInput();
     for (;;) {
       if (needRedraw) {
         ui.clear();
@@ -290,13 +319,17 @@ static int pickNetwork(Ui& ui, InputManager& input, char* ssidOut, size_t ssidCa
         ui.text("Rescan", 30, Ui::H - 66, Ui::W - 60, 26, TextAlign::Center);
         ui.text("Left/Right: move    tap a row: choose", 30, Ui::H - 108,
                 Ui::W - 60, 20, TextAlign::Center, Color::DarkGray);
-        ui.flushFull();
+        if (fullRedraw) ui.flushFull();
+        else            ui.flushFast();
         needRedraw = false;
+        fullRedraw = false;
       }
 
       input.update();
+      if (idleExpired()) return -3;
       float nx, ny;
       // nav keys move the highlight
+      if (input.wasAnyPressed()) noteInput();
       if ((input.wasPressed(InputManager::BTN_UP) ||
            input.wasPressed(InputManager::BTN_LEFT)) && n > 0) {
         sel = (sel + n - 1) % n; needRedraw = true;
@@ -309,6 +342,7 @@ static int pickNetwork(Ui& ui, InputManager& input, char* ssidOut, size_t ssidCa
         *openOut = (WiFi.encryptionType(sel) == WIFI_AUTH_OPEN);
         return sel;
       } else if (input.wasTouchTap(nx, ny)) {
+        noteInput();
         int16_t px, py;
         Ui::touchToLogical(nx, ny, px, py);
         (void)px;  // list is full-width; only the row (y) matters here
@@ -333,10 +367,13 @@ static int pickNetwork(Ui& ui, InputManager& input, char* ssidOut, size_t ssidCa
 
 // ---- public entry ---------------------------------------------------------
 //
-// Runs the whole flow. Returns true if connected. Fills g_resultLine for the
-// debug screen either way.
+// Runs the whole flow. Returns true if connected; false only if a screen sat
+// idle past `idleTimeoutMs` (g_timedOut is then set; 0 = wait forever).
+// Fills g_resultLine for the debug screen either way.
 static bool run(Ui& ui, InputManager& input, uint32_t savedTimeoutMs,
-                uint32_t joinTimeoutMs) {
+                uint32_t joinTimeoutMs, uint32_t idleTimeoutMs = 0) {
+  g_idleTimeoutMs = idleTimeoutMs;
+  g_timedOut = false;
   WiFi.mode(WIFI_STA);
 
   auto paintSaved = [&](int tick) {
@@ -346,7 +383,7 @@ static bool run(Ui& ui, InputManager& input, uint32_t savedTimeoutMs,
     char dots[4] = {0};
     for (int i = 0; i < (tick % 4); ++i) dots[i] = '.';
     ui.centered(dots, 410, 30);
-    ui.flushFull();
+    commitJoinFrame(ui, tick);
   };
 
   // --- 1. Try saved credentials silently --------------------------------
@@ -363,13 +400,17 @@ static bool run(Ui& ui, InputManager& input, uint32_t savedTimeoutMs,
   for (;;) {
     char ssid[33] = "";
     bool open = false;
-    pickNetwork(ui, input, ssid, sizeof(ssid), &open);
+    if (pickNetwork(ui, input, ssid, sizeof(ssid), &open) == -3) return false;  // idle
     if (ssid[0] == 0) continue;  // (rescan path returns via loop)
 
-    const char* pass = "";
+    // Copied out of the Keyboard: its buffer dies with it at the end of the
+    // if-block, before WiFi.begin() below reads the password.
+    char pass[65] = "";
     if (!open) {
       Keyboard kb(ui, input);
-      pass = kb.run(ssid);
+      const char* typed = kb.run(ssid);
+      if (!typed) return false;  // idle
+      snprintf(pass, sizeof(pass), "%s", typed);
     }
 
     // connecting screen
@@ -381,7 +422,7 @@ static bool run(Ui& ui, InputManager& input, uint32_t savedTimeoutMs,
       char dots[4] = {0};
       for (int i = 0; i < (tick % 4); ++i) dots[i] = '.';
       ui.centered(dots, 410, 30);
-      ui.flushFull();
+      commitJoinFrame(ui, tick);
     };
 
     WiFi.begin(ssid, pass);   // ESP32 persists these for next boot
@@ -399,8 +440,10 @@ static bool run(Ui& ui, InputManager& input, uint32_t savedTimeoutMs,
     ui.centered("tap to choose another network", 420, 24, Color::DarkGray);
     ui.flushFull();
     // wait for a tap, then loop back to the picker
+    noteInput();
     for (;;) {
       input.update();
+      if (idleExpired()) return false;
       float nx, ny;
       if (input.wasTouchTap(nx, ny) || input.wasAnyPressed()) break;
       delay(15);

@@ -13,6 +13,8 @@
 // ===========================================================================
 
 #include "screen_common.h"
+#include "refresh_policy.h"
+#include "app/input.h"
 #include "screen_fwd.h"
 #include "screen_settings.h"
 
@@ -202,6 +204,35 @@ inline bool tapDispatch(int16_t px, int16_t py) {
 // Route a logical tap: a tap on the strip above the sheet closes it.
 inline void handleTap(int16_t px, int16_t py) {
   if (!tapDispatch(px, py)) close();
+}
+
+
+// --- input (app/stages.h dispatches here while the sheet is open) -------
+
+// Hold Home on the carousel -> open the sheet over the current page.
+inline void openSheet() {
+  input.suppressTouchContact();
+  open = true;
+  dirty = false;
+  dragging = false;
+  standbyIdleSinceMs = millis();
+  // Opening the sheet is a sub-screen push, not control feedback.
+  draw(/*pressedBtn=*/-1, refreshModeFor(RefreshEvent::ScreenSwitch));
+}
+
+// One carousel tick with the sheet open: slider drags, taps, Home closes.
+// (No idle-timer reset here — any real input already resets it, so a sheet
+// left open still lets the device sleep.)
+inline void tick(const InFrame& in) {
+  if (in.touchHeld) sliderDrag(in.hx, in.hy);
+  if (!in.touchHeld) dragging = false;
+  if (in.homeTap || in.homeLong) { input.suppressTouchContact(); close(); return; }
+  if (in.tap && !dragging) handleTap(in.tx, in.ty);
+  if (open && dirty && !ui.refreshBusy()) {
+    dirty = false;
+    draw(pressed);  // shows the new level + pressed button
+    if (pressed >= 0) { pressed = -1; dirty = true; }  // then release it
+  }
 }
 
 }  // namespace screen_shade

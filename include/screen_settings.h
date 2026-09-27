@@ -138,9 +138,11 @@ inline void activate(int i) {
     case 0: screen_room_pick::enter(); break;
     case 1: screen_settings_info::enter(); break;
     case 2:  // Wi-Fi setup: forget the network, reboot into provisioning
+      waitForBackgroundIdle();
+      WiFi.mode(WIFI_STA);  // the radio may be off; erasing needs it initialized
       WiFi.disconnect(true, /*eraseap=*/true);
       delay(150);
-      ESP.restart();
+      restartDevice();
       break;
     case 3:  // Refresh now — data, plus a forced re-pull of every icon (theme
              // packs + per-item MDI icons); the only thing that re-pulls icons
@@ -153,7 +155,7 @@ inline void activate(int i) {
       break;
     case 4: screen_timeouts::enter(); break;   // Timeouts
     case 5: screen_developer::enter(); break;  // Developer
-    case 6: ESP.restart(); break;              // Restart
+    case 6: restartDevice(); break;            // Restart
     default: carouselPage = 0; enterStandby(); break;  // Back
   }
 }

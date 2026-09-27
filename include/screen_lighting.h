@@ -23,6 +23,8 @@
 // ===========================================================================
 
 #include "screen_common.h"
+#include "refresh_policy.h"
+#include "app/input.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -390,6 +392,138 @@ inline void draw(int pressed = -1) {
               Ui::kFontSmall);
     }
   }
+}
+
+// --- input (the carousel dispatches here while this page is showing) --
+
+// Lighting page: a held drag in the brightness bar updates the level
+// live on every frame (mirrors screen_shade's own slider / CrossPoint's
+// FrontlightPanelActivity) — a plain tap that never drags falls through
+// to the barHit tap-to-set handling further below instead.
+inline bool handleDrag(const InFrame& in) {
+  if (in.touchPress && barHit(in.px, in.py)) dragging = true;
+  if (dragging) {
+    if (in.touchHeld) {
+      setPct(pctFromX(in.hx));
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::Drag));
+    } else {
+      dragging = false;
+    }
+    return true;
+  }
+  return false;
+}
+
+// Lighting page: the "All lights" controls (toggle switch, DARKER/
+// BRIGHTER buttons, tap-to-set brightness bar), then a SCENE or
+// per-light chip below it.
+inline bool handleTap(const InFrame& in) {
+  if (toggleHit(in.tx, in.ty)) {
+    toggle();
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  if (in.ty >= kLcRow2Y && in.ty < kLcRow2Y + kLcBtnSz) {
+    int col = -1;
+    if (in.tx >= kLcDarkerX && in.tx < kLcDarkerX + kLcBtnSz)
+      col = 0;
+    else if (in.tx >= kLcBrighterX &&
+             in.tx < kLcBrighterX + kLcBtnSz)
+      col = 1;
+    if (col >= 0) {
+      adjust(col == 0 ? -1 : +1);
+      g_pressed = col;
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/col);
+      return true;
+    }
+  }
+// Tap a point in the brightness bar -> jump straight to that level.
+  if (barHit(in.tx, in.ty)) {
+    setPct(pctFromX(in.tx));
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  if (deviceconfig::lightGroupColorTemp) {
+    const int tc = tempBtnHit(in.tx, in.ty);
+    if (tc >= 0) {
+      kickColorTemp(kTempPresets[tc].kelvin);
+      g_pressed = tc + 2;
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/tc + 2);
+      return true;
+    }
+  }
+  const int hitTab = tabHit(in.tx, in.ty);
+  if (hitTab >= 0 && hitTab != tab) {
+    tab = hitTab;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));  // switches the whole chip list
+    return true;
+  }
+// The page indicator (only present past 12 items on whichever tab is
+// active) advances that tab's own page — checked before chipHit so
+// it doesn't also register as a chip tap underneath it.
+  {
+    const int total = tab == 0 ? deviceconfig::sceneCount : deviceconfig::lightCount;
+    const int pc = listPageCount(total);
+    if (pagerHit(in.tx, in.ty, pc)) {
+      int& page = tab == 0 ? scenePage : lightPage;
+      page = (page + 1) % pc;
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
+      return true;
+    }
+  }
+  const int si = tab == 0 && deviceconfig::sceneCount
+      ? chipHit(kChipsY,
+               listVisibleCount(deviceconfig::sceneCount, scenePage),
+               in.tx, in.ty)
+      : -1;
+  const int li = tab == 1 && deviceconfig::lightCount
+      ? chipHit(kChipsY,
+               listVisibleCount(deviceconfig::lightCount, lightPage),
+               in.tx, in.ty)
+      : -1;
+  if (si >= 0 || li >= 0) {
+    if (si >= 0) {
+      const int abs = scenePage * kListPageSize + si;
+      activateScene(deviceconfig::scenes[abs].entity);
+      lastScene = abs;  // drawn filled black until another scene runs
+    } else {
+      const int abs = lightPage * kListPageSize + li;
+      toggleItem(deviceconfig::lights[abs].entity);
+      // Flip the icon optimistically — the next refresh corrects it if
+      // the toggle didn't actually take.
+      haclient::lightItemOn[abs] = !haclient::lightItemOn[abs];
+    }
+    g_pressed = -1;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  return false;
+}
+
+// Once this page's action task settles (or its kick was a no-op), the page
+// repaints with the confirmed state and drops any pressed-button style —
+// always RefreshEvent::TapFeedback (Fast): a flashing scrub after every tap
+// reads as the whole page "reloading". commitFrame()'s kCleanEvery still
+// promotes one of these to a Half scrub periodically, so ghosting (even on
+// dense dithered art) doesn't build up.
+//
+// Call every non-tap carousel tick, whichever page is showing, so the busy
+// edge is tracked continuously; returns true only for the showing page.
+inline bool settleCheck(bool showing) {
+  static bool prevBusy = false;
+  const bool busy = g_busy;
+  const bool settle = showing && ((prevBusy && !busy) || (g_pressed >= 0 && !busy));
+  prevBusy = busy;
+  if (settle) g_pressed = -1;
+  return settle;
 }
 
 }  // namespace screen_lighting

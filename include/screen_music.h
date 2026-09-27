@@ -17,6 +17,8 @@
 // ===========================================================================
 
 #include "screen_common.h"
+#include "refresh_policy.h"
+#include "app/input.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -279,6 +281,97 @@ inline void draw(int pressed = -1) {
             TextAlign::Center, Color::DarkGray);
 
   drawBar(pressed, playing);
+}
+
+// --- input (the carousel dispatches here while this page is showing) --
+
+// Music page: a held drag in the volume bar updates the level live,
+// same convention as the Lighting brightness bar above.
+inline bool handleDrag(const InFrame& in) {
+  if (in.touchPress && barHit(in.px, in.py)) dragging = true;
+  if (dragging) {
+    if (in.touchHeld) {
+      setVolumePct(pctFromX(in.hx));
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::Drag));
+    } else {
+      dragging = false;
+    }
+    return true;
+  }
+  return false;
+}
+
+// Music page: MUTE toggle, VOL-/VOL+ buttons, tap-to-set volume bar,
+// then the PREV / PLAY-PAUSE / NEXT transport bar.
+inline bool handleTap(const InFrame& in) {
+  if (toggleHit(in.tx, in.ty)) {
+    toggleMute();
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  if (in.ty >= kMuRow2Y && in.ty < kMuRow2Y + kMuBtnSz) {
+    int col = -1;
+    if (in.tx >= kMuDownX && in.tx < kMuDownX + kMuBtnSz)
+      col = 0;
+    else if (in.tx >= kMuUpX && in.tx < kMuUpX + kMuBtnSz)
+      col = 1;
+    if (col >= 0) {
+      adjustVolume(col == 0 ? -1 : +1);
+      g_pressed = 3 + col;
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/3 + col);
+      return true;
+    }
+  }
+  if (barHit(in.tx, in.ty)) {
+    setVolumePct(pctFromX(in.tx));
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  if (in.ty >= kBarBtnY) {
+    const int col = in.tx < Ui::W / 3 ? 0 : in.tx < Ui::W * 2 / 3 ? 1 : 2;
+    if (col == 0) prev();
+    else if (col == 1) togglePlay();
+    else next();
+    g_pressed = col;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/col);
+    return true;
+  }
+  return false;
+}
+
+// Once this page's action task settles (or its kick was a no-op), the page
+// repaints with the confirmed state and drops any pressed-button style —
+// always RefreshEvent::TapFeedback (Fast): a flashing scrub after every tap
+// reads as the whole page "reloading". commitFrame()'s kCleanEvery still
+// promotes one of these to a Half scrub periodically, so ghosting (even on
+// dense dithered art) doesn't build up.
+//
+// Call every non-tap carousel tick, whichever page is showing, so the busy
+// edge is tracked continuously; returns true only for the showing page.
+inline bool settleCheck(bool showing) {
+  static bool prevBusy = false;
+  const bool busy = g_busy;
+  const bool settle = showing && ((prevBusy && !busy) || (g_pressed >= 0 && !busy));
+  prevBusy = busy;
+  if (settle) g_pressed = -1;
+  return settle;
+}
+
+
+// While playing, re-poll every 30 s so a track change (title/artist) shows
+// up without waiting for the normal 15+ minute standby refresh.
+inline void pollWhilePlaying() {
+  if (g_busy || g_weatherBusy) return;
+  static uint32_t lastPoll = 0;
+  if (!strcmp(haclient::media.state, "playing") && millis() - lastPoll > 30000) {
+    lastPoll = millis();
+    kick(Act::Refresh);
+  }
 }
 
 }  // namespace screen_music

@@ -42,17 +42,12 @@ inline uint32_t standbyIdleSinceMs = 0;
 // when an action sends the user back to the carousel.
 inline uint8_t carouselPage = 0;
 
-// Set while the carousel (or a screen that sleeps like it, e.g. No-HA) owns
-// the device, so a timer wake goes straight back to the fast wake path
-// instead of a cold boot. Retained through deep sleep.
-RTC_DATA_ATTR inline bool rtcStandbyActive = false;
+// True while the background weather/HA refresh (app/data_refresh.h) is in
+// flight. Lives here, ahead of every screen, so each screen's own kick() can
+// gate its action task on it — an action task and the weather task running
+// concurrently would race over shared mDNS/HTTP resources.
+inline volatile bool g_weatherBusy = false;
 
-// Set by the "No Home Assistant" / "Charge the device" screens just before a
-// deep sleep that must resume on the SAME screen rather than the carousel;
-// setup() (main.cpp) reads these to route a wake correctly. Retained through
-// deep sleep.
-RTC_DATA_ATTR inline bool rtcNoHA = false;
-RTC_DATA_ATTR inline bool rtcLowBattery = false;
 
 // --- e-ink refresh cadence -----------------------------------------------
 // FAST is instant but ghosts when repeated; a HALF (Clean) is a self-contained
