@@ -268,7 +268,6 @@ inline void runResume(const Wake& w) {
   wifilink::beginJoin();  // non-blocking; the refresh kicks when it lands
   standbyPrevBusy = false;
   standbyPrevWifi = false;
-  standbyPrevShown = false;
 }
 
 // Not set up yet: splash, then the blocking Wi-Fi and pairing setup screens

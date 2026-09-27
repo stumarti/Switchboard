@@ -56,6 +56,10 @@ enum class RefreshEvent : uint8_t {
   // Half scrub, same as it always has, so a routine background refresh
   // doesn't flash the whole panel while the user is mid-read.
   DataLanding,
+  // Only the status bar changed — the Wi-Fi glyph flipping as the link goes
+  // down (e.g. the idle radio power-down) or comes back, or the "updating"
+  // glyph dropping. A small, sparse region: Fast, no flash.
+  StatusGlyph,
   // The first paint after a deep-sleep wake, straight from cached data. This
   // is the biggest "screen switch" of all — a fresh paint from an unknown
   // prior panel state — so it gets the same Full treatment: even if Fast
@@ -73,6 +77,7 @@ inline Rf refreshModeFor(RefreshEvent e) {
     case RefreshEvent::TapFeedback:  return Rf::Fast;
     case RefreshEvent::ScreenSwitch: return Rf::Full;
     case RefreshEvent::DataLanding:  return Rf::Clean;
+    case RefreshEvent::StatusGlyph:  return Rf::Fast;
     case RefreshEvent::WakeRepaint:  return Rf::Full;
   }
   return Rf::Full;  // unreachable — every enumerator is handled above

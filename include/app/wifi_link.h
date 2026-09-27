@@ -13,8 +13,8 @@
 // background and burn battery). loop() calls poll() every tick, and turns
 // the radio off (idleOff()) once nothing — the user or the network worker —
 // has needed it for a while; the next command brings it straight back. The
-// carousel reads isUp() / takeJoinFailed() to decide when to kick a refresh
-// or clear its status-bar "updating" glyph.
+// carousel reads isUp() / takeJoinFailed() to decide when to kick a refresh,
+// redraw the status bar's Wi-Fi glyph, or clear its "updating" glyph.
 //
 // Fast reconnect: the access point (BSSID) and channel of the last good
 // link are kept in RTC memory, so a rejoin — after a wake, or after an idle
@@ -43,9 +43,10 @@ inline State state = State::Off;
 inline uint32_t g_joinStartMs = 0;
 inline uint32_t g_joinTimeoutMs = WIFI_JOIN_TIMEOUT_MS;
 inline bool g_joinFailed = false;  // one-shot, read by takeJoinFailed()
-// Rejoining after an idle power-down: the UI keeps showing the link as
-// available meanwhile (it was only off to save power).
+// Rejoining after an idle power-down (vs. after a real outage or a wake):
+// the data is still fresh, so the carousel doesn't need a full refresh.
 inline bool g_resumingFromIdle = false;
+inline bool g_lastJoinFromIdle = false;
 
 // --- fast reconnect memory (survives deep sleep) ---
 struct FastJoin {
@@ -156,17 +157,17 @@ inline void off() {
 }
 
 // Radio off to save power while nothing needs it; the next ensureStarted()
-// (any command) rejoins, fast, and the UI never shows the link as lost.
+// (any command) rejoins, fast. The status bar shows the true link state
+// throughout — off while it's off — so a press is never mistaken for
+// having somewhere to go before the link is back.
 inline void idleOff() {
   off();
   state = State::IdleOff;
 }
 
-// What the status bar's Wi-Fi glyph should say: connected, or only off to
-// save power (and coming straight back when needed).
-inline bool showsConnected() {
-  return isUp() || state == State::IdleOff || (state == State::Joining && g_resumingFromIdle);
-}
+// Whether the current link came back from an idle power-down (rather than a
+// wake or a real outage).
+inline bool joinedFromIdle() { return g_lastJoinFromIdle; }
 
 // Advance the state machine. Call every loop() tick.
 inline void poll() {
@@ -174,6 +175,7 @@ inline void poll() {
     case State::Joining:
       if (isUp()) {
         state = State::Up;
+        g_lastJoinFromIdle = g_resumingFromIdle;
         g_resumingFromIdle = false;
         rememberAp();
       } else if (g_fastAttempt && millis() - g_joinStartMs > kFastJoinMs) {

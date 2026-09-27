@@ -183,7 +183,6 @@ static void drawStandby(bool sleeping, Rf r, int pressed) {
 // only repaints on an actual change (seeded on entry so entry doesn't count).
 static bool standbyPrevBusy = false;
 static bool standbyPrevWifi = false;
-static bool standbyPrevShown = false;  // wifilink::showsConnected() at the last check
 
 // Enter the awake carousel. NOTHING here blocks: draw once from the
 // last-known (cached) data, light the frontlight, start the idle clock, make
@@ -204,7 +203,6 @@ static void enterStandby() {
   wifilink::ensureStarted();
   standbyPrevBusy = g_weatherBusy;
   standbyPrevWifi = wifilink::isUp();
-  standbyPrevShown = wifilink::showsConnected();
   if (wifilink::isUp() && !g_weatherBusy) kickWeatherRefresh();
 }
 

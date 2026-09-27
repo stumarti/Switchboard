@@ -99,54 +99,54 @@ static void settleShowingPage() {
   if (repaint) drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
 }
 
-// Keep the carousel in step with the background Wi-Fi join and data refresh:
-//   - the link comes up   -> kick the refresh (its landing repaints, which
-//                            also shows the new Wi-Fi glyph — no extra
-//                            repaint just for the link);
-//   - the link drops      -> repaint so the Wi-Fi glyph says so;
-//   - the refresh lands   -> drop the "updating" glyph and repaint the
-//                            showing page, or divert to No-HA / No-room;
-//   - the join gives up   -> drop the "updating" glyph, repaint once.
+// Keep the carousel in step with the background Wi-Fi link and data refresh:
+//   - the link comes up    -> after a wake or a real outage, kick the refresh
+//                             (its landing repaints, Wi-Fi glyph included);
+//                             after an idle power-down the data is still
+//                             fresh, so just the glyph repaints;
+//   - the link goes down   -> the glyph repaints (the idle power-down too:
+//                             the status bar always shows the true state);
+//   - the refresh lands    -> drop the "updating" glyph and repaint the
+//                             showing page, or divert to No-HA / No-room;
+//   - the join gives up    -> drop the "updating" glyph.
+// A repaint that only touches the status bar is a fast partial one
+// (RefreshEvent::StatusGlyph); new data gets DataLanding.
 // Returns true if it diverted to an error screen.
 static bool syncCarouselWithNetwork() {
   const bool busy = g_weatherBusy;
   const bool wifi = wifilink::isUp();
-  const bool shown = wifilink::showsConnected();
-  bool repaint = false;
+  bool glyphRepaint = false, dataRepaint = false;
 
-  // A refresh is only due when the link has been down for real — not when
-  // it's just come back from an idle power-down (the data is still fresh
-  // from before; the commands that woke it re-read what they changed).
-  if (wifi && !standbyPrevWifi && !standbyPrevShown) {
-    if (!busy) kickWeatherRefresh();
-    if (!g_weatherBusy) repaint = true;  // couldn't start one — still show the link
+  if (wifi != standbyPrevWifi) {
+    if (wifi && !wifilink::joinedFromIdle() && !busy) kickWeatherRefresh();
+    // A refresh now running will repaint (glyph included) when it lands.
+    if (!g_weatherBusy) glyphRepaint = true;
   }
-  // Repaint only when the status bar's Wi-Fi glyph would actually change.
-  if (shown != standbyPrevShown && !(shown && g_weatherBusy)) repaint = true;
-  standbyPrevShown = shown;
 
   if (standbyPrevBusy && !busy) {
     g_wakeUpdating = false;
     standbyPrevBusy = false;
     standbyPrevWifi = wifi;
-    standbyPrevShown = shown;
     // The server no longer approves this remote: restart into the pairing
     // screen (boot.h's first-run path) rather than sitting on No-HA.
     if (!pairing::paired) restartDevice();
     // Error screens only once the refresh has actually run and failed.
     if (wifi && !globalsclient::ok) { screen_no_ha::enter(); return true; }
     if (wifi && !deviceconfig::ok)  { screen_no_room::enter(); return true; }
-    repaint = true;
+    dataRepaint = true;
   }
 
-  if (wifilink::takeJoinFailed()) {
+  if (wifilink::takeJoinFailed() && g_wakeUpdating) {
     g_wakeUpdating = false;
-    repaint = true;
+    glyphRepaint = true;
   }
 
   standbyPrevBusy = g_weatherBusy;
   standbyPrevWifi = wifi;
-  if (repaint) drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::DataLanding));
+  if (dataRepaint)
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::DataLanding));
+  else if (glyphRepaint)
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::StatusGlyph));
   return false;
 }
 
