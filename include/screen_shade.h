@@ -7,8 +7,8 @@
 // [-] / [+] touch buttons drive the frontlight; brightness 0% == lamp off.
 // Home key again, or a tap on the strip above the sheet, closes it.
 //
-// Frontlight state (flBrightPct/flWarmPct + the RTC mirror) stays in
-// main.cpp — it's general sleep/wake state (the lamp must resume exactly as
+// Frontlight state (flBrightPct/flWarmPct + the RTC mirror) lives in
+// app/frontlight.h — it's general sleep/wake state (the lamp must resume exactly as
 // the user left it across a deep sleep), not owned by this one screen.
 // ===========================================================================
 
@@ -18,12 +18,12 @@
 #include "screen_fwd.h"
 #include "screen_settings.h"
 
-// main.cpp owns flBrightPct/flWarmPct/applyBrightness/applyWarmth (general
+// app/frontlight.h owns flBrightPct/flWarmPct/applyBrightness/applyWarmth (general
 // sleep/wake state, not this screen's) and defines them — along with these
 // two step functions — BEFORE #include-ing this header. The two globals are
 // visible below by plain textual order; ctlStepBrightness/ctlStepWarmth are
 // referenced as function pointers ahead of their definition, so they need an
-// explicit (file-scope, matching where main.cpp actually defines them —
+// explicit (file-scope, matching where app/frontlight.h actually defines them —
 // NOT inside namespace screen_shade, or lookup would never fall back to the
 // real ones) forward declaration.
 static void ctlStepBrightness(int d);
@@ -105,8 +105,8 @@ inline int16_t tileW() { return static_cast<int16_t>((Ui::W - kShPad * 2 - kTile
 // `pressedBtn`: -1 none, 0/1 = Backlight [-]/[+], 2/3 = Warmth [-]/[+] —
 // inverts that button for tap feedback in the same partial refresh as the new
 // level. `r` defaults to Fast for that ordinary control-feedback redraw
-// (stepper/slider changes, main.cpp's dirty-flag repaint loop); opening the
-// sheet is a sub-screen push, so main.cpp's Home-long-press handler passes
+// (stepper/slider changes, tick()'s dirty-flag repaint); opening the
+// sheet is a sub-screen push, so openSheet() passes
 // Full there instead.
 inline void draw(int pressedBtn = -1, Rf r = Rf::Fast) {
   ui.fillRect(0, kSheetTop, Ui::W, kSheetH, Color::White);

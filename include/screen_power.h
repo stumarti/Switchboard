@@ -5,7 +5,7 @@
 // from any stage once the input task is running. Restart / Shut down /
 // Cancel, laid out like the Settings list. Left/Right move the cursor
 // (outlined), Power activates it, or tap a row directly. Rows are
-// only drawn and hit-tested here — main.cpp's Stage::PowerMenu case owns the
+// only drawn and hit-tested here — app/stages.h's tickPowerMenu() owns the
 // actions (restart, shutdown), since those need its sleep machinery.
 // ===========================================================================
 

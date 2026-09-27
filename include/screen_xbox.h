@@ -105,7 +105,7 @@ inline void launch(const char* productId) {
   kick(Act::Launch);
 }
 // Periodic/background state refresh (no service call) — mirrors
-// screen_music.h's Act::Refresh, polled from main.cpp while this page is
+// screen_music.h's Act::Refresh, polled from app/stages.h while this page is
 // showing and the console might be mid-session.
 inline void kickRefresh() { kick(Act::Refresh); }
 
@@ -330,8 +330,8 @@ inline int rowHit(int16_t tx, int16_t ty) {
 
 // The footer is the library's page control now that Left/Right go back to
 // paging the CAROUSEL (they used to page this list locally, which broke the
-// carousel's own Left/Right convention on this one page — see main.cpp's
-// Stage::Standby tap dispatch). Tapping its left/right half pages the
+// carousel's own Left/Right convention on this one page — see app/stages.h's
+// tickCarousel() dispatch). Tapping its left/right half pages the
 // library instead; only shown/tappable when there's more than one page.
 inline constexpr int16_t kFooterH = 26;
 inline bool hasMultiplePages() { return pageCount() > 1; }

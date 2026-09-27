@@ -1,7 +1,7 @@
 #pragma once
 
 // ===========================================================================
-// screen_common — the shared substrate every screen_*.h (and main.cpp) builds
+// screen_common — the shared substrate every screen_*.h (and app/*.h) builds
 // on: the hardware singletons, the Stage enum + current stage, the e-ink
 // refresh-cadence helper, the shared status-bar chrome, and a handful of
 // small widgets (action bar, chip list, big-percent readout) reused by more
@@ -25,7 +25,7 @@ inline FrontlightManager frontlight;
 inline BatteryMonitor battery;
 
 // Every screen this firmware can show. Stage::Standby is the carousel itself
-// (main.cpp); everything else is one screen_*.h.
+// (app/carousel.h); everything else is one screen_*.h.
 enum class Stage : uint8_t {
   Splash, Wifi, Standby, Settings, SettingsInfo, RoomPick, Developer, Timeouts, Debug, NoHA,
   NoRoom, ErrPreview, LowBattery, WifiQr, PowerMenu
@@ -33,11 +33,11 @@ enum class Stage : uint8_t {
 inline Stage stage = Stage::Splash;
 
 // The last input (of any kind, on any screen) — every screen's enter()
-// resets this; main.cpp's carousel idle timeout reads it.
+// resets this, as does any input (app/stages.h); every idle timeout reads it.
 inline uint32_t standbyIdleSinceMs = 0;
 
 // Which carousel page is showing. The carousel itself (paging, the dots, the
-// sleep/wake page-memory in RTC) is main.cpp's "carousel logic"; the raw page
+// sleep/wake page-memory in the RTC record) is app/carousel.h; the raw page
 // index lives here because most non-carousel screens need to reset it to 0
 // when an action sends the user back to the carousel.
 inline uint8_t carouselPage = 0;

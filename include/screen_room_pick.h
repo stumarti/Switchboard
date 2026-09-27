@@ -6,6 +6,8 @@
 // ===========================================================================
 
 #include "screen_common.h"
+#include "persist.h"
+#include "mdi_icon.h"
 #include "screen_fwd.h"
 #include "room_list_client.h"
 #include "device_config_client.h"
@@ -14,7 +16,7 @@ namespace screen_room_pick {
 
 inline int sel = 0;
 
-// `r` defaults to Fast: draw() is also called from main.cpp's Left/Right
+// `r` defaults to Fast: draw() is also called from app/stages.h's Left/Right
 // highlight navigation (control feedback), so enter() overrides it to Full
 // below for both of its own draws (the interim "Loading rooms..." paint and
 // this one).
@@ -65,8 +67,14 @@ inline void enter() {
 
 inline void pick(int i) {
   if (i < 0 || i >= roomlist::count) return;
+  // Let any refresh for the old room land, and keep what it last showed.
+  waitForBackgroundIdle();
+  persist::save();
   deviceconfig::saveSlug(roomlist::rooms[i].slug);
-  deviceconfig::name[0] = 0;  // force a re-fetch to show the new room's name
+  // Paint the new room's own cached config + state at once (blank pages if
+  // it was never cached here); the refresh below fills in the live data.
+  persist::switchRoom();
+  mdiicon::resolveAll(nullptr, mdiicon::Fetch::CacheOnly);
   carouselPage = 0;
   kickWeatherRefresh();
   enterStandby();

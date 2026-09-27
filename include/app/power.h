@@ -138,6 +138,10 @@ static uint64_t allWakePinsMask() {
 // there through sleep, so callers draw their sleep frame first.
 [[noreturn]] static void sleepFor(rtcstate::SleepReason reason, uint32_t timerSec) {
   waitForBackgroundIdle();
+  // Keep what's on screen for the next wake — including anything the user
+  // changed since the last refresh (a light toggled). Skipped if a refresh
+  // is somehow still running: its half-updated state must not be cached.
+  if (!anyBackgroundBusy()) persist::save();
   rtcstate::g.reason = reason;
   rtcstate::g.carouselPage = carouselPage;
   const uint64_t mask =
@@ -170,6 +174,7 @@ static uint64_t allWakePinsMask() {
   ui.centered("Restarting", 380, 40);
   commitFrame(Rf::Clean);
   ui.syncDisplay();
+  if (!anyBackgroundBusy()) persist::save();
   persist::shutdown();
   ESP.restart();
   while (true) {  // unreachable — satisfy [[noreturn]]

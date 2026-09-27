@@ -7,7 +7,7 @@
 // backlight/warmth steppers.
 //
 // A child of screen_settings the same way screen_developer is: it never
-// references screen_settings itself — main.cpp's Stage::Timeouts case owns
+// references screen_settings itself — app/stages.h's tickTimeouts() owns
 // returning to Settings, exactly like Stage::Developer / Stage::RoomPick do.
 // ===========================================================================
 
@@ -84,7 +84,7 @@ inline int hitTest(int16_t ty) {
   return (i >= 0 && i < kCount) ? i : -1;
 }
 
-// `r` defaults to Fast: draw() is also called from main.cpp's Left/Right
+// `r` defaults to Fast: draw() is also called from app/stages.h's Left/Right
 // highlight navigation and cycle()'s value-stepping (control feedback), so
 // enter() overrides it to Full below.
 inline void draw(Rf r = Rf::Fast) {
@@ -99,7 +99,7 @@ inline void enter() {
 }
 
 // Rows 0-2 cycle their own value on tap/Power; row 3 ("Back") and every other
-// exit gesture are handled by main.cpp's Stage::Timeouts case, same as
+// exit gesture are handled by app/stages.h's tickTimeouts(), same as
 // screen_developer's "Back" row.
 inline void cycle(int i) {
   switch (i) {

@@ -27,6 +27,7 @@
 #include "http_json.h"
 #include "local_settings.h"
 #include "pairing_client.h"
+#include "sd_cache.h"
 
 namespace deviceconfig {
 
@@ -157,9 +158,7 @@ struct AppItem {
   char name[20] = "";
   char pkg[52] = "";
 };
-// Capped at 4 (not the other lists' 6) — the RTC-memory blob (persist.h) that
-// mirrors this config is already tight against the ESP32-S3's small RTC slow
-// memory region; see kMaxWifiNets below for the same constraint.
+// Capped at 4 (not the other lists' 6) — the TV page's app grid fits four.
 inline constexpr int kMaxTvApps = 4;
 inline AppItem tvApps[kMaxTvApps];
 inline int tvAppCount = 0;
@@ -178,30 +177,27 @@ struct XboxGame {
   char productId[48] = "";  // media_content_id for media_player.play_media
   char art[128] = "";       // box-art URL (relative to the HA host, or absolute)
 };
-// Capped at 12 (not the other lists' 4-6) — this list only lives in RAM
-// (screen_xbox.h's own paging state), not persist.h's RTC-tight blob, so it
-// can afford to hold two pages' worth (~6 rows/page) without the other
-// lists' memory pressure.
+// Capped at 12 — two pages' worth of the Xbox library (~6 rows/page).
 inline constexpr int kMaxXboxGames = 12;
 inline XboxGame xboxGames[kMaxXboxGames];
 inline int xboxGameCount = 0;
 
-// hub.* — the Quick Access hub (main.cpp's Home-key jump list): an ordered,
+// hub.* — the Quick Access hub (app/quick_access.h's Home-key jump list): an ordered,
 // paged grid of launcher buttons, each optionally paired with a bottom-strip
 // quick action. Only `target` strings this app has a real screen for do
 // anything on tap — 'media'->Music, 'climate'->Climate, 'lighting'->
 // Lighting, 'blinds'->Blinds, 'tv'->TV, 'xbox'->Xbox, 'guestwifi'->the Wifi
 // networks page. Anything else (e.g. 'vacuum' — no vacuum screen exists in
 // this app) falls back to the jump list's own "Settings" destination rather
-// than silently doing nothing on tap; see hubTargetPage() in main.cpp.
-// hubItemCount == 0 (no "hub" key, or an empty items[]) keeps main.cpp's
+// than silently doing nothing on tap; see hubTargetPage() in app/quick_access.h.
+// hubItemCount == 0 (no "hub" key, or an empty items[]) keeps app/quick_access.h's
 // fixed, hardcoded kJumpItems grid — this is additive, not a replacement,
 // for any server config that hasn't been migrated to send hub.items[] yet.
 enum class HubAction : uint8_t { None, Toggle, Run };
 struct HubItem {
   char name[24] = "";
   // Optional MDI icon name (admin UI's icon picker), resolved via
-  // mdi_icon.h. Empty -> main.cpp falls back to the fixed jump-grid icon for
+  // mdi_icon.h. Empty -> app/quick_access.h falls back to the fixed jump-grid icon for
   // this item's `target` (hubIconFor()), same look as before this field
   // existed.
   char icon[48] = "";
@@ -238,7 +234,8 @@ inline bool screenWifi     = true;
 inline bool ok = false;
 inline char status[64] = "";
 
-inline bool fetch() {
+// Every field back to its "no config" default.
+inline void reset() {
   ok = false;
   name[0] = weatherEntity[0] = climateEntity[0] = airQualityEntity[0] = 0;
   refreshIntervalMin = localsettings::refreshOverrideMin ? localsettings::refreshOverrideMin : 30;
@@ -258,17 +255,12 @@ inline bool fetch() {
   xboxMediaEntity[0] = xboxRemoteEntity[0] = 0;
   xboxGameCount = 0;
   hubItemCount = 0;
+}
 
-  char cfgPath[96];
-  snprintf(cfgPath, sizeof(cfgPath), "/api/devices/%s/config", activeSlug);
-
-  JsonDocument doc;
-  if (!httpjson::get(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, cfgPath, pairing::token,
-                     doc, status, sizeof(status))) {
-    if (!strcmp(status, "HTTP 401")) pairing::noteUnauthorized();
-    return false;
-  }
-
+// Fill every field from a /api/devices/<slug>/config document — the same
+// parse for a live fetch and for the copy cached on SD.
+inline void applyJson(const JsonDocument& doc) {
+  reset();
   snprintf(name, sizeof(name), "%s", doc["name"] | SWITCHBOARD_DEVICE_SLUG);
 
   JsonObjectConst sb = doc["standby"].as<JsonObjectConst>();
@@ -399,6 +391,45 @@ inline bool fetch() {
   }
 
   ok = true;
+}
+
+// The SD cache file this room's config lives in ("room-<slug>" — slugs are
+// a-z0-9- only, so always a safe filename). Per room, so switching rooms
+// never paints another room's config.
+inline void cacheName(char* out, size_t cap) { snprintf(out, cap, "room-%s", activeSlug); }
+
+// GET this room's config. On success it's applied AND cached on SD (so the
+// next wake paints it before Wi-Fi is up); on failure every field is reset —
+// the caller rolls back to the cache (persist::load()).
+inline bool fetch() {
+  reset();
+  char cfgPath[96];
+  snprintf(cfgPath, sizeof(cfgPath), "/api/devices/%s/config", activeSlug);
+
+  JsonDocument doc;
+  if (!httpjson::get(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, cfgPath, pairing::token,
+                     doc, status, sizeof(status))) {
+    if (!strcmp(status, "HTTP 401")) pairing::noteUnauthorized();
+    return false;
+  }
+  applyJson(doc);
+  char cache[48];
+  cacheName(cache, sizeof(cache));
+  sdcache::writeJson(cache, doc);
+  return true;
+}
+
+// Apply this room's config from the SD cache (no network). False if there's
+// no cached copy for the current room.
+inline bool loadCached() {
+  JsonDocument doc;
+  char cache[48];
+  cacheName(cache, sizeof(cache));
+  if (!sdcache::readJson(cache, doc)) {
+    reset();
+    return false;
+  }
+  applyJson(doc);
   return true;
 }
 

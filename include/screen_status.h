@@ -7,7 +7,7 @@
 //
 // Data loading is shared across all four carousel pages (one HA round trip
 // fills weather + climate + air + forecast + light + cover), so
-// kickWeatherRefresh()/refreshStandby() stay in main.cpp rather than being
+// kickWeatherRefresh()/refreshStandby() live in app/data_refresh.h rather than being
 // owned by this one screen — see screen_fwd.h.
 // ===========================================================================
 

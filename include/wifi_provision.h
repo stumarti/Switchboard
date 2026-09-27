@@ -190,7 +190,7 @@ struct Keyboard {
   int handleTap(float nx, float ny) {
     // InputManager reports taps in the panel-native (landscape) frame; the
     // keyboard is drawn in logical portrait pixels, so apply the same inverse
-    // rotation main.cpp uses everywhere.
+    // rotation used everywhere (Ui::touchToLogical).
     int16_t px, py;
     Ui::touchToLogical(nx, ny, px, py);
 

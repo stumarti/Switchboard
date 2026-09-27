@@ -4,7 +4,7 @@
 // theme_client — checks Switchboard-Server's /api/theme for a newer icon/
 // font pack version than what's stored in NVS, and downloads+applies
 // whichever changed. Piggybacks on the existing config-refresh cadence
-// (called from main.cpp's refreshStandby(), the same background task that
+// (called from app/data_refresh.h's refreshStandby(), the same background task that
 // already calls deviceconfig::fetch()/globalsclient::fetch()) rather than
 // running its own timer.
 // ===========================================================================

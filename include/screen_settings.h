@@ -117,7 +117,7 @@ inline int listHitTest(int16_t ty) {
   return i;
 }
 
-// `r` defaults to Fast: draw() is also called from main.cpp's Left/Right
+// `r` defaults to Fast: draw() is also called from app/stages.h's Left/Right
 // highlight navigation and row-press feedback (control feedback), so
 // enter() overrides it to Full below.
 inline void draw(Rf r = Rf::Fast) {

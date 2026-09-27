@@ -9,7 +9,7 @@
 // password.
 //
 // The list itself is carousel CONTENT, like screen_music/screen_lighting —
-// no status bar / commitFrame of its own, main.cpp's drawStandbyContent()
+// no status bar / commitFrame of its own, app/carousel.h's drawStandbyContent()
 // owns that. The QR view is a separate full-screen Stage (like
 // screen_settings_info), since a dense module grid wants the whole panel and
 // a Full refresh, not a partial-refresh carousel repaint.

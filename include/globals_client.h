@@ -15,6 +15,7 @@
 #include "config.h"
 #include "http_json.h"
 #include "pairing_client.h"
+#include "sd_cache.h"
 
 namespace globalsclient {
 
@@ -32,9 +33,7 @@ struct WifiNetItem {
   char password[65] = "";
   bool open = false;
 };
-// Capped at 3 (Home/Guest/+1) — RTC slow memory (persist.h mirrors this so a
-// wake can redraw without a network round trip) is only ~8 KB total on the
-// ESP32-S3, already shared with every other per-room list.
+// Capped at 3 (Home/Guest/+1) — what the Wifi carousel page lays out.
 inline constexpr int kMaxWifiNets = 3;
 inline WifiNetItem wifiNets[kMaxWifiNets];
 inline int wifiNetCount = 0;
@@ -42,28 +41,18 @@ inline int wifiNetCount = 0;
 inline bool ok = false;
 inline char status[64] = "";
 
-// Resolve SWITCHBOARD_SERVER_HOST, GET /api/globals, pull homeAssistant.* and
-// wifiNetworks[].
-inline bool fetch() {
+inline void reset() {
   ok = false;
   haHost[0] = haToken[0] = 0;
   haPort = 8123;
   wifiNetCount = 0;
+}
 
-  JsonDocument doc;
-  if (!httpjson::get(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, SWITCHBOARD_GLOBALS_PATH,
-                     pairing::token, doc, status, sizeof(status))) {
-    Serial.printf("[globals] fetch FAILED: %s\n", status);
-    if (!strcmp(status, "HTTP 401")) pairing::noteUnauthorized();
-    return false;
-  }
-
-  // TEMP DEBUG — dump the raw /api/globals body so a device that shows blank
-  // Wi-Fi network names can be diagnosed over serial. Remove once resolved.
-  Serial.print("[globals] raw body: ");
-  serializeJson(doc, Serial);
-  Serial.println();
-
+// Fill everything from a /api/globals document — the same parse for a live
+// fetch and for the copy cached on SD. Sets `ok` (and returns it): true only
+// if the document carries an HA host + token.
+inline bool applyJson(const JsonDocument& doc) {
+  reset();
   JsonObjectConst ha = doc["homeAssistant"].as<JsonObjectConst>();
   snprintf(haHost, sizeof(haHost), "%s", ha["host"] | "");
   snprintf(haToken, sizeof(haToken), "%s", ha["token"] | "");
@@ -93,13 +82,49 @@ inline bool fetch() {
 
   if (!haHost[0] || !haToken[0]) {
     snprintf(status, sizeof(status), "globals: no HA host/token");
-    Serial.printf("[globals] fetch FAILED: %s\n", status);
+    Serial.printf("[globals] FAILED: %s\n", status);
     return false;
   }
 
   ok = true;
+  return true;
+}
+
+inline constexpr const char* kCacheName = "globals";
+
+// Resolve SWITCHBOARD_SERVER_HOST, GET /api/globals, pull homeAssistant.* and
+// wifiNetworks[]. A good document is also cached on SD, so the next wake has
+// the HA connection before the server's even been reached.
+inline bool fetch() {
+  reset();
+  JsonDocument doc;
+  if (!httpjson::get(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, SWITCHBOARD_GLOBALS_PATH,
+                     pairing::token, doc, status, sizeof(status))) {
+    Serial.printf("[globals] fetch FAILED: %s\n", status);
+    if (!strcmp(status, "HTTP 401")) pairing::noteUnauthorized();
+    return false;
+  }
+
+  // TEMP DEBUG — dump the raw /api/globals body so a device that shows blank
+  // Wi-Fi network names can be diagnosed over serial. Remove once resolved.
+  Serial.print("[globals] raw body: ");
+  serializeJson(doc, Serial);
+  Serial.println();
+
+  if (!applyJson(doc)) return false;
+  sdcache::writeJson(kCacheName, doc);
   Serial.println("[globals] fetch OK");
   return true;
+}
+
+// Apply the SD-cached globals (no network).
+inline bool loadCached() {
+  JsonDocument doc;
+  if (!sdcache::readJson(kCacheName, doc)) {
+    reset();
+    return false;
+  }
+  return applyJson(doc);
 }
 
 }  // namespace globalsclient

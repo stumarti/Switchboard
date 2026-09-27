@@ -147,7 +147,11 @@ static const freeink::Icon* hubIconFor(const char* target) {
 // storage being flat just means a page you've already visited this session
 // keeps showing its last-known state instead of blanking when you page away
 // and back, which reads better than losing it.
-static bool hubToggleOn[deviceconfig::kMaxHubItems] = {};
+// (Lives in haclient — haclient::hubToggleOn — so persist.h caches it with
+// the rest of the pages' state; aliased here for brevity.)
+static bool (&hubToggleOn)[haclient::kMaxHubToggles] = haclient::hubToggleOn;
+static_assert(haclient::kMaxHubToggles == deviceconfig::kMaxHubItems,
+              "hub toggle state must have one slot per hub item");
 static volatile bool hubStateBusy = false;
 // Set by hubStateTask/hubActionTask when a repaint should follow; consumed
 // (and cleared) by the settle check alongside every other page's g_busy

@@ -41,21 +41,18 @@ static bool recoverFromUnauthorized() {
   return ok;
 }
 
-// Pull everything the carousel shows, then save it to the SD cache
+// Pull everything the carousel shows, then save what changed to the SD cache
 // (persist.h) so the next wake can paint it before Wi-Fi is up. On any
 // failure the last good cached state is restored (a network blip must not
-// blank the screen). Returns true if the
-// weather fetch succeeded. Drives ALL FOUR carousel pages in one HA round
-// trip, so it lives here rather than being owned by screen_status alone.
+// blank the screen). Returns true if the weather fetch succeeded. Drives
+// every carousel page in one pass, so it lives here rather than being owned
+// by any one screen. Only ever runs once Wi-Fi is up — with no link there's
+// nothing to do (the clients still hold what boot loaded from the cache).
 static bool refreshStandby() {
-  if (WiFi.status() != WL_CONNECTED) {
-    persist::load();
-    mdiicon::resolveAll(nullptr, mdiicon::Fetch::CacheOnly);
-    return false;
-  }
+  if (!wifilink::isUp()) return false;
 
   // TEMP DEBUG — confirm whether globals are being (re)fetched or served from
-  // the RTC-persisted cache. Remove once the blank-Wi-Fi-names issue is resolved.
+  // the SD cache. Remove once the blank-Wi-Fi-names issue is resolved.
   Serial.printf("[globals] refreshStandby: ok=%d (%s)\n", globalsclient::ok,
                 globalsclient::ok ? "skipping fetch, using cached/persisted globals"
                                    : "will fetch");

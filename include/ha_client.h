@@ -118,6 +118,11 @@ inline MediaPlayer xboxMedia;
 inline float climateSensorValue[6] = {0, 0, 0, 0, 0, 0};
 inline bool climateSensorOk[6] = {false, false, false, false, false, false};
 
+// Quick Access hub: live on/off for each configured Toggle item, indexed
+// like deviceconfig::hubItems[] (app/quick_access.h reads/writes it).
+inline constexpr int kMaxHubToggles = 20;
+inline bool hubToggleOn[kMaxHubToggles] = {};
+
 // UTC wall clock from the last HA `Date:` header. valid=false until a fetch
 // has parsed one.
 inline struct tm clockUtc = {};
@@ -800,7 +805,7 @@ inline bool fetchForecast(const char* host, uint16_t port, const char* token,
   return forecast.ok;
 }
 
-// --- Quick Access hub (main.cpp's Home-key jump list) --------------------
+// --- Quick Access hub (app/quick_access.h's Home-key jump list) --------------------
 // Generic, entity-domain-driven service calls for hub.items[]'s per-button
 // quick action — unlike every other page here, the hub doesn't know its
 // entities' domains ahead of time (they're server config, not a fixed

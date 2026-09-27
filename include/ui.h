@@ -123,7 +123,7 @@ class Ui {
   // (or shortly after) a run of rapid taps even though no single control's
   // own feedback ever requests Half directly — Climate's +/-0.5 step and a
   // volume drag/tap run are Fast/DU, same as every other control-feedback
-  // redraw (see main.cpp's RefreshEvent table). NON-BLOCKING, same shape as
+  // redraw (see refresh_policy.h's RefreshEvent table). NON-BLOCKING, same shape as
   // flushFast() below: pushes the frame and returns once the waveform has
   // started (~waveform is still developing, ~0.5 s) so the caller can compose
   // the next frame immediately. Uses the SHADOWED async path (unlike

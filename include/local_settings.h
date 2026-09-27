@@ -26,7 +26,7 @@ inline bool pixelGrid = false;
 inline bool standbyDisabled = false;
 
 // Settings -> Developer -> Quick actions: global on/off for the Quick
-// Access hub's bottom-third action zone (main.cpp's jump list, when
+// Access hub's bottom-third action zone (app/quick_access.h's jump list, when
 // deviceconfig::hubItemCount > 0). Default ON; if accidental strip taps
 // prove annoying in testing, flip this default to false — one line.
 inline bool quickActionsEnabled = true;
