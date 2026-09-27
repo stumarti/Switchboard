@@ -52,7 +52,7 @@ using rtcstate::SleepReason;
 
 // First-run setup gives up (and sleeps, any button resumes it) after this
 // long with nothing happening: Wi-Fi setup after the screen timeout with no
-// input, pairing after this long without an approval.
+// input, pairing after this long without a button press.
 inline constexpr uint32_t kPairingTimeoutMs = 10u * 60u * 1000u;
 inline constexpr uint32_t kTimerWakeJoinMs = 12000;
 

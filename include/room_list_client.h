@@ -31,10 +31,9 @@ inline bool fetch() {
   JsonDocument doc;
   if (!httpjson::get(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, "/api/devices",
                      pairing::token, doc, status, sizeof(status))) {
-    // A revoked/deleted pairing token 401s every request from here on -
-    // forget it so the boot sequence's next pairing check re-shows the
-    // "waiting for approval" screen instead of failing silently forever.
-    if (!strcmp(status, "HTTP 401")) pairing::clear();
+    // The server rejected the token — flag it; the next data refresh
+    // re-registers and picks up a fresh one (pairing::reauthorize()).
+    if (!strcmp(status, "HTTP 401")) pairing::noteUnauthorized();
     return false;
   }
 

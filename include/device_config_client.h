@@ -265,7 +265,7 @@ inline bool fetch() {
   JsonDocument doc;
   if (!httpjson::get(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, cfgPath, pairing::token,
                      doc, status, sizeof(status))) {
-    if (!strcmp(status, "HTTP 401")) pairing::clear();
+    if (!strcmp(status, "HTTP 401")) pairing::noteUnauthorized();
     return false;
   }
 

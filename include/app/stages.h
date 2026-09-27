@@ -17,6 +17,7 @@
 #include "screen_common.h"
 #include "refresh_policy.h"
 #include "globals_client.h"
+#include "pairing_client.h"
 #include "device_config_client.h"
 #include "room_list_client.h"
 #include "app/input.h"
@@ -123,6 +124,9 @@ static bool syncCarouselWithNetwork() {
     g_wakeUpdating = false;
     standbyPrevBusy = false;
     standbyPrevWifi = wifi;
+    // The server no longer approves this remote: restart into the pairing
+    // screen (boot.h's first-run path) rather than sitting on No-HA.
+    if (!pairing::paired) restartDevice();
     // Error screens only once the refresh has actually run and failed.
     if (wifi && !globalsclient::ok) { screen_no_ha::enter(); return true; }
     if (wifi && !deviceconfig::ok)  { screen_no_room::enter(); return true; }

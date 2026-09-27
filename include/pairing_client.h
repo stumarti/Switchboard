@@ -6,7 +6,8 @@
 // that repo's lib/pairing.js / POST /api/pairing/register).
 //
 // Flow: on first boot (no token in NVS), screen_pairing.h calls registerOnce()
-// in a loop until the server reports "approved" - the device shows up as
+// — once, then again each time the user presses a button after approving
+// it — until the server reports "approved". The device shows up as
 // "pending" in the admin UI in the meantime. The token is then stored in NVS
 // (Preferences, namespace "switchboard" - same as device_config_client.h's
 // activeSlug) and sent as the bearer on every subsequent request via
@@ -75,10 +76,9 @@ inline void saveToNvs() {
   }
 }
 
-// A 401 on any authenticated request (config/globals/room-list fetch, or a
-// theme pack download) means the token was revoked/deleted server-side -
-// forget it so the next boot (or an immediate re-entry main.cpp triggers)
-// shows the pairing screen again instead of looping on 401s forever.
+// Forget the token for real — only once the server has actually said this
+// device is no longer approved (pending / revoked / deleted). The next boot
+// shows the pairing screen again.
 inline void clear() {
   token[0] = 0;
   paired = false;
@@ -90,6 +90,26 @@ inline void clear() {
   }
 }
 
+// A 401 on an authenticated request (config/globals/room-list fetch) means
+// the server no longer accepts this token — but NOT necessarily that this
+// device was un-approved: the token may simply have been rotated, or the
+// server's device list rewritten. Wiping the token on the spot (as this used
+// to) sent an approved remote back to "waiting for approval" on its next
+// boot. Instead, just flag it; the next refresh calls reauthorize(), which
+// re-registers by MAC and — for a MAC the server still has approved — gets
+// a fresh token straight back, with no admin action and no pairing screen.
+inline volatile bool g_unauthorized = false;
+inline void noteUnauthorized() { g_unauthorized = true; }
+inline bool takeUnauthorized() {
+  const bool u = g_unauthorized;
+  g_unauthorized = false;
+  return u;
+}
+
+// Whether the last registerOnce() reached the server and got an answer
+// (approved or not) — false after a network/HTTP failure.
+inline bool serverAnswered = false;
+
 // One registration/poll attempt - non-blocking beyond the HTTP call itself.
 // screen_pairing.h calls this in a loop with a delay between attempts.
 // Returns true once the server reports "approved" (token + assignedSlug are
@@ -97,6 +117,7 @@ inline void clear() {
 // explains which).
 inline bool registerOnce() {
   ensureMac();
+  serverAnswered = false;
 
   char body[48];
   snprintf(body, sizeof(body), "{\"mac\":\"%s\"}", mac);
@@ -110,8 +131,10 @@ inline bool registerOnce() {
   const char* st = doc["status"] | "pending";
   if (strcmp(st, "approved") != 0) {
     snprintf(status, sizeof(status), "%s", st);
+    serverAnswered = true;
     return false;
   }
+  serverAnswered = true;
 
   const char* tok = doc["token"] | "";
   if (*tok) {
@@ -121,6 +144,16 @@ inline bool registerOnce() {
   }
   snprintf(assignedSlug, sizeof(assignedSlug), "%s", doc["slug"] | "");
   return true;
+}
+
+// After a 401: re-register by MAC. True if the server still has this device
+// approved (a fresh token is now saved). If the server answered but no
+// longer approves it, the token is forgotten for real (clear()); if it
+// couldn't be reached, nothing changes and the next refresh tries again.
+inline bool reauthorize() {
+  if (registerOnce()) return true;
+  if (serverAnswered) clear();
+  return false;
 }
 
 }  // namespace pairing

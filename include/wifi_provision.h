@@ -111,7 +111,9 @@ struct Keyboard {
     if (len > 0) buffer[--len] = 0;
   }
 
-  // Just the password field + hint row. Key presses do not redraw the keyboard.
+  // Just the password field + hint row, after a key press. A FULL refresh:
+  // the field repaints on every key, and fast partial refreshes left it
+  // heavily ghosted.
   void drawField() {
     ui.fillRect(0, 100, Ui::W, kbTop - 100 - 4, Color::White);  // clear the strip
     ui.strokeRect(24, 110, Ui::W - 48, 56, 2, 8);
@@ -122,7 +124,7 @@ struct Keyboard {
     snprintf(hint, sizeof(hint), "%u chars   %s", len,
              symbols ? "symbols" : (shift ? "SHIFT" : "abc"));
     ui.text(hint, 24, 176, Ui::W - 48, 22, TextAlign::Left, Color::DarkGray);
-    ui.flushFast();
+    ui.flushFull();
   }
 
   // The whole password-entry screen (first draw + shift/symbols layer changes).
@@ -243,7 +245,7 @@ struct Keyboard {
         noteInput();
         const int r = handleTap(nx, ny);
         if (r == 2) break;              // OK
-        if (r == 1) drawField();        // letter/space/del -> just the field (fast)
+        if (r == 1) drawField();        // letter/space/del -> just the field
         else if (r == 3) draw(ssid);    // layer change -> full
       }
       delay(8);

@@ -54,7 +54,7 @@ inline bool fetch() {
   if (!httpjson::get(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, SWITCHBOARD_GLOBALS_PATH,
                      pairing::token, doc, status, sizeof(status))) {
     Serial.printf("[globals] fetch FAILED: %s\n", status);
-    if (!strcmp(status, "HTTP 401")) pairing::clear();
+    if (!strcmp(status, "HTTP 401")) pairing::noteUnauthorized();
     return false;
   }
 

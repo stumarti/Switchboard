@@ -26,6 +26,21 @@
 // declares, since every screen's background task calls it by this name.
 static void ensureMdns() { wifilink::ensureMdns(); }
 
+// A server 401 (flagged by the clients, see pairing::noteUnauthorized())
+// means the token was rejected, not necessarily that this remote was
+// un-approved: re-register by MAC, which for a still-approved device hands
+// back a fresh token at once. True if it did (the caller retries its
+// fetches). If the server really has un-approved it, pairing::paired goes
+// false and the carousel restarts into the pairing screen
+// (syncCarouselWithNetwork()).
+static bool recoverFromUnauthorized() {
+  if (!pairing::takeUnauthorized()) return false;
+  const bool ok = pairing::reauthorize();
+  Serial.printf("[pairing] token rejected -> re-register: %s (%s)\n", ok ? "approved" : "not approved",
+                pairing::status);
+  return ok;
+}
+
 // Pull everything the carousel shows, then save it to the SD cache
 // (persist.h) so the next wake can paint it before Wi-Fi is up. On any
 // failure the last good cached state is restored (a network blip must not
@@ -46,6 +61,10 @@ static bool refreshStandby() {
                                    : "will fetch");
   if (!globalsclient::ok) globalsclient::fetch();  // HA host/token — rarely changes
   deviceconfig::fetch();                           // entity ids + refresh interval
+  if (recoverFromUnauthorized()) {                 // token rotated -> retry with the new one
+    if (!globalsclient::ok) globalsclient::fetch();
+    deviceconfig::fetch();
+  }
   // Icons: nothing already on SD is re-pulled unless Settings -> Refresh now
   // asked for it. A theme version bump still downloads the new pack, and any
   // per-item MDI icon the config just introduced is fetched right here.
