@@ -74,7 +74,7 @@ Reached from the jump list, or the shade's cog icon:
 - **Device info** — firmware version and connection status.
 - **Wi-Fi setup** — forget the current network and reconnect.
 - **Refresh now** — force an immediate pull from Home Assistant.
-- **Timeouts** — how long before the screen sleeps, a control page reverts to Status, and how often it refreshes.
+- **Timeouts** — how long before the screen sleeps, a control page reverts to Status, how often it refreshes, and how long the Wi-Fi radio stays on while idle (by default, the same as the screen; the next button press reconnects).
 - **Developer** — a pixel-grid overlay, a "don't sleep" toggle, the hardware self-test, and a hard reset that clears the picked room (useful if a bad room config ever gets the device stuck).
 
 If the server or Home Assistant can't be reached, the device shows a plain error screen instead of hanging — any button retries, and Home still gets you into Settings.

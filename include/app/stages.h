@@ -342,16 +342,17 @@ static void tickTimeouts(const InFrame& in) {
   if (in.btnPower) {
     screen_timeouts::pressed = screen_timeouts::sel;
     screen_timeouts::draw();
-    if (screen_timeouts::sel < 3) screen_timeouts::cycle(screen_timeouts::sel); else screen_settings::enter();
+    if (screen_timeouts::sel < screen_timeouts::kBack) screen_timeouts::cycle(screen_timeouts::sel);
+    else screen_settings::enter();
     return;
   }
   if (in.tap) {
     const int i = screen_timeouts::hitTest(in.ty);
-    if (i >= 0 && i < 3) {
+    if (i >= 0 && i < screen_timeouts::kBack) {
       screen_timeouts::pressed = i;
       screen_timeouts::draw();
       screen_timeouts::cycle(i);
-    } else if (i >= 3) {
+    } else if (i == screen_timeouts::kBack) {
       screen_settings::enter();
     }
   }
@@ -447,17 +448,19 @@ static void tickDebug(const InFrame& in) {
 // Radio
 // ===========================================================================
 
-// Wi-Fi off once nothing has needed it for this long: no input, and no
-// network work (commands, re-reads, a refresh, a poll). The next press
-// posts a command, which rejoins — fast, straight to the remembered AP
-// (app/wifi_link.h) — and the status bar never shows the link as lost.
-static constexpr uint32_t kRadioIdleOffMs = 60000;
-
+// Wi-Fi off once nothing has needed it for Settings -> Timeouts -> Wi-Fi
+// timeout: no input, and no network work (commands, re-reads, a refresh, a
+// poll). The default, "Same as screen", never powers it down here — the
+// radio goes off with the screen when the device sleeps. The next press
+// posts a command, which rejoins fast, straight to the remembered AP
+// (app/wifi_link.h); the status bar shows the true state throughout.
 static void powerDownIdleRadio() {
+  if (localsettings::wifiIdleOffMin == 0) return;  // same as the screen timeout
   if (wifilink::state != wifilink::State::Up || net::busy()) return;
+  const uint32_t idleOffMs = static_cast<uint32_t>(localsettings::wifiIdleOffMin) * 60000u;
   const uint32_t now = millis();
-  if (now - standbyIdleSinceMs < kRadioIdleOffMs) return;
-  if (now - net::g_lastActivityMs < kRadioIdleOffMs) return;
+  if (now - standbyIdleSinceMs < idleOffMs) return;
+  if (now - net::g_lastActivityMs < idleOffMs) return;
   Serial.println("[wifi] idle -> radio off");
   wifilink::idleOff();
 }
