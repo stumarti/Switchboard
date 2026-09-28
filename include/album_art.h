@@ -19,6 +19,12 @@
 #include <HTTPClient.h>
 #include <WiFiClient.h>
 #include <ESPmDNS.h>
+// TJpg_Decoder pulls in Arduino's <FS.h>, which unconditionally defines
+// FILE_READ/FILE_WRITE — already defined (as open flags) by SdFat, which
+// sd_cache.h includes first. Nothing here uses either, so drop SdFat's
+// before FS.h redefines them (the Arduino values win either way).
+#undef FILE_READ
+#undef FILE_WRITE
 #include <TJpg_Decoder.h>
 
 #include "Icon.h"
