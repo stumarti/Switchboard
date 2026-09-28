@@ -30,7 +30,8 @@ namespace screen_music {
 
 // Commands in flight or awaiting their re-read (app/net.h).
 inline volatile uint8_t g_busy = 0;
-// -1 none, 0/1/2 = PREV/PLAY-PAUSE/NEXT (bottom bar), 3/4 = VOL-/VOL+.
+// -1 none, 0/1/2 = PREV/PLAY-PAUSE/NEXT (bottom bar), 3/4 = VOL-/VOL+,
+// 5 = a "check again" tap (no button to show pressed).
 inline int g_pressed = -1;
 enum class Act : uint8_t { PlayPause, Next, Prev, Volume, Mute, Refresh };
 // Set by app/live.h when a held-open request brings a change: 1 = the same
@@ -98,6 +99,20 @@ inline void togglePlay() {
   snprintf(m.state, sizeof(m.state), "%s", strcmp(m.state, "playing") == 0 ? "paused" : "playing");
   kick(Act::PlayPause);
 }
+// A tap on "Nothing playing" (or "Music unavailable"): re-read the player now
+// — something may have started since the last look. Unlike the Refresh poll,
+// a tap may wake the radio. The title reads "Checking..." until it lands.
+inline bool g_checking = false;
+inline void checkNow() {
+  net::Command c;
+  c.readback = readbackMedia;
+  c.busy = &g_busy;
+  c.i = static_cast<int>(Act::Refresh);
+  c.coalesceKey = net::key("media?", deviceconfig::mediaEntity);
+  net::post(c);
+  g_checking = true;
+}
+
 inline void next() { kick(Act::Next); }
 inline void prev() { kick(Act::Prev); }
 
@@ -252,10 +267,12 @@ inline void draw(int pressed = -1) {
   }
   if (!m.ok) {
     const bool connecting = WiFi.status() != WL_CONNECTED;
-    ui.text(connecting ? "Connecting to Wi-Fi" : "Music unavailable", 0, 300, Ui::W, 28,
-            TextAlign::Center, Color::Black);
-    ui.text(connecting ? "one moment..." : m.status, 0, 336, Ui::W, 20, TextAlign::Center,
-            Color::DarkGray, 1, Ui::kFontSmall);
+    ui.text(connecting ? "Connecting to Wi-Fi" : g_checking ? "Checking..." : "Music unavailable", 0, 300,
+            Ui::W, 28, TextAlign::Center, Color::Black);
+    ui.text(connecting ? "one moment..." : g_checking ? "" : "tap to check again", 0, 336, Ui::W, 20,
+            TextAlign::Center, Color::DarkGray, 1, Ui::kFontSmall);
+    if (!connecting && !g_checking && m.status[0])
+      ui.text(m.status, 0, 360, Ui::W, 20, TextAlign::Center, Color::DarkGray, 1, Ui::kFontSmall);
     return;
   }
 
@@ -286,11 +303,15 @@ inline void draw(int pressed = -1) {
     ui.icon(albumart::icon(), static_cast<int16_t>(Ui::W / 2 - albumart::kArtSize / 2), y, Color::Black);
     y = static_cast<int16_t>(y + albumart::kArtSize + kArtGap);
   }
-  const char* title = m.title[0] ? m.title : (playing ? "Playing" : "Nothing playing");
+  const bool nothing = !m.title[0] && !playing;
+  const char* title = m.title[0] ? m.title : playing ? "Playing" : g_checking ? "Checking..." : "Nothing playing";
   ui.text(title, 0, y, Ui::W, kTitleH, TextAlign::Center, Color::Black, 1, Ui::kFont28);
   if (m.artist[0])
     ui.text(m.artist, 0, static_cast<int16_t>(y + kTitleH + kTitleArtistGap), Ui::W, kArtistH,
             TextAlign::Center, Color::DarkGray);
+  else if (nothing && !g_checking)
+    ui.text("tap to check again", 0, static_cast<int16_t>(y + kTitleH + kTitleArtistGap), Ui::W, kArtistH,
+            TextAlign::Center, Color::DarkGray, 1, Ui::kFontSmall);
 
   drawBar(pressed, playing);
 }
@@ -317,6 +338,21 @@ inline bool handleDrag(const InFrame& in) {
 // Music page: MUTE toggle, VOL-/VOL+ buttons, tap-to-set volume bar,
 // then the PREV / PLAY-PAUSE / NEXT transport bar.
 inline bool handleTap(const InFrame& in) {
+  if (!deviceconfig::mediaEnabled) return false;
+  const haclient::MediaPlayer& m = haclient::media;
+  // "Music unavailable" anywhere, or the "Nothing playing" title area:
+  // check again now. g_pressed = 5 (no button) so settleCheck() repaints
+  // once the re-read lands.
+  const bool nothing = m.ok && !m.title[0] && strcmp(m.state, "playing") != 0;
+  if ((!m.ok && in.ty >= kStatusBarH) || (nothing && in.ty >= kNowY0 && in.ty < kMuRow2Y)) {
+    if (!m.ok && WiFi.status() != WL_CONNECTED) return false;  // already connecting
+    checkNow();
+    g_pressed = 5;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  if (!m.ok) return false;
   if (toggleHit(in.tx, in.ty)) {
     toggleMute();
     standbyIdleSinceMs = millis();
@@ -368,7 +404,10 @@ inline bool settleCheck(bool showing) {
   const bool busy = g_busy;
   const bool settle = showing && ((prevBusy && !busy) || (g_pressed >= 0 && !busy));
   prevBusy = busy;
-  if (settle) g_pressed = -1;
+  if (settle) {
+    g_pressed = -1;
+    g_checking = false;
+  }
   return settle;
 }
 

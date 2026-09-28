@@ -5,7 +5,8 @@
 // box (Vu+, Dreambox, ...) through Home Assistant's enigma2 media_player
 // (receiver.mediaPlayerEntity).
 //
-//   top      what's on: the channel (big) with its picon, the programme on
+//   top      what's on: a large picon in the left third, then
+//            (large) the programme on
 //            now (with its times) and the one on next — from the server,
 //            which reads the box's own web interface when it has its address
 //            (else Home Assistant: now only)
@@ -100,35 +101,47 @@ inline constexpr int16_t kNowY = kStatusBarH + kPad;
 inline constexpr int16_t kNowX = kShPad;
 inline constexpr int16_t kNowW = Ui::W - kShPad * 2;
 
+inline constexpr int16_t kNowH = 164;  // down to just above the favourites
+// With a picon: it fills the left third, and the text column the right two.
+inline constexpr int16_t kPiconColW = kNowW / 3;
+inline constexpr int16_t kTextColGap = 12;
+
 // One "NOW 18:00–18:30" / title pair.
-inline void drawProgramme(int16_t y, const char* label, const char* time, const char* title) {
+inline void drawProgramme(int16_t x, int16_t w, int16_t y, const char* label, const char* time,
+                          const char* title) {
   char head[32];
   snprintf(head, sizeof(head), "%s%s%s", label, time[0] ? "  " : "", time);
-  ui.text(head, kNowX, y, kNowW, 18, TextAlign::Left, Color::DarkGray, 1, Ui::kFontSmall);
-  ui.text(title, kNowX, static_cast<int16_t>(y + 18), kNowW, 26, TextAlign::Left, Color::Black);
+  ui.text(head, x, y, w, 24, TextAlign::Left, Color::DarkGray);
+  ui.text(title, x, static_cast<int16_t>(y + 24), w, 34, TextAlign::Left, Color::Black, 1, Ui::kFont28);
 }
 
 inline void drawNow() {
   const haclient::Receiver& r = haclient::receiver;
   const haclient::ReceiverInfo& info = haclient::receiverInfo;
-  ui.text(deviceconfig::receiverName, kNowX, kNowY, kNowW, 20, TextAlign::Left, Color::DarkGray, 1,
-          Ui::kFontSmall);
   const bool off = r.ok && (!strcmp(r.state, "off") || !strcmp(r.state, "standby"));
-  const char* channel = !r.ok ? "Unavailable" : off ? "Off" : r.channel[0] ? r.channel : "—";
-  // The channel's picon, top right, when it has one.
-  int16_t nameW = kNowW;
-  if (!off && piconart::g_now.bits) {
+  // The channel's picon, large and centered in the left third, when it has
+  // one; the text then takes the right two thirds (else the full width).
+  int16_t tx = kNowX, tw = kNowW;
+  if (r.ok && !off && piconart::g_now.bits) {
     const freeink::Icon ic = piconart::nowIcon();
-    ui.icon(ic, static_cast<int16_t>(kNowX + kNowW - piconart::kNowW), static_cast<int16_t>(kNowY + 4));
-    nameW = static_cast<int16_t>(kNowW - piconart::kNowW - 12);
+    ui.icon(ic, static_cast<int16_t>(kNowX + (kPiconColW - ic.w) / 2),
+            static_cast<int16_t>(kNowY + (kNowH - ic.h) / 2));
+    tx = static_cast<int16_t>(kNowX + kPiconColW + kTextColGap);
+    tw = static_cast<int16_t>(kNowW - kPiconColW - kTextColGap);
   }
-  ui.text(channel, kNowX, static_cast<int16_t>(kNowY + 26), nameW, 34, TextAlign::Left, Color::Black, 1,
-          Ui::kFont28);
-  if (!r.ok || off) return;
+  ui.text(deviceconfig::receiverName, tx, kNowY, tw, 20, TextAlign::Left, Color::DarkGray, 1, Ui::kFontSmall);
+  // No channel name: the picon says which channel it is, and the space goes
+  // to a larger now / next. Only a box that's off or unreachable says so.
+  if (!r.ok || off) {
+    ui.text(!r.ok ? "Unavailable" : "Off", tx, static_cast<int16_t>(kNowY + 26), tw, 34, TextAlign::Left,
+            Color::Black, 1, Ui::kFont28);
+    return;
+  }
   // Now: the server's line (with times), else Home Assistant's programme.
   const char* nowTitle = info.nowTitle[0] ? info.nowTitle : r.programme;
-  if (nowTitle[0]) drawProgramme(static_cast<int16_t>(kNowY + 66), "NOW", info.nowTime, nowTitle);
-  if (info.nextTitle[0]) drawProgramme(static_cast<int16_t>(kNowY + 116), "NEXT", info.nextTime, info.nextTitle);
+  if (nowTitle[0]) drawProgramme(tx, tw, static_cast<int16_t>(kNowY + 26), "NOW", info.nowTime, nowTitle);
+  if (info.nextTitle[0])
+    drawProgramme(tx, tw, static_cast<int16_t>(kNowY + 94), "NEXT", info.nextTime, info.nextTitle);
 }
 
 // --- favourite channels: 2 columns x 3 rows --------------------------------
@@ -160,13 +173,16 @@ inline void drawFavourites(int pressed) {
     if (p) ui.fillRect(x, y, kFavW, kFavH, Color::Black, 14);
     else   ui.strokeRect(x, y, kFavW, kFavH, isOn(i) ? 5 : 2, 14);
     const Color fg = p ? Color::White : Color::Black;
-    // The channel's picon (from the box), else the icon picked for it.
-    int16_t textX = static_cast<int16_t>(x + 12);
+    // The channel's picon (from the box) on its own, centered — the logo
+    // already names the channel. Else the icon picked for it, plus the name.
     if (piconart::g_fav[i].bits) {
       const freeink::Icon pic = piconart::favIcon(i);
-      ui.icon(pic, static_cast<int16_t>(x + 10), static_cast<int16_t>(y + (kFavH - pic.h) / 2), fg);
-      textX = static_cast<int16_t>(x + 10 + pic.w + 8);
-    } else if (const freeink::Icon* ic = mdiicon::receiverIcons[i]) {
+      ui.icon(pic, static_cast<int16_t>(x + (kFavW - pic.w) / 2), static_cast<int16_t>(y + (kFavH - pic.h) / 2),
+              fg);
+      continue;
+    }
+    int16_t textX = static_cast<int16_t>(x + 12);
+    if (const freeink::Icon* ic = mdiicon::receiverIcons[i]) {
       ui.icon(*ic, static_cast<int16_t>(x + 12), static_cast<int16_t>(y + (kFavH - ic->h) / 2), fg);
       textX = static_cast<int16_t>(x + 12 + ic->w + 10);
     }

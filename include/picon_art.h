@@ -5,7 +5,7 @@
 // server's /api/art like album art (server_art.h): scaled whole onto white
 // and dithered to 1 bpp, so the device only blits them.
 //
-// Two sizes: the channel on now (kNowW x kNowH, beside its name) and each
+// Two sizes: the channel on now (kNowW x kNowH, the Receiver page's left third) and each
 // favourite button's (kFavW x kFavH). Each bitmap is kept on SD keyed by its
 // src and size, so a wake paints the picons it had without the network, and
 // a channel's picon is downloaded once — not once per wake. Fetched on the
@@ -22,8 +22,8 @@
 
 namespace piconart {
 
-inline constexpr int16_t kNowW = 96, kNowH = 58;  // picons are ~5:3
-inline constexpr int16_t kFavW = 60, kFavH = 36;
+inline constexpr int16_t kNowW = 140, kNowH = 84;  // picons are ~5:3; the left third of the page
+inline constexpr int16_t kFavW = 110, kFavH = 66;  // fills the button on its own (no name beside it)
 inline constexpr int kFavs = 6;
 inline constexpr const char* kCacheDir = "/switchboard/picons";
 
