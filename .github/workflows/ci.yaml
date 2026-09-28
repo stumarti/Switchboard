@@ -5,7 +5,6 @@ on:
     branches: ["**"]
   pull_request:
 
-# Build and test only: nothing here writes to the repository.
 permissions:
   contents: read
 
