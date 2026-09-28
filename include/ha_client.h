@@ -725,6 +725,39 @@ inline bool fetchReceiver(const char* host, uint16_t port, const char* token, co
   return applyReceiver(doc.as<JsonVariantConst>());
 }
 
+// What the server adds for the Receiver page (its /state "receiver" block,
+// Switchboard-Server lib/enigma2.js): the programme on now and next, already
+// formatted, and the /api/art srcs of the picons — the channel on now and
+// each favourite ("" = none). From the box's own web interface when the room
+// has its address, else from Home Assistant; empty from an older server.
+struct ReceiverInfo {
+  char nowTime[16] = "";    // "18:00–18:30"
+  char nowTitle[64] = "";
+  char nextTime[8] = "";    // "18:30"
+  char nextTitle[64] = "";
+  char picon[160] = "";
+  char favPicon[6][160] = {};
+};
+inline ReceiverInfo receiverInfo;
+
+inline void applyReceiverInfo(JsonObjectConst r) {
+  receiverInfo = ReceiverInfo{};
+  if (r.isNull()) return;
+  JsonObjectConst now = r["now"].as<JsonObjectConst>();
+  snprintf(receiverInfo.nowTime, sizeof(receiverInfo.nowTime), "%s", now["time"] | "");
+  snprintf(receiverInfo.nowTitle, sizeof(receiverInfo.nowTitle), "%s", now["title"] | "");
+  JsonObjectConst next = r["next"].as<JsonObjectConst>();
+  snprintf(receiverInfo.nextTime, sizeof(receiverInfo.nextTime), "%s", next["time"] | "");
+  snprintf(receiverInfo.nextTitle, sizeof(receiverInfo.nextTitle), "%s", next["title"] | "");
+  snprintf(receiverInfo.picon, sizeof(receiverInfo.picon), "%s", r["picon"] | "");
+  int i = 0;
+  for (JsonVariantConst v : r["favourites"].as<JsonArrayConst>()) {
+    if (i >= 6) break;
+    snprintf(receiverInfo.favPicon[i], sizeof(receiverInfo.favPicon[i]), "%s", v | "");
+    ++i;
+  }
+}
+
 // A favourite channel: media_player.select_source with the channel's name as
 // the box lists it. The name goes into JSON, so quotes/backslashes are
 // escaped.

@@ -164,6 +164,26 @@ static void testReceiver() {
   CHECK_STR(receiver.state, "off");
   CHECK(receiver.volumePct == 40);
   CHECK_STR(receiver.channel, "");
+
+  // The server's now / next and picon srcs; an older server sends none.
+  JsonDocument rx;
+  CHECK(deserializeJson(rx, R"({"receiver":{"source":"box",
+    "now":{"time":"18:00–18:30","title":"Six O'Clock News","desc":"The news."},
+    "next":{"time":"18:30","title":"Regional News","desc":""},
+    "picon":"rx:den:/picon/1_0_19_1B1F_802_2_11A0000_0_0_0.png",
+    "favourites":["rx:den:/picon/bbc1.png","",""]}})") == DeserializationError::Ok);
+  applyReceiverInfo(rx["receiver"].as<JsonObjectConst>());
+  CHECK_STR(receiverInfo.nowTime, "18:00–18:30");
+  CHECK_STR(receiverInfo.nowTitle, "Six O'Clock News");
+  CHECK_STR(receiverInfo.nextTime, "18:30");
+  CHECK_STR(receiverInfo.nextTitle, "Regional News");
+  CHECK_STR(receiverInfo.picon, "rx:den:/picon/1_0_19_1B1F_802_2_11A0000_0_0_0.png");
+  CHECK_STR(receiverInfo.favPicon[0], "rx:den:/picon/bbc1.png");
+  CHECK_STR(receiverInfo.favPicon[1], "");
+  JsonDocument none;
+  applyReceiverInfo(none["receiver"].as<JsonObjectConst>());
+  CHECK_STR(receiverInfo.nowTitle, "");
+  CHECK_STR(receiverInfo.picon, "");
 }
 
 static void testRoomConfig() {

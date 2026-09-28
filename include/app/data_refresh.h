@@ -240,6 +240,11 @@ static ServerResult fetchServerState() {
   if (deviceconfig::receiverEntity[0] && !screen_receiver::g_busy &&
       !haclient::applyReceiver(stateOf(deviceconfig::receiverEntity)))
     whyMissing(deviceconfig::receiverEntity, haclient::receiver.status, sizeof(haclient::receiver.status));
+  // Now / next and picons (the server's own additions; empty from an older one).
+  if (deviceconfig::receiverEntity[0]) {
+    haclient::applyReceiverInfo(doc["receiver"].as<JsonObjectConst>());
+    screen_receiver::loadPicons();  // only fetches a picon that changed
+  }
 
   if (!hubActionBusy) {
     bool changed = false;
@@ -361,6 +366,7 @@ static bool refreshStandby() {
   } else {
     persist::load();  // roll back any half-updated / cleared client state
     mdiicon::resolveAll(nullptr, mdiicon::Fetch::CacheOnly);  // re-point at the rolled-back config's icons
+    piconart::load(/*network=*/false);
   }
   return gotWeather;
 }

@@ -30,6 +30,7 @@
 #include "globals_client.h"
 #include "local_settings.h"
 #include "mdi_icon.h"
+#include "picon_art.h"
 #include "pairing_client.h"
 #include "persist.h"
 #include "theme_client.h"
@@ -139,6 +140,7 @@ inline bool loadLocalState() {
   // cached config — so the first paint already shows them.
   themeclient::loadAtBoot();
   mdiicon::resolveAll(nullptr, mdiicon::Fetch::CacheOnly);
+  piconart::load(/*network=*/false);  // the receiver's picons, from SD
   return cacheOk;
 }
 

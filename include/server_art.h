@@ -44,7 +44,9 @@ inline void urlEncode(const char* in, char* out, size_t cap) {
 
 // Fetch `src` as a w x h Mask1 bitmap. Returns a ps_malloc'd buffer the
 // caller owns (free()), or nullptr on any failure — never partial output.
-inline uint8_t* fetchMask1(const char* src, int16_t w, int16_t h) {
+// `contain`: the whole picture on white (a logo, e.g. a picon) rather than
+// filling the box and cropping (album art).
+inline uint8_t* fetchMask1(const char* src, int16_t w, int16_t h, bool contain = false) {
   if (!src || !*src || !pairing::token[0]) return nullptr;
   const IPAddress ip = httpjson::resolveHost(SWITCHBOARD_SERVER_HOST);
   if (ip == IPAddress(0, 0, 0, 0)) return nullptr;
@@ -52,8 +54,8 @@ inline uint8_t* fetchMask1(const char* src, int16_t w, int16_t h) {
   char enc[480];
   urlEncode(src, enc, sizeof(enc));
   char url[600];
-  snprintf(url, sizeof(url), "http://%s:%u/api/art?src=%s&w=%d&h=%d&fmt=mask1", ip.toString().c_str(),
-           SWITCHBOARD_SERVER_PORT, enc, w, h);
+  snprintf(url, sizeof(url), "http://%s:%u/api/art?src=%s&w=%d&h=%d&fmt=mask1%s", ip.toString().c_str(),
+           SWITCHBOARD_SERVER_PORT, enc, w, h, contain ? "&fit=contain" : "");
 
   HTTPClient http;
   http.setTimeout(10000);  // the server may be fetching + converting the original

@@ -8,6 +8,7 @@
 #include "screen_common.h"
 #include "persist.h"
 #include "mdi_icon.h"
+#include "picon_art.h"
 #include "screen_fwd.h"
 #include "room_list_client.h"
 #include "device_config_client.h"
@@ -75,6 +76,7 @@ inline void pick(int i) {
   // it was never cached here); the refresh below fills in the live data.
   persist::switchRoom();
   mdiicon::resolveAll(nullptr, mdiicon::Fetch::CacheOnly);
+  piconart::load(/*network=*/false);
   carouselPage = 0;
   kickWeatherRefresh();
   enterStandby();

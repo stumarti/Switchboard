@@ -5,7 +5,10 @@
 // box (Vu+, Dreambox, ...) through Home Assistant's enigma2 media_player
 // (receiver.mediaPlayerEntity).
 //
-//   top      what's on: the channel (big) and the programme on it now
+//   top      what's on: the channel (big) with its picon, the programme on
+//            now (with its times) and the one on next — from the server,
+//            which reads the box's own web interface when it has its address
+//            (else Home Assistant: now only)
 //   middle   up to six favourite channels as buttons (receiver.channels),
 //            each with its optional MDI icon; the one on now is outlined
 //            heavier. A tap is media_player.select_source.
@@ -29,10 +32,14 @@
 #include "globals_client.h"
 #include "device_config_client.h"
 #include "ha_client.h"
+#include "picon_art.h"
 
 namespace screen_receiver {
 
 inline volatile uint8_t g_busy = 0;
+// Picons being fetched (picon_art.h), and a new one landed: repaint.
+inline volatile uint8_t g_piconBusy = 0;
+inline volatile bool g_piconDirty = false;
 // -1 none; 0/1/2 = CH- / POWER / CH+; 3/4 = VOL- / VOL+; 100+i = favourite i.
 inline int g_pressed = -1;
 enum class Act : uint8_t { ChannelDown, Power, ChannelUp, Volume, Mute, Favourite, Refresh };
@@ -74,26 +81,58 @@ inline void kick(Act act, const char* source = nullptr) {
   net::post(c);
 }
 
+// Fetch any picon whose src changed, on the network worker (optional: never
+// wakes the radio on its own). Called when a refresh lands.
+inline void loadPiconsJob(int) {
+  if (piconart::load(/*network=*/true)) g_piconDirty = true;
+}
+inline void loadPicons() {
+  net::Command c;
+  c.readback = loadPiconsJob;
+  c.busy = &g_piconBusy;
+  c.coalesceKey = net::key("picons");
+  c.optional = true;
+  net::post(c);
+}
+
 // --- now showing --------------------------------------------------------
 inline constexpr int16_t kNowY = kStatusBarH + kPad;
 inline constexpr int16_t kNowX = kShPad;
 inline constexpr int16_t kNowW = Ui::W - kShPad * 2;
 
+// One "NOW 18:00–18:30" / title pair.
+inline void drawProgramme(int16_t y, const char* label, const char* time, const char* title) {
+  char head[32];
+  snprintf(head, sizeof(head), "%s%s%s", label, time[0] ? "  " : "", time);
+  ui.text(head, kNowX, y, kNowW, 18, TextAlign::Left, Color::DarkGray, 1, Ui::kFontSmall);
+  ui.text(title, kNowX, static_cast<int16_t>(y + 18), kNowW, 26, TextAlign::Left, Color::Black);
+}
+
 inline void drawNow() {
   const haclient::Receiver& r = haclient::receiver;
+  const haclient::ReceiverInfo& info = haclient::receiverInfo;
   ui.text(deviceconfig::receiverName, kNowX, kNowY, kNowW, 20, TextAlign::Left, Color::DarkGray, 1,
           Ui::kFontSmall);
   const bool off = r.ok && (!strcmp(r.state, "off") || !strcmp(r.state, "standby"));
   const char* channel = !r.ok ? "Unavailable" : off ? "Off" : r.channel[0] ? r.channel : "—";
-  ui.text(channel, kNowX, static_cast<int16_t>(kNowY + 26), kNowW, 34, TextAlign::Left, Color::Black, 1,
+  // The channel's picon, top right, when it has one.
+  int16_t nameW = kNowW;
+  if (!off && piconart::g_now.bits) {
+    const freeink::Icon ic = piconart::nowIcon();
+    ui.icon(ic, static_cast<int16_t>(kNowX + kNowW - piconart::kNowW), static_cast<int16_t>(kNowY + 4));
+    nameW = static_cast<int16_t>(kNowW - piconart::kNowW - 12);
+  }
+  ui.text(channel, kNowX, static_cast<int16_t>(kNowY + 26), nameW, 34, TextAlign::Left, Color::Black, 1,
           Ui::kFont28);
-  if (r.ok && !off && r.programme[0])
-    ui.text(r.programme, kNowX, static_cast<int16_t>(kNowY + 68), kNowW, 44, TextAlign::Left, Color::Black,
-            2);
+  if (!r.ok || off) return;
+  // Now: the server's line (with times), else Home Assistant's programme.
+  const char* nowTitle = info.nowTitle[0] ? info.nowTitle : r.programme;
+  if (nowTitle[0]) drawProgramme(static_cast<int16_t>(kNowY + 66), "NOW", info.nowTime, nowTitle);
+  if (info.nextTitle[0]) drawProgramme(static_cast<int16_t>(kNowY + 116), "NEXT", info.nextTime, info.nextTitle);
 }
 
 // --- favourite channels: 2 columns x 3 rows --------------------------------
-inline constexpr int16_t kFavTop  = kNowY + 124;
+inline constexpr int16_t kFavTop  = kNowY + 174;
 inline constexpr int16_t kFavGap  = 10;
 inline constexpr int16_t kFavW    = (Ui::W - kShPad * 2 - kFavGap) / 2;
 inline constexpr int16_t kFavH    = 84;
@@ -121,9 +160,13 @@ inline void drawFavourites(int pressed) {
     if (p) ui.fillRect(x, y, kFavW, kFavH, Color::Black, 14);
     else   ui.strokeRect(x, y, kFavW, kFavH, isOn(i) ? 5 : 2, 14);
     const Color fg = p ? Color::White : Color::Black;
-    const freeink::Icon* ic = mdiicon::receiverIcons[i];
+    // The channel's picon (from the box), else the icon picked for it.
     int16_t textX = static_cast<int16_t>(x + 12);
-    if (ic) {
+    if (piconart::g_fav[i].bits) {
+      const freeink::Icon pic = piconart::favIcon(i);
+      ui.icon(pic, static_cast<int16_t>(x + 10), static_cast<int16_t>(y + (kFavH - pic.h) / 2), fg);
+      textX = static_cast<int16_t>(x + 10 + pic.w + 8);
+    } else if (const freeink::Icon* ic = mdiicon::receiverIcons[i]) {
       ui.icon(*ic, static_cast<int16_t>(x + 12), static_cast<int16_t>(y + (kFavH - ic->h) / 2), fg);
       textX = static_cast<int16_t>(x + 12 + ic->w + 10);
     }
@@ -313,9 +356,12 @@ inline bool handleTap(const InFrame& in) {
 inline bool settleCheck(bool showing) {
   static bool prevBusy = false;
   const bool busy = g_busy;
-  const bool settle = showing && ((prevBusy && !busy) || (g_pressed >= 0 && !busy));
+  const bool settle = showing && ((prevBusy && !busy) || (g_pressed >= 0 && !busy) || g_piconDirty);
   prevBusy = busy;
-  if (settle) g_pressed = -1;
+  if (settle) {
+    g_pressed = -1;
+    g_piconDirty = false;
+  }
   return settle;
 }
 

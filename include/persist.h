@@ -151,9 +151,16 @@ struct XboxState {
 
 struct ReceiverState {
   haclient::Receiver receiver;
+  haclient::ReceiverInfo info;  // now / next and the picon srcs
   static constexpr const char* kName = "receiver";
-  void capture() { receiver = haclient::receiver; }
-  void restore() const { haclient::receiver = receiver; }
+  void capture() {
+    receiver = haclient::receiver;
+    info = haclient::receiverInfo;
+  }
+  void restore() const {
+    haclient::receiver = receiver;
+    haclient::receiverInfo = info;
+  }
 };
 
 struct HubState {
