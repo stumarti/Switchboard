@@ -52,9 +52,13 @@ struct Air {
   char status[48] = "";
 };
 
+inline constexpr int kMaxLightEffects = 24;  // two pages of the Colour tab
 struct Light {
   bool on = false;
   int brightnessPct = 0;   bool hasBrightness = false;  // from attributes.brightness (0..255)
+  char effect[32] = "";                                 // attributes.effect, the running one
+  char effects[kMaxLightEffects][32] = {};              // attributes.effect_list
+  uint8_t effectCount = 0;
   bool ok = false;
   char status[48] = "";
 };
@@ -352,6 +356,14 @@ inline bool applyLight(JsonVariantConst doc) {
     lightGroup.brightnessPct = static_cast<int>((b.as<float>() * 100.0f / 255.0f) + 0.5f);
     lightGroup.hasBrightness = true;
   }
+  snprintf(lightGroup.effect, sizeof(lightGroup.effect), "%s", doc["attributes"]["effect"] | "");
+  for (JsonVariantConst e : doc["attributes"]["effect_list"].as<JsonArrayConst>()) {
+    if (lightGroup.effectCount >= kMaxLightEffects) break;
+    const char* name = e | "";
+    // A name that wouldn't fit can't be sent back to HA intact: leave it out.
+    if (!name[0] || strlen(name) >= sizeof(lightGroup.effects[0])) continue;
+    snprintf(lightGroup.effects[lightGroup.effectCount++], sizeof(lightGroup.effects[0]), "%s", name);
+  }
   lightGroup.ok = st[0] != 0;
   if (!lightGroup.ok) snprintf(lightGroup.status, sizeof(lightGroup.status), "no state");
   return lightGroup.ok;
@@ -369,6 +381,8 @@ inline bool fetchLight(const char* host, uint16_t port, const char* token, const
   JsonDocument filter;
   filter["state"] = true;
   filter["attributes"]["brightness"] = true;
+  filter["attributes"]["effect"] = true;
+  filter["attributes"]["effect_list"] = true;
 
   JsonDocument doc;
   if (!httpjson::get(host, port, path, token, doc, lightGroup.status, sizeof(lightGroup.status),
@@ -467,6 +481,31 @@ inline bool setLightColorTempKelvin(const char* host, uint16_t port, const char*
   JsonDocument doc, keepNothing;
   char st[48];
   return httpjson::post(host, port, "/api/services/light/turn_on", token, body, doc, st, sizeof(st),
+                        &keepNothing);
+}
+// A colour preset: light.turn_on with rgb_color.
+inline bool setLightRgb(const char* host, uint16_t port, const char* token, const char* entity,
+                        uint8_t r, uint8_t g, uint8_t b) {
+  if (!entity || !*entity) return false;
+  char body[120];
+  snprintf(body, sizeof(body), "{\"entity_id\":\"%s\",\"rgb_color\":[%u,%u,%u]}", entity, r, g, b);
+  JsonDocument doc, keepNothing;
+  char st[48];
+  return httpjson::post(host, port, "/api/services/light/turn_on", token, body, doc, st, sizeof(st),
+                        &keepNothing);
+}
+// One of the light's own effects (attributes.effect_list): light.turn_on with effect.
+inline bool setLightEffect(const char* host, uint16_t port, const char* token, const char* entity,
+                           const char* effect) {
+  if (!entity || !*entity || !effect || !*effect) return false;
+  JsonDocument body;
+  body["entity_id"] = entity;
+  body["effect"] = effect;  // an effect name can carry quotes: let ArduinoJson escape it
+  char buf[160];
+  serializeJson(body, buf, sizeof(buf));
+  JsonDocument doc, keepNothing;
+  char st[48];
+  return httpjson::post(host, port, "/api/services/light/turn_on", token, buf, doc, st, sizeof(st),
                         &keepNothing);
 }
 inline bool setLightBrightness(const char* host, uint16_t port, const char* token, const char* entity,

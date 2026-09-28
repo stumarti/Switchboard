@@ -106,11 +106,16 @@ static int jumpHitTest(int16_t tx, int16_t ty) {
 // on deviceconfig::hubItemCount.
 //
 // Each tile is two independent tap zones (see hubZoneHit()): the top 2/3
-// navigates locally (no HA call); the bottom 1/3, when quickActionsEnabled
-// and the item has an action, fires a toggle/run HA service call. This is
-// the one part of the jump list that touches Home Assistant at all — plain
-// navigation never did and still doesn't.
+// navigates locally (no HA call); the bottom 1/3, when quick actions are on
+// (quickActionsOn()) and the item has an action, fires a toggle/run HA
+// service call. This is the one part of the jump list that touches Home
+// Assistant at all — plain navigation never did and still doesn't.
 static int hubPage = 0;
+// The room's hub.quickActionsEnabled, unless this remote's Developer toggle
+// has turned quick actions off.
+inline bool quickActionsOn() {
+  return deviceconfig::hubQuickActions && localsettings::quickActionsEnabled;
+}
 static constexpr int kHubPerPage = kJumpCount;  // reuses the same 2x5 grid
 
 static int hubPageCount() {
@@ -281,7 +286,7 @@ static void drawHubGrid() {
   const int start = hubPage * kHubPerPage;
   const int shown =
       deviceconfig::hubItemCount - start < kHubPerPage ? deviceconfig::hubItemCount - start : kHubPerPage;
-  const bool qa = localsettings::quickActionsEnabled;
+  const bool qa = quickActionsOn();
   if (hubFlashIdx >= 0 && millis() > hubFlashUntilMs) hubFlashIdx = -1;
 
   for (int slot = 0; slot < shown; ++slot) {
@@ -425,7 +430,7 @@ static void tickQuickAccess(const InFrame& in) {
         const int gi = hubPage * kHubPerPage + slot;
         if (gi < deviceconfig::hubItemCount) {
           const bool hasAction =
-              localsettings::quickActionsEnabled &&
+              quickActionsOn() &&
               deviceconfig::hubItems[gi].actionType != deviceconfig::HubAction::None;
           if (zone == 0 || !hasAction) {
             hubNavigate(gi);

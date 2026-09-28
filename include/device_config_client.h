@@ -108,6 +108,8 @@ inline char lightGroupName[32] = "";
 inline char lightGroupEntity[64] = "";
 inline bool lightGroupBrightness = false;
 inline bool lightGroupColorTemp = false;
+inline bool lightGroupColor = false;    // RGB colour presets (the Colour tab)
+inline bool lightGroupEffects = false;  // the light's own effects (the Colour tab)
 
 // lighting.lights[] / lighting.scenes[] — individual lights and scenes.
 // Also reused as-is by blinds.items[] and climate.additionalSensors[] below
@@ -194,8 +196,9 @@ struct XboxGame {
   char productId[48] = "";  // media_content_id for media_player.play_media
   char art[128] = "";       // box-art URL (relative to the HA host, or absolute)
 };
-// Capped at 12 — two pages' worth of the Xbox library (~6 rows/page).
-inline constexpr int kMaxXboxGames = 12;
+// Capped at 36 — six pages of the Xbox library (6 rows/page); a "Browse"
+// library from the server can list a whole console's installed games.
+inline constexpr int kMaxXboxGames = 36;
 inline XboxGame xboxGames[kMaxXboxGames];
 inline int xboxGameCount = 0;
 
@@ -235,6 +238,10 @@ struct HubItem {
 inline constexpr int kMaxHubItems = 20;
 inline HubItem hubItems[kMaxHubItems];
 inline int hubItemCount = 0;
+// hub.quickActionsEnabled — the room's switch for the buttons' bottom-third
+// quick action. Off: the whole button opens its page. (Settings -> Developer
+// can still turn quick actions off on one remote, never back on.)
+inline bool hubQuickActions = true;
 
 // screens.* — per-page carousel visibility for this room. Missing/absent
 // defaults to true (an older config with no "screens" key still shows
@@ -283,6 +290,7 @@ inline void reset() {
   name[0] = weatherEntity[0] = climateEntity[0] = airQualityEntity[0] = 0;
   refreshIntervalMin = localsettings::refreshOverrideMin ? localsettings::refreshOverrideMin : 30;
   lightGroupEnabled = lightGroupBrightness = lightGroupColorTemp = false;
+  lightGroupColor = lightGroupEffects = false;
   lightGroupName[0] = lightGroupEntity[0] = 0;
   lightCount = sceneCount = 0;
   blindsGroupEnabled = false;
@@ -303,6 +311,7 @@ inline void reset() {
   receiverEntity[0] = 0;
   receiverChannelCount = 0;
   hubItemCount = 0;
+  hubQuickActions = true;
 }
 
 // Fill every field from a /api/devices/<slug>/config document — the same
@@ -332,6 +341,8 @@ inline void applyJson(JsonVariantConst doc) {
   snprintf(lightGroupEntity, sizeof(lightGroupEntity), "%s", lg["entity"] | "");
   lightGroupBrightness = lg["controls"]["brightness"] | false;
   lightGroupColorTemp = lg["controls"]["colorTemp"] | false;
+  lightGroupColor = lg["controls"]["color"] | false;
+  lightGroupEffects = lg["controls"]["effects"] | false;
 
   const auto fillItems = [](JsonArrayConst arr, LightItem* out, int& n, int cap) {
     for (JsonObjectConst o : arr) {
@@ -430,6 +441,7 @@ inline void applyJson(JsonVariantConst doc) {
   }
 
   JsonObjectConst hub = doc["hub"].as<JsonObjectConst>();
+  hubQuickActions = hub["quickActionsEnabled"] | true;
   for (JsonObjectConst it : hub["items"].as<JsonArrayConst>()) {
     if (hubItemCount >= kMaxHubItems) break;
     const char* nm = it["name"] | "";

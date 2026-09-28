@@ -37,7 +37,9 @@ inline const char* subtitleFor(int i) {
   switch (i) {
     case 0: return localsettings::pixelGrid ? "ON" : "OFF";
     case 1: return localsettings::standbyDisabled ? "ON - won't sleep" : "OFF";
-    case 2: return localsettings::quickActionsEnabled ? "ON - hub bottom-strip taps" : "OFF";
+    case 2:
+      if (!localsettings::quickActionsEnabled) return "OFF";
+      return deviceconfig::hubQuickActions ? "ON - hub bottom-strip taps" : "ON - but off for this room";
     case 3: return "Buttons, touch, backlight";
     case 4: return "Wipes room config, reboots";
     default: return "Return to Settings";

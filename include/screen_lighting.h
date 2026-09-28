@@ -10,7 +10,9 @@
 // brightness bar / BRIGHTER icon button; and, only if the room's lighting
 // group has color-temperature control, WARM / DAYLIGHT / COOL preset
 // buttons. A dotted rule (matching the Status page's) separates that from
-// two tabs — Scenes (default) and Lights — showing one chip list at a time.
+// two tabs — Scenes (default) and Lights — showing one chip list at a time,
+// plus a third, Colour, when the group has RGB colour or effects: colour
+// presets first, then the light's own effects (its effect_list in HA).
 //
 // The brightness bar supports a held drag, not just tap-to-set — mirrors
 // CrossPoint's FrontlightPanelActivity slider (and our own control shade's
@@ -73,6 +75,19 @@ inline void execToggleItem(const net::Command& c) {
   const net::Ha a = net::ha();
   haclient::callService(a.h, a.p, a.t, "light", "toggle", c.s1);
 }
+inline void execRgb(const net::Command& c) {
+  const char* e = deviceconfig::lightGroupEntity;
+  if (!e[0]) return;
+  const net::Ha a = net::ha();
+  haclient::setLightRgb(a.h, a.p, a.t, e, static_cast<uint8_t>(c.i >> 16), static_cast<uint8_t>(c.i >> 8),
+                        static_cast<uint8_t>(c.i));
+}
+inline void execEffect(const net::Command& c) {
+  const char* e = deviceconfig::lightGroupEntity;
+  if (!e[0]) return;
+  const net::Ha a = net::ha();
+  haclient::setLightEffect(a.h, a.p, a.t, e, c.s1);
+}
 inline void execColorTemp(const net::Command& c) {
   const char* e = deviceconfig::lightGroupEntity;
   if (!e[0]) return;
@@ -100,6 +115,20 @@ inline void kickColorTemp(int kelvin) {
   net::Command c = makeCommand(execColorTemp);
   c.i = kelvin;
   c.coalesceKey = net::key("ctemp", deviceconfig::lightGroupEntity);
+  net::post(c);
+}
+
+// A colour or an effect: the last tap of a burst wins (one coalesce key).
+inline void kickRgb(uint32_t rgb) {
+  net::Command c = makeCommand(execRgb);
+  c.i = static_cast<int>(rgb);
+  c.coalesceKey = net::key("lcolour", deviceconfig::lightGroupEntity);
+  net::post(c);
+}
+inline void kickEffect(const char* effect) {
+  net::Command c = makeCommand(execEffect);
+  snprintf(c.s1, sizeof(c.s1), "%s", effect);
+  c.coalesceKey = net::key("lcolour", deviceconfig::lightGroupEntity);
   net::post(c);
 }
 
@@ -185,7 +214,7 @@ inline constexpr int16_t kTabY = kDotY + 18;
 inline constexpr int16_t kTabH = 34;
 inline constexpr int16_t kChipsY = kTabY + kTabH + 14;
 
-inline int tab = 0;  // 0 = Scenes (default), 1 = Lights
+inline int tab = 0;  // 0 = Scenes (default), 1 = Lights, 2 = Colour
 // Index into deviceconfig::scenes[] of the last-activated scene, or -1 —
 // drawn filled black on the Scenes tab. Session-only (not persisted): HA has
 // no "last run scene" state to read back, so a fresh boot has none selected.
@@ -200,6 +229,47 @@ inline int lastScene = -1;
 inline constexpr int kListPageSize = 12;
 inline int scenePage = 0;
 inline int lightPage = 0;
+inline int colourPage = 0;
+
+// --- the Colour tab -----------------------------------------------------
+struct ColourPreset { const char* name; uint32_t rgb; };
+inline constexpr ColourPreset kColours[] = {
+    {"Red", 0xFF0000},  {"Orange", 0xFF8000}, {"Yellow", 0xFFDC00}, {"Green", 0x00FF00}, {"Cyan", 0x00FFFF},
+    {"Blue", 0x0000FF}, {"Purple", 0xA020F0}, {"Pink", 0xFF69B4},   {"White", 0xFFFFFF}};
+inline constexpr int kColourCount = sizeof(kColours) / sizeof(kColours[0]);
+// Index into kColours of the last colour sent, or -1 (session-only, like
+// lastScene: HA reports a colour, not which preset it came from).
+inline int lastColour = -1;
+
+inline bool hasColourTab() {
+  return deviceconfig::lightGroupColor ||
+         (deviceconfig::lightGroupEffects && haclient::lightGroup.effectCount > 0);
+}
+inline int tabCount() { return hasColourTab() ? 3 : 2; }
+inline int colourPresetCount() { return deviceconfig::lightGroupColor ? kColourCount : 0; }
+inline int colourItemCount() {
+  return colourPresetCount() + (deviceconfig::lightGroupEffects ? haclient::lightGroup.effectCount : 0);
+}
+// The Colour tab's chips: the presets, then the effects.
+inline deviceconfig::LightItem g_colourItems[kColourCount + haclient::kMaxLightEffects];
+inline void buildColourItems() {
+  const int presets = colourPresetCount();
+  for (int i = 0; i < presets; ++i)
+    snprintf(g_colourItems[i].name, sizeof(g_colourItems[i].name), "%s", kColours[i].name);
+  for (int i = presets; i < colourItemCount(); ++i)
+    snprintf(g_colourItems[i].name, sizeof(g_colourItems[i].name), "%s",
+             haclient::lightGroup.effects[i - presets]);
+}
+// The chip drawn selected: the running effect, else the last colour sent.
+inline int colourSelected() {
+  const haclient::Light& l = haclient::lightGroup;
+  const int presets = colourPresetCount();
+  if (deviceconfig::lightGroupEffects && l.effect[0]) {
+    for (int i = 0; i < l.effectCount; ++i)
+      if (!strcmp(l.effects[i], l.effect)) return presets + i;
+  }
+  return lastColour >= 0 && lastColour < presets ? lastColour : -1;
+}
 
 inline int listPageCount(int total) {
   return total > 0 ? (total + kListPageSize - 1) / kListPageSize : 0;
@@ -309,9 +379,10 @@ inline int tempBtnHit(int16_t tx, int16_t ty) {
 }
 
 inline void drawTabs() {
-  static const char* const kLabels[2] = {"Scenes", "Lights"};
-  const int16_t tw = kLcW / 2;
-  for (int i = 0; i < 2; ++i) {
+  static const char* const kLabels[3] = {"Scenes", "Lights", "Colour"};
+  const int n = tabCount();
+  const int16_t tw = static_cast<int16_t>(kLcW / n);
+  for (int i = 0; i < n; ++i) {
     const int16_t x = static_cast<int16_t>(kLcX + i * tw);
     const bool active = tab == i;
     ui.text(kLabels[i], x, kTabY, tw, 26, TextAlign::Center, active ? Color::Black : Color::DarkGray);
@@ -322,10 +393,12 @@ inline void drawTabs() {
     }
   }
 }
-// 0 (Scenes) / 1 (Lights), or -1, for a logical tap in the tab bar.
+// 0 (Scenes) / 1 (Lights) / 2 (Colour), or -1, for a logical tap in the tab bar.
 inline int tabHit(int16_t tx, int16_t ty) {
   if (ty < kTabY || ty >= kTabY + kTabH) return -1;
-  return tx < kLcX + kLcW / 2 ? 0 : 1;
+  const int n = tabCount();
+  const int i = (tx - kLcX) * n / kLcW;
+  return i < 0 ? 0 : (i >= n ? n - 1 : i);
 }
 
 inline void draw(int pressed = -1) {
@@ -379,10 +452,22 @@ inline void draw(int pressed = -1) {
     drawTempBtn(2, pressed == 4);
   }
 
-  // --- Scenes / Lights tabs ------------------------------------
+  // --- Scenes / Lights / Colour tabs ---------------------------
+  if (tab >= tabCount()) tab = 0;  // the room's light lost its colour controls
   drawDottedLine(kLcX, kDotY, kLcW);
   drawTabs();
-  if (tab == 0) {
+  if (tab == 2) {
+    buildColourItems();
+    const int total = colourItemCount();
+    const int pc = listPageCount(total);
+    if (colourPage >= pc) colourPage = 0;
+    const int n = listVisibleCount(total, colourPage);
+    const int base = colourPage * kListPageSize;
+    const int sel = colourSelected();
+    drawChips(kChipsY, "", g_colourItems + base, n, /*onStates=*/nullptr,
+              (sel >= base && sel < base + n) ? sel - base : -1);
+    drawPager(colourPage, pc);
+  } else if (tab == 0) {
     if (deviceconfig::sceneCount > 0) {
       const int pc = listPageCount(deviceconfig::sceneCount);
       if (scenePage >= pc) scenePage = 0;
@@ -484,15 +569,35 @@ inline bool handleTap(const InFrame& in) {
 // active) advances that tab's own page — checked before chipHit so
 // it doesn't also register as a chip tap underneath it.
   {
-    const int total = tab == 0 ? deviceconfig::sceneCount : deviceconfig::lightCount;
+    const int total = tab == 0 ? deviceconfig::sceneCount : tab == 1 ? deviceconfig::lightCount : colourItemCount();
     const int pc = listPageCount(total);
     if (pagerHit(in.tx, in.ty, pc)) {
-      int& page = tab == 0 ? scenePage : lightPage;
+      int& page = tab == 0 ? scenePage : tab == 1 ? lightPage : colourPage;
       page = (page + 1) % pc;
       standbyIdleSinceMs = millis();
       drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
       return true;
     }
+  }
+  if (tab == 2) {
+    const int ci = chipHit(kChipsY, listVisibleCount(colourItemCount(), colourPage), in.tx, in.ty);
+    if (ci < 0) return false;
+    const int abs = colourPage * kListPageSize + ci;
+    haclient::Light& l = haclient::lightGroup;
+    if (abs < colourPresetCount()) {
+      kickRgb(kColours[abs].rgb);
+      lastColour = abs;
+      l.effect[0] = 0;  // optimistic: the re-read says what the light kept
+    } else {
+      const char* fx = l.effects[abs - colourPresetCount()];
+      kickEffect(fx);
+      snprintf(l.effect, sizeof(l.effect), "%s", fx);
+    }
+    l.on = true;  // both turn the light on
+    g_pressed = -1;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
   }
   const int si = tab == 0 && deviceconfig::sceneCount
       ? chipHit(kChipsY,

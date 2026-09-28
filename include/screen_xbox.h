@@ -19,12 +19,10 @@
 //
 // No browse_media here: that's a WebSocket-only Home Assistant call, and
 // this app only ever speaks the plain REST API (see ha_client.h /
-// http_json.h) — every other page's "live list" (Lighting's scenes, Blinds'
-// items) already works this way, pulled from deviceconfig's REST-fetched
-// config rather than a live HA browse call. xbox.games[] (device_config_
-// client.h) is therefore the ONLY game source; there's no "browse" mode to
-// degrade from, just the ordinary "not configured" / "unavailable" empty
-// states every other page already has.
+// http_json.h). xbox.games[] (device_config_client.h) is the only game
+// source: a room set to "Browse" has the server read the console's library
+// from HA and send it as that same list, so this page doesn't tell the two
+// apart.
 // ===========================================================================
 
 #include <strings.h>  // strcasecmp — matching xboxMedia.title against configured game names
@@ -116,7 +114,7 @@ inline void kickRefresh() {
 
 // --- library paging: the playing game (if any) is moved to the front, then
 // the rest keep deviceconfig order. Recomputed on demand (cheap — at most
-// kMaxXboxGames=12 string compares), never cached, so a config/state change
+// kMaxXboxGames=36 string compares), never cached, so a config/state change
 // is picked up on the very next draw() with no invalidation to track.
 inline constexpr int kRowsPerPage = 6;
 inline int page = 0;
