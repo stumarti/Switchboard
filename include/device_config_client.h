@@ -231,6 +231,31 @@ inline bool screenXbox     = true;
 inline bool screenClimate  = true;
 inline bool screenWifi     = true;
 
+// screens.order — the carousel's page order as set per remote in the admin
+// UI (only the enabled pages, e.g. ["status","climate","lighting"]), as
+// carousel page indices (kPageIds' positions, which match app/carousel.h's
+// page numbering). Empty = the built-in order.
+inline constexpr const char* kPageIds[] = {"status", "lighting", "blinds", "music",
+                                           "tv",     "xbox",     "wifi",   "climate"};
+inline constexpr uint8_t kPageIdCount = sizeof(kPageIds) / sizeof(kPageIds[0]);
+inline uint8_t pageOrder[kPageIdCount];
+inline uint8_t pageOrderCount = 0;
+
+inline void parsePageOrder(JsonArrayConst order) {
+  pageOrderCount = 0;
+  for (JsonVariantConst v : order) {
+    const char* id = v.as<const char*>();
+    if (!id) continue;
+    for (uint8_t i = 0; i < kPageIdCount; ++i) {
+      if (strcmp(id, kPageIds[i]) != 0) continue;
+      bool dup = false;
+      for (uint8_t j = 0; j < pageOrderCount; ++j) dup |= pageOrder[j] == i;
+      if (!dup && pageOrderCount < kPageIdCount) pageOrder[pageOrderCount++] = i;
+      break;
+    }
+  }
+}
+
 inline bool ok = false;
 inline char status[64] = "";
 
@@ -250,6 +275,7 @@ inline void reset() {
   mediaName[0] = mediaEntity[0] = 0;
   screenLighting = screenBlinds = screenMusic = screenTv = screenXbox = screenClimate = screenWifi =
       true;
+  pageOrderCount = 0;
   tvMediaEntity[0] = tvRemoteEntity[0] = 0;
   tvAppCount = 0;
   xboxMediaEntity[0] = xboxRemoteEntity[0] = 0;
@@ -322,6 +348,7 @@ inline void applyJson(JsonVariantConst doc) {
   screenXbox     = scr["xbox"] | true;
   screenClimate  = scr["climate"] | true;
   screenWifi     = scr["wifi"] | true;
+  parsePageOrder(scr["order"].as<JsonArrayConst>());
 
   JsonObjectConst tv = doc["tv"].as<JsonObjectConst>();
   snprintf(tvMediaEntity, sizeof(tvMediaEntity), "%s", tv["mediaPlayerEntity"] | "");

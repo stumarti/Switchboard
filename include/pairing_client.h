@@ -119,8 +119,10 @@ inline bool registerOnce() {
   ensureMac();
   serverAnswered = false;
 
-  char body[48];
-  snprintf(body, sizeof(body), "{\"mac\":\"%s\"}", mac);
+  // `type` tells the server's admin UI which kind of client this is (it
+  // lists remotes and viewports separately).
+  char body[64];
+  snprintf(body, sizeof(body), "{\"mac\":\"%s\",\"type\":\"remote\"}", mac);
 
   JsonDocument doc;
   if (!httpjson::post(SWITCHBOARD_SERVER_HOST, SWITCHBOARD_SERVER_PORT, "/api/pairing/register",

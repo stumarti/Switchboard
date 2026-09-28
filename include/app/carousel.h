@@ -57,6 +57,24 @@ static bool pageEnabled(uint8_t page) {
     default:            return true;  // Status, and any future page with no toggle
   }
 }
+static_assert(deviceconfig::kPageIdCount == kCarouselPages, "screens.order ids must match the pages");
+
+// The enabled pages in the order the carousel steps through them: this
+// remote's screens.order if the server sent one, then any enabled page it
+// left out, in the built-in order. Status is always in it. Returns the count.
+static uint8_t carouselSequence(uint8_t out[kCarouselPages]) {
+  uint8_t n = 0;
+  bool used[kCarouselPages] = {};
+  auto add = [&](uint8_t page) {
+    if (page >= kCarouselPages || used[page] || !pageEnabled(page)) return;
+    used[page] = true;
+    out[n++] = page;
+  };
+  for (uint8_t i = 0; i < deviceconfig::pageOrderCount; ++i) add(deviceconfig::pageOrder[i]);
+  for (uint8_t page = 0; page < kCarouselPages; ++page) add(page);
+  return n;
+}
+
 // If the current page just got hidden (a config refresh disabled it while
 // the carousel was sitting on it), step forward to the nearest enabled one.
 // Status is always enabled, so this can never spin forever.
@@ -98,20 +116,19 @@ static const freeink::Icon* carouselIcon(uint8_t page) {
 }
 
 // A row of position dots along the very bottom — the carousel affordance.
-// Only enabled pages get a dot, so a hidden page doesn't leave a "gap" dot
-// nobody can land on.
+// One dot per page in carouselSequence() order, so a hidden page doesn't
+// leave a "gap" dot nobody can land on.
 static void drawCarouselDots() {
-  uint8_t visible = 0;
-  for (uint8_t i = 0; i < kCarouselPages; ++i) if (pageEnabled(i)) ++visible;
+  uint8_t seq[kCarouselPages];
+  const uint8_t visible = carouselSequence(seq);
   if (visible == 0) return;
 
   const int16_t sp = 20, rad = 4, d = 8;
   const int16_t total = static_cast<int16_t>((visible - 1) * sp);
   int16_t x = static_cast<int16_t>(Ui::W / 2 - total / 2);
   const int16_t y = static_cast<int16_t>(Ui::H - 20);
-  for (uint8_t i = 0; i < kCarouselPages; ++i) {
-    if (!pageEnabled(i)) continue;
-    if (i == carouselPage)
+  for (uint8_t k = 0; k < visible; ++k) {
+    if (seq[k] == carouselPage)
       ui.fillRect(static_cast<int16_t>(x - rad), static_cast<int16_t>(y - rad), d, d, Color::Black,
                   rad);
     else

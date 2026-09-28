@@ -36,18 +36,24 @@
 // The carousel (Stage::Standby)
 // ===========================================================================
 
-// Left/Right: step through the carousel, skipping any page this room's
-// config has hidden (deviceconfig::screens.*). Status is always enabled, so
-// this can never spin forever even if everything else is off. A page turn
-// is a screen switch — a full refresh.
+// Left/Right: step through the carousel in this remote's page order
+// (carouselSequence(): screens.order, hidden pages skipped), wrapping at
+// either end. Status is always in the sequence, so it's never empty. A page
+// turn is a screen switch — a full refresh.
 static void turnCarouselPage(int dir) {
-  uint8_t p = carouselPage;
-  for (uint8_t tries = 0; tries < kCarouselPages; ++tries) {
-    p = dir < 0 ? static_cast<uint8_t>((p + kCarouselPages - 1) % kCarouselPages)
-                : static_cast<uint8_t>((p + 1) % kCarouselPages);
-    if (pageEnabled(p)) break;
+  uint8_t seq[kCarouselPages];
+  const uint8_t n = carouselSequence(seq);
+  uint8_t pos = 0;
+  bool found = false;
+  for (uint8_t k = 0; k < n; ++k) {
+    if (seq[k] == carouselPage) {
+      pos = k;
+      found = true;
+      break;
+    }
   }
-  carouselPage = p;
+  if (!found) carouselPage = seq[0];  // current page was hidden: start over
+  else carouselPage = seq[dir < 0 ? (pos + n - 1) % n : (pos + 1) % n];
   drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
 }
 
