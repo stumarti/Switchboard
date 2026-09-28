@@ -26,7 +26,7 @@ inline bool pixelGrid = false;
 inline bool standbyDisabled = false;
 
 // Settings -> Developer -> Quick actions: global on/off for the Quick
-// Access hub's bottom-third action zone (main.cpp's jump list, when
+// Access hub's bottom-third action zone (app/quick_access.h's jump list, when
 // deviceconfig::hubItemCount > 0). Default ON; if accidental strip taps
 // prove annoying in testing, flip this default to false — one line.
 inline bool quickActionsEnabled = true;
@@ -50,9 +50,9 @@ inline int timeoutChoiceIndex(uint16_t v) {
 inline uint16_t nextTimeoutChoice(uint16_t v) {
   return kTimeoutChoicesMin[(timeoutChoiceIndex(v) + 1) % kTimeoutChoiceCount];
 }
-// Same, but the sequence starts at "Off" (0) — for the refresh-interval
-// override, where 0 means "use the server's refreshIntervalMin". Off -> 1 ->
-// 3 -> 5 -> 15 -> 30 -> Off.
+// Same, but the sequence starts at 0 — for the refresh-interval override
+// (0 = "use the server's refreshIntervalMin") and the Wi-Fi timeout (0 =
+// "same as the screen"). 0 -> 1 -> 3 -> 5 -> 15 -> 30 -> 0.
 inline uint16_t nextTimeoutChoiceOrOff(uint16_t v) {
   if (v == 0) return kTimeoutChoicesMin[0];
   const int i = timeoutChoiceIndex(v);
@@ -70,6 +70,11 @@ inline uint16_t controlPageRevertMin = 5;
 // 0 = off (use deviceconfig::refreshIntervalMin from the server's per-room
 // config, the long-standing default); otherwise overrides it locally.
 inline uint16_t refreshOverrideMin = 0;
+// Idle time before the Wi-Fi radio powers down while the screen is still
+// awake. 0 = "Same as screen" (the default): the radio stays up for as long
+// as the screen does and goes off with it when the device sleeps. Shorter
+// values save more battery; the next press rejoins either way.
+inline uint16_t wifiIdleOffMin = 0;
 
 inline void load() {
   Preferences p;
@@ -78,6 +83,7 @@ inline void load() {
     idleToSleepMin = p.getUShort("idleMin", 3);
     controlPageRevertMin = p.getUShort("ctlMin", 5);
     refreshOverrideMin = p.getUShort("rfrOvrMin", 0);
+    wifiIdleOffMin = p.getUShort("wifiOffMin", 0);
     quickActionsEnabled = p.getBool("qaEnabled", true);
     p.end();
   }
@@ -112,6 +118,14 @@ inline void setRefreshOverrideMin(uint16_t m) {
   Preferences p;
   if (p.begin("switchboard", false)) {
     p.putUShort("rfrOvrMin", m);
+    p.end();
+  }
+}
+inline void setWifiIdleOffMin(uint16_t m) {
+  wifiIdleOffMin = m;
+  Preferences p;
+  if (p.begin("switchboard", false)) {
+    p.putUShort("wifiOffMin", m);
     p.end();
   }
 }

@@ -1,325 +1,336 @@
 #pragma once
 
 // ===========================================================================
-// persist — the Standby screen's state, cached on the SD card so a wake can
-// redraw the last-known screen instantly, before Wi-Fi has even joined.
+// persist — what's cached on the SD card so a wake paints real data before
+// Wi-Fi is even up, and what reloads it. (sd_cache.h does the file I/O.)
 //
-// On a wake, setup() mounts the card (begin()), loads the cache (load()) and
-// paints from it immediately, then reconnects and re-pulls in the background;
-// a successful refresh calls save(). Unlike the RTC-memory blob this used to
-// be, the file survives a full power loss (battery pull, not just deep
-// sleep), and isn't capped by the ~8 KB of RTC slow memory on the ESP32-S3.
+//   config/globals.json          /api/globals as the server sent it
+//   config/room-<slug>.json      this room's /api/devices/<slug>/config
+//   state/<slug>-status.bin      weather, air quality, forecast, clock
+//   state/<slug>-climate.bin     thermostat + the extra temperature sensors
+//   state/<slug>-lighting.bin    the group light + each light's on/off
+//   state/<slug>-blinds.bin      the group cover + the two row-layout covers
+//   state/<slug>-music.bin       the Music page's media player
+//   state/<slug>-xbox.bin        the Xbox page's console
+//   state/<slug>-hub.bin         the Quick Access hub's toggle strips
 //
-// The write is tmp-then-rename so a power loss mid-write can never leave a
-// half-written cache.bin behind — load() would then see a bad magic (or a
-// short read) and just fail, same as "no cache yet".
+// Everything but the globals is per room (<slug> = the active room), so
+// switching rooms (Settings -> Select room) paints that room's own last
+// state straight away — never the previous room's.
 //
-// Bump kMagicBase's version nibble whenever Blob's layout — or that of the
-// haclient structs it embeds — changes, so a post-OTA wake ignores a stale
-// cache file instead of misreading it as the new layout.
+// Config is cached as the server's raw JSON and re-parsed by exactly the
+// code a live fetch uses, so a firmware update never invalidates it, and
+// every section a page needs comes back (the old single blob silently left
+// out the Xbox library and the Quick Access hub). The config files are
+// written by the clients themselves the moment a fetch succeeds.
+//
+// Page state is one small checked record per page (see sd_cache.h): a
+// layout change in one page's structs only drops THAT page's cache, and a
+// record is only rewritten when its contents actually changed — most
+// refreshes and sleeps write nothing at all.
+//
+// Flow: boot mounts the card and load()s everything (no network) -> the
+// first paint uses it -> once Wi-Fi is up the background refresh re-pulls,
+// and on success save()s whatever changed; on failure load() rolls the
+// half-updated clients back to the cache. sleepFor() also save()s, so a
+// state change made by the user (a light toggled) is what the next wake
+// shows, not the state from the last refresh.
 // ===========================================================================
 
 #include <Arduino.h>
-#include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include <SDCardManager.h>
 
+#include "sd_cache.h"
 #include "device_config_client.h"
 #include "globals_client.h"
 #include "ha_client.h"
 
 namespace persist {
 
-inline constexpr const char* kCacheDir  = "/switchboard";
-inline constexpr const char* kCachePath = "/switchboard/cache.bin";
-inline constexpr const char* kCacheTmp  = "/switchboard/cache.bin.tmp";
+// Whether the card mounted this boot (theme_client.h checks it before
+// downloading a pack to SD).
+inline bool& g_ready = sdcache::g_ready;
 
-// 'WB' + a version nibble. The real magic (below, after Blob) XORs in
-// sizeof(Blob) so ANY change to the blob layout — including the embedded
-// haclient structs — auto-invalidates a stale cache file from a previous
-// firmware. Reading old bytes as a new layout would otherwise poison
-// globalsclient::ok and the entity ids -> "data not available" that never clears.
-static constexpr uint32_t kMagicBase = 0x57420006u;  // .0006: moved off RTC onto the SD cache
+// ---------------------------------------------------------------------------
+// Page state records. Each is a plain struct, captured from / restored to
+// the live haclient state. Bump kSchema if a record's meaning changes
+// without its size changing (a size change is caught automatically).
+// ---------------------------------------------------------------------------
+inline constexpr uint16_t kSchema = 1;
 
-struct Blob {
-  uint32_t magic;
-
-  // /api/globals — Home Assistant connection + shared Wi-Fi networks
-  char haHost[64];
-  uint16_t haPort;
-  char haToken[320];
-  bool globalsOk;
-  globalsclient::WifiNetItem wifiNets[globalsclient::kMaxWifiNets];
-  int wifiNetCount;
-
-  // /api/devices/<slug>/config — Standby settings
-  char devName[32];
-  char weatherEntity[64];
-  char climateEntity[64];
-  char airQualityEntity[64];
-  uint16_t refreshIntervalMin;
-  bool deviceOk;
-  bool lightGroupEnabled;
-  char lightGroupName[32];
-  char lightGroupEntity[64];
-  bool lightGroupBrightness;
-  bool lightGroupColorTemp;
-  deviceconfig::LightItem lights[deviceconfig::kMaxLights];
-  int lightCount;
-  deviceconfig::LightItem scenes[deviceconfig::kMaxScenes];
-  int sceneCount;
-  bool blindsGroupEnabled;
-  char blindsGroupName[32];
-  char blindsGroupEntity[64];
-  deviceconfig::LightItem blindsItems[6];
-  int blindsItemCount;
-  deviceconfig::LightItem climateSensors[6];
-  int climateSensorCount;
-  bool mediaEnabled;
-  char mediaName[32];
-  char mediaEntity[64];
-  bool screenLighting, screenBlinds, screenMusic, screenTv, screenXbox, screenClimate, screenWifi;
-  char activeSlug[32];
-  char tvMediaEntity[64];
-  char tvRemoteEntity[64];
-  deviceconfig::AppItem tvApps[deviceconfig::kMaxTvApps];
-  int tvAppCount;
-
-  // last Home Assistant reads
+struct StatusState {
   haclient::Weather weather;
-  haclient::Climate climate;
   haclient::Air air;
-  haclient::Light lightGroup;
-  bool lightItemOn[24];
-  float climateSensorValue[6];
-  bool climateSensorOk[6];
-  haclient::Cover cover;
-  haclient::Cover coverItems[2];
   haclient::Forecast forecast;
-  haclient::MediaPlayer media;
   struct tm clockUtc;
   bool clockValid;
+  struct tm dataChangedUtc;
+  bool dataChangedValid;
+  static constexpr const char* kName = "status";
+  void capture() {
+    weather = haclient::weather;
+    air = haclient::air;
+    forecast = haclient::forecast;
+    clockUtc = haclient::clockUtc;
+    clockValid = haclient::clockValid;
+    dataChangedUtc = haclient::dataChangedUtc;
+    dataChangedValid = haclient::dataChangedValid;
+  }
+  void restore() const {
+    haclient::weather = weather;
+    haclient::air = air;
+    haclient::forecast = forecast;
+    haclient::clockUtc = clockUtc;
+    haclient::clockValid = clockValid;
+    haclient::dataChangedUtc = dataChangedUtc;
+    haclient::dataChangedValid = dataChangedValid;
+  }
 };
 
-static constexpr uint32_t kMagic = kMagicBase ^ static_cast<uint32_t>(sizeof(Blob));
+struct ClimateState {
+  haclient::Climate climate;
+  float sensorValue[6];
+  bool sensorOk[6];
+  static constexpr const char* kName = "climate";
+  void capture() {
+    climate = haclient::climate;
+    memcpy(sensorValue, haclient::climateSensorValue, sizeof(sensorValue));
+    memcpy(sensorOk, haclient::climateSensorOk, sizeof(sensorOk));
+  }
+  void restore() const {
+    haclient::climate = climate;
+    memcpy(haclient::climateSensorValue, sensorValue, sizeof(sensorValue));
+    memcpy(haclient::climateSensorOk, sensorOk, sizeof(sensorOk));
+  }
+};
+static_assert(sizeof(ClimateState::sensorValue) == sizeof(haclient::climateSensorValue), "");
 
-// Plain RAM scratch — no longer needs to be RTC_DATA_ATTR since the actual
-// persistence is the SD file, not this struct surviving deep sleep itself.
-static Blob g_blob;
+struct LightingState {
+  haclient::Light group;
+  bool itemOn[24];
+  static constexpr const char* kName = "lighting";
+  void capture() {
+    group = haclient::lightGroup;
+    memcpy(itemOn, haclient::lightItemOn, sizeof(itemOn));
+  }
+  void restore() const {
+    haclient::lightGroup = group;
+    memcpy(haclient::lightItemOn, itemOn, sizeof(itemOn));
+  }
+};
+static_assert(sizeof(LightingState::itemOn) == sizeof(haclient::lightItemOn), "");
 
-// Whether the card mounted this boot. false just means save()/load() quietly
-// no-op — a missing/dead card degrades to "no cache", never a hang or crash.
-inline bool g_ready = false;
+struct BlindsState {
+  haclient::Cover group;
+  haclient::Cover items[2];
+  static constexpr const char* kName = "blinds";
+  void capture() {
+    group = haclient::cover;
+    memcpy(items, haclient::coverItems, sizeof(items));
+  }
+  void restore() const {
+    haclient::cover = group;
+    memcpy(haclient::coverItems, items, sizeof(items));
+  }
+};
 
-// Mount the SD card cache. Call once, early in setup() — after the display
-// is up (it can wait on nothing), before the first load(). Safe to call even
-// if the board never got an SD card fitted; SdMan.begin() just fails fast.
+struct MusicState {
+  haclient::MediaPlayer media;
+  static constexpr const char* kName = "music";
+  void capture() { media = haclient::media; }
+  void restore() const { haclient::media = media; }
+};
+
+struct XboxState {
+  haclient::MediaPlayer media;
+  static constexpr const char* kName = "xbox";
+  void capture() { media = haclient::xboxMedia; }
+  void restore() const { haclient::xboxMedia = media; }
+};
+
+struct ReceiverState {
+  haclient::Receiver receiver;
+  haclient::ReceiverInfo info;  // now / next and the picon srcs
+  static constexpr const char* kName = "receiver";
+  void capture() {
+    receiver = haclient::receiver;
+    info = haclient::receiverInfo;
+  }
+  void restore() const {
+    haclient::receiver = receiver;
+    haclient::receiverInfo = info;
+  }
+};
+
+struct HubState {
+  bool toggleOn[haclient::kMaxHubToggles];
+  static constexpr const char* kName = "hub";
+  void capture() { memcpy(toggleOn, haclient::hubToggleOn, sizeof(toggleOn)); }
+  void restore() const { memcpy(haclient::hubToggleOn, toggleOn, sizeof(toggleOn)); }
+};
+
+// Remembers the CRC of what's on the card for record T, so save() can skip
+// an unchanged page without touching the card.
+template <typename T>
+struct Record {
+  uint32_t savedCrc = 0;
+  bool haveCrc = false;
+
+  // "<slug>-<page>" — this page's file for the active room.
+  static void fileName(char* out, size_t cap) {
+    snprintf(out, cap, "%s-%s", deviceconfig::activeSlug, T::kName);
+  }
+
+  bool load() {
+    T t;
+    uint32_t crc = 0;
+    char name[48];
+    fileName(name, sizeof(name));
+    if (!sdcache::readRecord(name, kSchema, &t, sizeof(T), &crc)) return false;
+    t.restore();
+    savedCrc = crc;
+    haveCrc = true;
+    return true;
+  }
+
+  // Returns true if the record is on the card (written now or unchanged).
+  bool save() {
+    T t;
+    memset(static_cast<void*>(&t), 0, sizeof(T));  // stable padding -> stable CRC
+    t.capture();
+    const uint32_t crc = sdcache::crcOf(&t, sizeof(T));
+    if (haveCrc && crc == savedCrc) return true;
+    char name[48];
+    fileName(name, sizeof(name));
+    if (!sdcache::writeRecord(name, kSchema, &t, sizeof(T))) return false;
+    savedCrc = crc;
+    haveCrc = true;
+    Serial.printf("[persist] saved %s (%u bytes)\n", T::kName, static_cast<unsigned>(sizeof(T)));
+    return true;
+  }
+};
+
+inline Record<StatusState> g_status;
+inline Record<ClimateState> g_climate;
+inline Record<LightingState> g_lighting;
+inline Record<BlindsState> g_blinds;
+inline Record<MusicState> g_music;
+inline Record<XboxState> g_xbox;
+inline Record<ReceiverState> g_receiver;
+inline Record<HubState> g_hub;
+
+// ---------------------------------------------------------------------------
+
+// Mount the card (and clean up the pre-per-page single cache file, which no
+// firmware reads any more). Call once, early in boot, after the display is up.
 inline bool begin() {
-  g_ready = SdMan.begin() && SdMan.ensureDirectoryExists(kCacheDir);
-  return g_ready;
-}
-
-// Unmount before deep sleep. On the X4 Pro's native SDMMC this floats the bus
-// pads so their pull-ups stop back-feeding the card through sleep; a no-op on
-// SPI-attached cards. Call only after the last save() of the session — a
-// wake resets the MCU and remounts through begin() again.
-inline void shutdown() {
-  if (g_ready) SdMan.shutdown();
-  g_ready = false;
-}
-
-// Settings -> Developer -> Hard reset: delete the cached room config/state so
-// the next boot starts from nothing rather than replaying whatever got saved
-// for the room being abandoned (paired with deviceconfig::resetSlug()).
-inline void wipe() {
-  if (!g_ready) return;
-  SdMan.remove(kCachePath);
-  SdMan.remove(kCacheTmp);
-}
-
-// Copy the live client state into g_blob (shared by save() below).
-static void fillBlob() {
-  Blob& b = g_blob;
-  b.magic = kMagic;
-
-  snprintf(b.haHost, sizeof(b.haHost), "%s", globalsclient::haHost);
-  b.haPort = globalsclient::haPort;
-  snprintf(b.haToken, sizeof(b.haToken), "%s", globalsclient::haToken);
-  b.globalsOk = globalsclient::ok;
-  memcpy(b.wifiNets, globalsclient::wifiNets, sizeof(b.wifiNets));
-  b.wifiNetCount = globalsclient::wifiNetCount;
-
-  snprintf(b.devName, sizeof(b.devName), "%s", deviceconfig::name);
-  snprintf(b.weatherEntity, sizeof(b.weatherEntity), "%s", deviceconfig::weatherEntity);
-  snprintf(b.climateEntity, sizeof(b.climateEntity), "%s", deviceconfig::climateEntity);
-  snprintf(b.airQualityEntity, sizeof(b.airQualityEntity), "%s",
-           deviceconfig::airQualityEntity);
-  b.refreshIntervalMin = deviceconfig::refreshIntervalMin;
-  b.deviceOk = deviceconfig::ok;
-  b.lightGroupEnabled = deviceconfig::lightGroupEnabled;
-  snprintf(b.lightGroupName, sizeof(b.lightGroupName), "%s", deviceconfig::lightGroupName);
-  snprintf(b.lightGroupEntity, sizeof(b.lightGroupEntity), "%s",
-           deviceconfig::lightGroupEntity);
-  b.lightGroupBrightness = deviceconfig::lightGroupBrightness;
-  b.lightGroupColorTemp = deviceconfig::lightGroupColorTemp;
-  memcpy(b.lights, deviceconfig::lights, sizeof(b.lights));
-  b.lightCount = deviceconfig::lightCount;
-  memcpy(b.scenes, deviceconfig::scenes, sizeof(b.scenes));
-  b.sceneCount = deviceconfig::sceneCount;
-  b.blindsGroupEnabled = deviceconfig::blindsGroupEnabled;
-  snprintf(b.blindsGroupName, sizeof(b.blindsGroupName), "%s",
-           deviceconfig::blindsGroupName);
-  snprintf(b.blindsGroupEntity, sizeof(b.blindsGroupEntity), "%s",
-           deviceconfig::blindsGroupEntity);
-  memcpy(b.blindsItems, deviceconfig::blindsItems, sizeof(b.blindsItems));
-  b.blindsItemCount = deviceconfig::blindsItemCount;
-  memcpy(b.climateSensors, deviceconfig::climateSensors, sizeof(b.climateSensors));
-  b.climateSensorCount = deviceconfig::climateSensorCount;
-  b.mediaEnabled = deviceconfig::mediaEnabled;
-  snprintf(b.mediaName, sizeof(b.mediaName), "%s", deviceconfig::mediaName);
-  snprintf(b.mediaEntity, sizeof(b.mediaEntity), "%s", deviceconfig::mediaEntity);
-  b.screenLighting = deviceconfig::screenLighting;
-  b.screenBlinds   = deviceconfig::screenBlinds;
-  b.screenMusic    = deviceconfig::screenMusic;
-  b.screenTv       = deviceconfig::screenTv;
-  b.screenXbox     = deviceconfig::screenXbox;
-  b.screenClimate  = deviceconfig::screenClimate;
-  b.screenWifi     = deviceconfig::screenWifi;
-  snprintf(b.activeSlug, sizeof(b.activeSlug), "%s", deviceconfig::activeSlug);
-  snprintf(b.tvMediaEntity, sizeof(b.tvMediaEntity), "%s", deviceconfig::tvMediaEntity);
-  snprintf(b.tvRemoteEntity, sizeof(b.tvRemoteEntity), "%s", deviceconfig::tvRemoteEntity);
-  memcpy(b.tvApps, deviceconfig::tvApps, sizeof(b.tvApps));
-  b.tvAppCount = deviceconfig::tvAppCount;
-
-  b.weather = haclient::weather;
-  b.climate = haclient::climate;
-  b.air = haclient::air;
-  b.lightGroup = haclient::lightGroup;
-  memcpy(b.lightItemOn, haclient::lightItemOn, sizeof(b.lightItemOn));
-  memcpy(b.climateSensorValue, haclient::climateSensorValue, sizeof(b.climateSensorValue));
-  memcpy(b.climateSensorOk, haclient::climateSensorOk, sizeof(b.climateSensorOk));
-  b.cover = haclient::cover;
-  memcpy(b.coverItems, haclient::coverItems, sizeof(b.coverItems));
-  b.forecast = haclient::forecast;
-  b.media = haclient::media;
-  b.clockUtc = haclient::clockUtc;
-  b.clockValid = haclient::clockValid;
-}
-
-// Copy g_blob into the live client state (shared by load() below).
-static void applyBlob() {
-  const Blob& b = g_blob;
-
-  snprintf(globalsclient::haHost, sizeof(globalsclient::haHost), "%s", b.haHost);
-  globalsclient::haPort = b.haPort;
-  snprintf(globalsclient::haToken, sizeof(globalsclient::haToken), "%s", b.haToken);
-  globalsclient::ok = b.globalsOk;
-  memcpy(globalsclient::wifiNets, b.wifiNets, sizeof(globalsclient::wifiNets));
-  globalsclient::wifiNetCount = b.wifiNetCount;
-
-  snprintf(deviceconfig::name, sizeof(deviceconfig::name), "%s", b.devName);
-  snprintf(deviceconfig::weatherEntity, sizeof(deviceconfig::weatherEntity), "%s",
-           b.weatherEntity);
-  snprintf(deviceconfig::climateEntity, sizeof(deviceconfig::climateEntity), "%s",
-           b.climateEntity);
-  snprintf(deviceconfig::airQualityEntity, sizeof(deviceconfig::airQualityEntity), "%s",
-           b.airQualityEntity);
-  deviceconfig::refreshIntervalMin = b.refreshIntervalMin ? b.refreshIntervalMin : 30;
-  deviceconfig::ok = b.deviceOk;
-  deviceconfig::lightGroupEnabled = b.lightGroupEnabled;
-  snprintf(deviceconfig::lightGroupName, sizeof(deviceconfig::lightGroupName), "%s",
-           b.lightGroupName);
-  snprintf(deviceconfig::lightGroupEntity, sizeof(deviceconfig::lightGroupEntity), "%s",
-           b.lightGroupEntity);
-  deviceconfig::lightGroupBrightness = b.lightGroupBrightness;
-  deviceconfig::lightGroupColorTemp = b.lightGroupColorTemp;
-  memcpy(deviceconfig::lights, b.lights, sizeof(deviceconfig::lights));
-  deviceconfig::lightCount = b.lightCount;
-  memcpy(deviceconfig::scenes, b.scenes, sizeof(deviceconfig::scenes));
-  deviceconfig::sceneCount = b.sceneCount;
-  deviceconfig::blindsGroupEnabled = b.blindsGroupEnabled;
-  snprintf(deviceconfig::blindsGroupName, sizeof(deviceconfig::blindsGroupName), "%s",
-           b.blindsGroupName);
-  snprintf(deviceconfig::blindsGroupEntity, sizeof(deviceconfig::blindsGroupEntity), "%s",
-           b.blindsGroupEntity);
-  memcpy(deviceconfig::blindsItems, b.blindsItems, sizeof(deviceconfig::blindsItems));
-  deviceconfig::blindsItemCount = b.blindsItemCount;
-  memcpy(deviceconfig::climateSensors, b.climateSensors, sizeof(deviceconfig::climateSensors));
-  deviceconfig::climateSensorCount = b.climateSensorCount;
-  deviceconfig::mediaEnabled = b.mediaEnabled;
-  snprintf(deviceconfig::mediaName, sizeof(deviceconfig::mediaName), "%s", b.mediaName);
-  snprintf(deviceconfig::mediaEntity, sizeof(deviceconfig::mediaEntity), "%s", b.mediaEntity);
-  deviceconfig::screenLighting = b.screenLighting;
-  deviceconfig::screenBlinds   = b.screenBlinds;
-  deviceconfig::screenMusic    = b.screenMusic;
-  deviceconfig::screenTv       = b.screenTv;
-  deviceconfig::screenXbox     = b.screenXbox;
-  deviceconfig::screenClimate  = b.screenClimate;
-  deviceconfig::screenWifi     = b.screenWifi;
-  // NOTE: activeSlug is NOT restored here — NVS (loadSlug) is the authority; a
-  // stale cache could otherwise revert a room the user just picked.
-  snprintf(deviceconfig::tvMediaEntity, sizeof(deviceconfig::tvMediaEntity), "%s",
-           b.tvMediaEntity);
-  snprintf(deviceconfig::tvRemoteEntity, sizeof(deviceconfig::tvRemoteEntity), "%s",
-           b.tvRemoteEntity);
-  memcpy(deviceconfig::tvApps, b.tvApps, sizeof(deviceconfig::tvApps));
-  deviceconfig::tvAppCount = b.tvAppCount;
-
-  haclient::weather = b.weather;
-  haclient::climate = b.climate;
-  haclient::air = b.air;
-  haclient::lightGroup = b.lightGroup;
-  memcpy(haclient::lightItemOn, b.lightItemOn, sizeof(haclient::lightItemOn));
-  memcpy(haclient::climateSensorValue, b.climateSensorValue, sizeof(haclient::climateSensorValue));
-  memcpy(haclient::climateSensorOk, b.climateSensorOk, sizeof(haclient::climateSensorOk));
-  haclient::cover = b.cover;
-  memcpy(haclient::coverItems, b.coverItems, sizeof(haclient::coverItems));
-  haclient::forecast = b.forecast;
-  haclient::media = b.media;
-  haclient::clockUtc = b.clockUtc;
-  haclient::clockValid = b.clockValid;
-}
-
-// Write the live client state to the SD cache file. tmp-then-rename so a
-// power loss mid-write can't corrupt the file a later load() would trust.
-inline bool save() {
-  if (!g_ready) return false;
-  fillBlob();
-
-  FsFile f;
-  if (!SdMan.openFileForWrite("persist", kCacheTmp, f)) return false;
-  const size_t n = f.write(reinterpret_cast<const uint8_t*>(&g_blob), sizeof(g_blob));
-  f.close();
-  if (n != sizeof(g_blob)) {
-    SdMan.remove(kCacheTmp);
-    return false;
-  }
-
-  SdMan.remove(kCachePath);  // SdFat's rename() won't overwrite an existing file
-  if (!SdMan.rename(kCacheTmp, kCachePath)) {
-    SdMan.remove(kCacheTmp);
-    return false;
-  }
+  if (!sdcache::begin()) return false;
+  SdMan.remove("/switchboard/cache.bin");
+  SdMan.remove("/switchboard/cache.bin.tmp");
   return true;
 }
 
-// Restore the SD cache into the live client state. Returns false if there's
-// no card, no file yet (first-ever boot), or the file doesn't match this
-// firmware's Blob layout (a stale file from an older build).
+// The cached server config (globals + this room's config). True if both
+// came back — enough to know which entities each page shows.
+inline bool loadConfig() {
+  const bool globalsOk = globalsclient::loadCached();
+  const bool roomOk = deviceconfig::loadCached();
+  return globalsOk && roomOk;
+}
+
+// Every page's cached state. A page with no (valid) record keeps whatever
+// its client holds — at boot, the "unavailable" defaults.
+inline int loadState() {
+  int n = 0;
+  n += g_status.load();
+  n += g_climate.load();
+  n += g_lighting.load();
+  n += g_blinds.load();
+  n += g_music.load();
+  n += g_xbox.load();
+  n += g_receiver.load();
+  n += g_hub.load();
+  return n;
+}
+
+// Config + state. Also the refresh's rollback after a failed fetch: every
+// client goes back to the last good cached copy. True if the config came
+// back (there's something real to paint).
 inline bool load() {
-  if (!g_ready) return false;
+  const bool configOk = loadConfig();
+  const int pages = loadState();
+  Serial.printf("[persist] load: config=%d pages=%d\n", configOk, pages);
+  return configOk;
+}
 
-  FsFile f;
-  if (!SdMan.openFileForRead("persist", kCachePath, f)) return false;
-  Blob b{};
-  const int n = f.read(reinterpret_cast<uint8_t*>(&b), sizeof(b));
-  f.close();
-  if (n != static_cast<int>(sizeof(b)) || b.magic != kMagic) return false;
+// Write every page whose state changed since it was last saved/loaded.
+// (Config files are written by the clients as each fetch succeeds.)
+inline void save() {
+  g_status.save();
+  g_climate.save();
+  g_lighting.save();
+  g_blinds.save();
+  g_music.save();
+  g_xbox.save();
+  g_receiver.save();
+  g_hub.save();
+}
 
-  g_blob = b;
-  applyBlob();
-  return true;
+// Every page's live state back to its "never fetched" defaults.
+inline void resetState() {
+  haclient::weather = haclient::Weather{};
+  haclient::air = haclient::Air{};
+  haclient::forecast = haclient::Forecast{};
+  haclient::clockUtc = {};
+  haclient::clockValid = false;
+  haclient::dataChangedUtc = {};
+  haclient::dataChangedValid = false;
+  haclient::climate = haclient::Climate{};
+  for (int i = 0; i < 6; ++i) {
+    haclient::climateSensorValue[i] = 0;
+    haclient::climateSensorOk[i] = false;
+  }
+  haclient::lightGroup = haclient::Light{};
+  memset(haclient::lightItemOn, 0, sizeof(haclient::lightItemOn));
+  haclient::cover = haclient::Cover{};
+  haclient::coverItems[0] = haclient::Cover{};
+  haclient::coverItems[1] = haclient::Cover{};
+  haclient::media = haclient::MediaPlayer{};
+  haclient::xboxMedia = haclient::MediaPlayer{};
+  memset(haclient::hubToggleOn, 0, sizeof(haclient::hubToggleOn));
+}
+
+// Forget which versions of the page files are on the card (they're another
+// room's now, or gone).
+inline void forgetSaved() {
+  g_status = {};
+  g_climate = {};
+  g_lighting = {};
+  g_blinds = {};
+  g_music = {};
+  g_xbox = {};
+  g_hub = {};
+}
+
+// Settings -> Select room just changed deviceconfig::activeSlug: show the
+// new room's cached config + state (or blank "unavailable" pages if it has
+// never been cached) until the refresh lands.
+inline bool switchRoom() {
+  forgetSaved();
+  resetState();
+  return load();
+}
+
+// Unmount before deep sleep. Call only after the last save() of the session.
+inline void shutdown() { sdcache::shutdown(); }
+
+// Settings -> Developer -> Hard reset: forget every cached config and page
+// state, so the next boot starts from nothing rather than replaying the room
+// being abandoned (paired with deviceconfig::resetSlug()).
+inline void wipe() {
+  sdcache::wipe();
+  forgetSaved();
 }
 
 }  // namespace persist

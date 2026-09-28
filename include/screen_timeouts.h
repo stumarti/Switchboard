@@ -7,7 +7,7 @@
 // backlight/warmth steppers.
 //
 // A child of screen_settings the same way screen_developer is: it never
-// references screen_settings itself — main.cpp's Stage::Timeouts case owns
+// references screen_settings itself — app/stages.h's tickTimeouts() owns
 // returning to Settings, exactly like Stage::Developer / Stage::RoomPick do.
 // ===========================================================================
 
@@ -21,9 +21,11 @@ inline constexpr TimeoutItem kItems[] = {
     {"Screen timeout", "Idle time before the carousel sleeps"},
     {"Control page timeout", "Idle time on Lighting/Blinds/... before reverting to Status"},
     {"Refresh interval", "Overrides the server's per-room refresh cadence"},
+    {"Wi-Fi timeout", "Idle time before the radio powers down"},
     {"Back", "Return to Settings"},
 };
-inline constexpr int kCount = 4;
+inline constexpr int kCount = 5;
+inline constexpr int kBack = kCount - 1;  // the last row
 inline int sel = 0;
 inline int pressed = -1;
 
@@ -39,6 +41,10 @@ inline const char* subtitleFor(int i) {
     case 2:
       if (localsettings::refreshOverrideMin == 0) return "Off (server-set)";
       snprintf(buf, sizeof(buf), "%u min", localsettings::refreshOverrideMin);
+      return buf;
+    case 3:
+      if (localsettings::wifiIdleOffMin == 0) return "Same as screen";
+      snprintf(buf, sizeof(buf), "%u min", localsettings::wifiIdleOffMin);
       return buf;
     default:
       return kItems[i].help;
@@ -70,7 +76,7 @@ inline void drawList() {
     // to read at a glance, so it gets the same size as the row title above
     // it, not the small caption face the "Back" row's help text still uses.
     ui.text(subtitleFor(i), textX, static_cast<int16_t>(y + kRowH / 2 + 4), textW, 28,
-            TextAlign::Left, subFg, 1, i < 3 ? Ui::kFont28 : Ui::kFontSmall);
+            TextAlign::Left, subFg, 1, i < kBack ? Ui::kFont28 : Ui::kFontSmall);
 
     if (i < kCount - 1)
       drawDottedLine(kRowPadX, static_cast<int16_t>(y + kRowH - 1),
@@ -84,7 +90,7 @@ inline int hitTest(int16_t ty) {
   return (i >= 0 && i < kCount) ? i : -1;
 }
 
-// `r` defaults to Fast: draw() is also called from main.cpp's Left/Right
+// `r` defaults to Fast: draw() is also called from app/stages.h's Left/Right
 // highlight navigation and cycle()'s value-stepping (control feedback), so
 // enter() overrides it to Full below.
 inline void draw(Rf r = Rf::Fast) {
@@ -98,14 +104,15 @@ inline void enter() {
   draw(Rf::Full);
 }
 
-// Rows 0-2 cycle their own value on tap/Power; row 3 ("Back") and every other
-// exit gesture are handled by main.cpp's Stage::Timeouts case, same as
+// Rows 0..kBack-1 cycle their own value on tap/Power; the last row ("Back") and every other
+// exit gesture are handled by app/stages.h's tickTimeouts(), same as
 // screen_developer's "Back" row.
 inline void cycle(int i) {
   switch (i) {
     case 0: localsettings::setIdleToSleepMin(localsettings::nextTimeoutChoice(localsettings::idleToSleepMin)); break;
     case 1: localsettings::setControlPageRevertMin(localsettings::nextTimeoutChoice(localsettings::controlPageRevertMin)); break;
     case 2: localsettings::setRefreshOverrideMin(localsettings::nextTimeoutChoiceOrOff(localsettings::refreshOverrideMin)); break;
+    case 3: localsettings::setWifiIdleOffMin(localsettings::nextTimeoutChoiceOrOff(localsettings::wifiIdleOffMin)); break;
     default: return;
   }
   draw();

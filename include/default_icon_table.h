@@ -129,6 +129,7 @@ static const NamedIcon kDefaultIcons[] = {
     {"nav_music", &kNav_music},
     {"nav_tv", &kNav_tv},
     {"nav_xbox", &kNav_xbox},
+    {"nav_receiver", &kNav_receiver},
     {"nav_lighting", &kNav_lighting},
     {"nav_wifi", &kNav_wifi},
     {"mode_heat", &kMode_heat},

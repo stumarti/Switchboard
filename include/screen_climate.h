@@ -33,6 +33,9 @@
 #include <math.h>
 
 #include "screen_common.h"
+#include "refresh_policy.h"
+#include "app/input.h"
+#include "app/net.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -40,38 +43,39 @@
 
 namespace screen_climate {
 
-inline volatile bool g_busy = false;
+// Commands in flight or awaiting their re-read (app/net.h).
+inline volatile uint8_t g_busy = 0;
 // -1 none, 0 = MINUS, 1 = PLUS, 2 = the center mode button, 3+i = the i'th
 // mode-bar button.
 inline int g_pressed = -1;
 enum class Act : uint8_t { Temperature, Mode };
-inline Act g_act = Act::Temperature;
 
-inline void task(void*) {
-  g_busy = true;
-  ensureMdns();
-  const char* h = globalsclient::haHost;
-  const uint16_t p = globalsclient::haPort;
-  const char* t = globalsclient::haToken;
+// --- commands (run on the network worker, app/net.h) -------------------
+inline void readbackClimate(int) {
   const char* e = deviceconfig::climateEntity;
-  if (globalsclient::ok && e && *e) {
-    if (g_act == Act::Mode)
-      haclient::setClimateHvacMode(h, p, t, e, haclient::climate.mode);
-    else
-      haclient::setClimateTemperature(h, p, t, e, haclient::climate.target);
-    delay(500);  // let HA apply before we read back
-    haclient::fetchClimate(h, p, t, e);
-  }
-  g_busy = false;
-  vTaskDelete(nullptr);
+  const net::Ha a = net::ha();
+  if (e[0]) haclient::fetchClimate(a.h, a.p, a.t, e);
+}
+// Both send the CURRENT optimistic value when they run, so a run of +/-
+// taps coalesces into one call with the final setpoint.
+inline void execTemperature(const net::Command&) {
+  const char* e = deviceconfig::climateEntity;
+  const net::Ha a = net::ha();
+  if (e[0]) haclient::setClimateTemperature(a.h, a.p, a.t, e, haclient::climate.target);
+}
+inline void execMode(const net::Command&) {
+  const char* e = deviceconfig::climateEntity;
+  const net::Ha a = net::ha();
+  if (e[0]) haclient::setClimateHvacMode(a.h, a.p, a.t, e, haclient::climate.mode);
 }
 
 inline void kick(Act act) {
-  if (g_busy || g_weatherBusy) return;
-  g_act = act;
-  g_busy = true;
-  if (xTaskCreatePinnedToCore(task, "sb_clim", 8192, nullptr, 1, nullptr, 1) != pdPASS)
-    g_busy = false;
+  net::Command c;
+  c.exec = act == Act::Mode ? execMode : execTemperature;
+  c.readback = readbackClimate;
+  c.busy = &g_busy;
+  c.coalesceKey = net::key(act == Act::Mode ? "hvac" : "setpoint", deviceconfig::climateEntity);
+  net::post(c);
 }
 
 // MINUS (-1) / PLUS (+1): step the setpoint (optimistic), then POST.
@@ -365,6 +369,48 @@ inline void draw(int pressed = -1) {
 
   // --- dotted rule + area-sensor footer -------------------------------
   drawAreaSensors();
+}
+
+// --- input (the carousel dispatches here while this page is showing) --
+
+// Climate page: the arc's MINUS/PLUS step buttons (circular hit-test),
+// the center mode button (cycles hvac_modes), and the HVAC mode bar
+// (tap a mode to jump straight to it).
+inline bool handleTap(const InFrame& in) {
+  if (stepHit(in.tx, in.ty, kMinusCx) ||
+      stepHit(in.tx, in.ty, kPlusCx)) {
+    const bool plus = stepHit(in.tx, in.ty, kPlusCx);
+    adjust(plus ? +1 : -1);
+    g_pressed = drawStepperFeedback(plus ? 1 : 0);
+    return true;
+  }
+  if (modeButtonHit(in.tx, in.ty)) {
+    cycleMode();
+    g_pressed = drawStepperFeedback(2);
+    return true;
+  }
+  const int mi = modeBtnHit(in.tx, in.ty);
+  if (mi >= 0) {
+    setMode(haclient::climate.modes[mi]);
+    g_pressed = drawStepperFeedback(3 + mi);
+    return true;
+  }
+  return false;
+}
+
+// Once this page's action task settles (or its kick was a no-op), the page
+// repaints with the confirmed state and drops any pressed-button style —
+// always RefreshEvent::TapFeedback (Fast): a flashing scrub after every tap
+// reads as the whole page "reloading". commitFrame()'s kCleanEvery still
+// promotes one of these to a Half scrub periodically, so ghosting (even on
+// dense dithered art) doesn't build up.
+//
+// Call every non-tap carousel tick, whichever page is showing, so the busy
+// edge is tracked continuously; returns true only for the showing page.
+inline bool settleCheck(bool showing) {
+  const bool settle = showing && g_pressed >= 0 && !g_busy;
+  if (settle) g_pressed = -1;
+  return settle;
 }
 
 }  // namespace screen_climate

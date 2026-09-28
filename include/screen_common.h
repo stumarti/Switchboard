@@ -1,7 +1,7 @@
 #pragma once
 
 // ===========================================================================
-// screen_common — the shared substrate every screen_*.h (and main.cpp) builds
+// screen_common — the shared substrate every screen_*.h (and app/*.h) builds
 // on: the hardware singletons, the Stage enum + current stage, the e-ink
 // refresh-cadence helper, the shared status-bar chrome, and a handful of
 // small widgets (action bar, chip list, big-percent readout) reused by more
@@ -15,6 +15,8 @@
 #include "icons.h"
 #include "device_config_client.h"
 #include "local_settings.h"
+#include "app/wifi_link.h"
+#include "http_json.h"  // g_reportBatteryPct
 
 using Color = freeink::ui::Color;
 using TextAlign = freeink::ui::TextAlign;
@@ -25,7 +27,7 @@ inline FrontlightManager frontlight;
 inline BatteryMonitor battery;
 
 // Every screen this firmware can show. Stage::Standby is the carousel itself
-// (main.cpp); everything else is one screen_*.h.
+// (app/carousel.h); everything else is one screen_*.h.
 enum class Stage : uint8_t {
   Splash, Wifi, Standby, Settings, SettingsInfo, RoomPick, Developer, Timeouts, Debug, NoHA,
   NoRoom, ErrPreview, LowBattery, WifiQr, PowerMenu
@@ -33,26 +35,21 @@ enum class Stage : uint8_t {
 inline Stage stage = Stage::Splash;
 
 // The last input (of any kind, on any screen) — every screen's enter()
-// resets this; main.cpp's carousel idle timeout reads it.
+// resets this, as does any input (app/stages.h); every idle timeout reads it.
 inline uint32_t standbyIdleSinceMs = 0;
 
 // Which carousel page is showing. The carousel itself (paging, the dots, the
-// sleep/wake page-memory in RTC) is main.cpp's "carousel logic"; the raw page
+// sleep/wake page-memory in the RTC record) is app/carousel.h; the raw page
 // index lives here because most non-carousel screens need to reset it to 0
 // when an action sends the user back to the carousel.
 inline uint8_t carouselPage = 0;
 
-// Set while the carousel (or a screen that sleeps like it, e.g. No-HA) owns
-// the device, so a timer wake goes straight back to the fast wake path
-// instead of a cold boot. Retained through deep sleep.
-RTC_DATA_ATTR inline bool rtcStandbyActive = false;
+// True while the background weather/HA refresh (app/data_refresh.h) is in
+// flight. Lives here, ahead of every screen, so each screen's own kick() can
+// gate its action task on it — an action task and the weather task running
+// concurrently would race over shared mDNS/HTTP resources.
+inline volatile bool g_weatherBusy = false;
 
-// Set by the "No Home Assistant" / "Charge the device" screens just before a
-// deep sleep that must resume on the SAME screen rather than the carousel;
-// setup() (main.cpp) reads these to route a wake correctly. Retained through
-// deep sleep.
-RTC_DATA_ATTR inline bool rtcNoHA = false;
-RTC_DATA_ATTR inline bool rtcLowBattery = false;
 
 // --- e-ink refresh cadence -----------------------------------------------
 // FAST is instant but ghosts when repeated; a HALF (Clean) is a self-contained
@@ -87,8 +84,13 @@ inline void drawPixelGrid() {
   }
 }
 
+// Send the composed frame to the panel with refresh mode `r` — or, if it's
+// identical to what the panel already shows, do nothing at all (no flash,
+// no partial, no power): a data refresh that changed nothing, or a
+// confirmation repaint that matches the optimistic one, costs no refresh.
 inline void commitFrame(Rf r) {
   if (localsettings::pixelGrid) drawPixelGrid();
+  if (ui.frameIsShown()) return;
   if (r == Rf::Full) {
     ui.flushFull();
     g_fastRun = 0;
@@ -113,26 +115,11 @@ inline void pollBattery(bool force = false) {
   if (!force && now - g_battPollMs < 1500) return;
   g_battPollMs = now;
   uint16_t p = 0;
-  if (battery.readPercentageChecked(p) && p >= 1 && p <= 100) g_battPct = static_cast<uint8_t>(p);
-}
-
-// TJpg_Decoder (album_art.h, xbox_art.h) is one global decoder instance
-// (TJpgDec) with file-scope callback state, not something two concurrent
-// decodes can share safely. Every JPEG-decode call site acquires this before
-// touching TJpgDec and releases it in every return path — a simple spin-wait
-// (bounded) rather than a FreeRTOS primitive, matching this file's existing
-// plain-flag busy-gating style (g_busy/g_weatherBusy) elsewhere.
-inline volatile bool g_jpegDecodeBusy = false;
-inline bool acquireJpegDecoder(uint32_t timeoutMs = 4000) {
-  const uint32_t deadline = millis() + timeoutMs;
-  while (g_jpegDecodeBusy) {
-    if (millis() > deadline) return false;
-    delay(5);
+  if (battery.readPercentageChecked(p) && p >= 1 && p <= 100) {
+    g_battPct = static_cast<uint8_t>(p);
+    httpjson::g_reportBatteryPct = g_battPct;  // sent to the server (X-Battery)
   }
-  g_jpegDecodeBusy = true;
-  return true;
 }
-inline void releaseJpegDecoder() { g_jpegDecodeBusy = false; }
 
 // --- shared chrome layout ---------------------------------------------------
 inline constexpr int16_t kStatusBarH = 52;
@@ -208,7 +195,9 @@ inline void drawStatusBar(const char* leftLabel, bool showMoon = false,
   ui.text(leftLabel, labelX, kStatusTitleY, static_cast<int16_t>(280 - labelX + 16), kStatusTitleH,
           TextAlign::Left, Color::Black, 1, /*font 0 = 24px face*/ 0);
 
-  const bool wifiConnected = WiFi.status() == WL_CONNECTED;
+  // The true link state — including while the radio is powered down idle,
+  // so it's always clear whether a press can be sent right now.
+  const bool wifiConnected = wifilink::isUp();
 
   int16_t rightEdge = static_cast<int16_t>(Ui::W - 16);
   if (showMoon) {

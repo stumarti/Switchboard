@@ -19,7 +19,16 @@
 #include <FreeInkUIDisplayTarget.h>
 #include <Icon.h>
 
+#include <esp_attr.h>
+#include <esp_rom_crc.h>
+
 #include "fonts.h"
+
+// CRC-32 of the last frame actually sent to the panel (0 = unknown). Kept
+// in RTC memory: the e-ink panel holds its image through deep sleep, so
+// after a wake this still describes what's on the glass — which lets an
+// unattended timer wake that fetched nothing new skip its refresh entirely.
+RTC_DATA_ATTR inline uint32_t g_shownFrameCrc = 0;
 
 // The FreeInkUI drawing types (Rect, Paint, Color, TextStyle, DisplayTarget,
 // Orientation, ...) live in freeink::ui.
@@ -114,6 +123,7 @@ class Ui {
   // content switches/sleep, never from rapid repeated input, so there's no
   // pipelining win worth the extra shadow buffer here.
   void flushFull() {
+    noteShown();
     display_.waitRefreshComplete();
     display_.displayBuffer(freeink::FreeInkDisplay::FULL_REFRESH);
   }
@@ -123,7 +133,7 @@ class Ui {
   // (or shortly after) a run of rapid taps even though no single control's
   // own feedback ever requests Half directly — Climate's +/-0.5 step and a
   // volume drag/tap run are Fast/DU, same as every other control-feedback
-  // redraw (see main.cpp's RefreshEvent table). NON-BLOCKING, same shape as
+  // redraw (see refresh_policy.h's RefreshEvent table). NON-BLOCKING, same shape as
   // flushFast() below: pushes the frame and returns once the waveform has
   // started (~waveform is still developing, ~0.5 s) so the caller can compose
   // the next frame immediately. Uses the SHADOWED async path (unlike
@@ -133,6 +143,7 @@ class Ui {
   // stable copy of what was actually sent so that resync stays correct
   // (see FreeInkDisplay::displayAsyncImpl's noShadow-vs-shadow contract).
   void flushHalf() {
+    noteShown();
     display_.waitRefreshComplete();
     display_.displayBufferAsync(freeink::FreeInkDisplay::HALF_REFRESH);
   }
@@ -142,10 +153,22 @@ class Ui {
   // syncDisplay() to block until it lands. Uses the no-shadow async path
   // (matches CrossPoint's HalDisplay) — the panel keeps its own diff baseline.
   void flushFast() {
+    noteShown();
     display_.waitRefreshComplete();
     display_.displayBufferAsyncNoShadow(freeink::FreeInkDisplay::FAST_REFRESH);
   }
   bool refreshBusy() { return display_.refreshBusy(); }
+
+  // --- identical-frame detection -------------------------------------------
+  // Every flush above records the CRC of the frame it sends; commitFrame()
+  // (screen_common.h) asks frameIsShown() first and skips the refresh when
+  // the newly drawn frame is byte-for-byte what the panel already shows (a
+  // data refresh that changed nothing, a confirmation repaint matching the
+  // optimistic one). ~48 KB through the ROM CRC — well under a millisecond.
+  uint32_t frameCrc() const {
+    return esp_rom_crc32_le(0, display_.getFrameBuffer(), display_.getBufferSize());
+  }
+  bool frameIsShown() const { return g_shownFrameCrc != 0 && frameCrc() == g_shownFrameCrc; }
   void syncDisplay() { display_.waitRefreshComplete(); }
 
   // Wake helpers (mirror CrossPoint's HalDisplay::begin). After a deep-sleep
@@ -228,6 +251,11 @@ class Ui {
   fu::DisplayTarget& gfx() { return *target_; }
 
  private:
+  void noteShown() {
+    const uint32_t crc = frameCrc();
+    g_shownFrameCrc = crc ? crc : 1;  // 0 is reserved for "unknown"
+  }
+
   EInkDisplay display_;
   fu::DisplayTarget* target_ = nullptr;
 };

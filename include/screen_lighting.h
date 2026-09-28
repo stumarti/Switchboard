@@ -15,14 +15,17 @@
 // The brightness bar supports a held drag, not just tap-to-set — mirrors
 // CrossPoint's FrontlightPanelActivity slider (and our own control shade's
 // slider, screen_shade.h): the value updates live on every touchHeld frame
-// while a finger is down inside the bar, throttled onto the network only as
-// fast as kick()'s g_busy gate allows (unlike CrossPoint's slider, which
-// drives purely local frontlight hardware with no such throttle needed).
+// while a finger is down inside the bar; on the network the drag's commands
+// coalesce, so only the latest level is sent (app/net.h).
 //
-// Mirrors screen_climate's optimistic-update + background-task pattern.
+// Every control updates the page optimistically, then posts a command to
+// the network worker — same pattern as every other carousel page.
 // ===========================================================================
 
 #include "screen_common.h"
+#include "refresh_policy.h"
+#include "app/input.h"
+#include "app/net.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -30,57 +33,74 @@
 
 namespace screen_lighting {
 
-inline volatile bool g_busy = false;
+// Commands in flight or awaiting their re-read (app/net.h holds it above
+// zero until the confirmed state has landed).
+inline volatile uint8_t g_busy = 0;
 inline int g_pressed = -1;
-enum class Act : uint8_t { Group, Scene, ToggleItem, ColorTemp };
-inline Act g_act = Act::Group;
-inline char g_actEntity[64] = "";
-inline int g_actKelvin = 4500;
 
-inline void task(void*) {
-  g_busy = true;
-  ensureMdns();
-  const char* h = globalsclient::haHost;
-  const uint16_t p = globalsclient::haPort;
-  const char* t = globalsclient::haToken;
+// --- commands (run on the network worker, app/net.h) -------------------
+// After any of them, the group is re-read once the taps stop — the group
+// entity reflects the group and its members.
+inline void readbackGroup(int) {
   const char* e = deviceconfig::lightGroupEntity;
-  if (globalsclient::ok) {
-    if (g_act == Act::Scene) {
-      haclient::callService(h, p, t, "scene", "turn_on", g_actEntity);
-    } else if (g_act == Act::ToggleItem) {
-      haclient::callService(h, p, t, "light", "toggle", g_actEntity);
-    } else if (g_act == Act::ColorTemp) {
-      haclient::setLightColorTempKelvin(h, p, t, e, g_actKelvin);
-    } else if (e && *e) {
-      const haclient::Light& l = haclient::lightGroup;
-      if (l.on && l.hasBrightness) haclient::setLightBrightness(h, p, t, e, l.brightnessPct);
-      else                         haclient::setLightOn(h, p, t, e, l.on);
-    }
-    delay(500);
-    if (e && *e) haclient::fetchLight(h, p, t, e);  // group reflects group + members
-  }
-  g_busy = false;
-  vTaskDelete(nullptr);
+  const net::Ha a = net::ha();
+  if (e[0]) haclient::fetchLight(a.h, a.p, a.t, e);
 }
 
-inline void kick(Act act = Act::Group, const char* entity = "") {
-  if (g_busy || g_weatherBusy) return;
-  g_act = act;
-  snprintf(g_actEntity, sizeof(g_actEntity), "%s", entity);
-  g_busy = true;
-  if (xTaskCreatePinnedToCore(task, "sb_light", 8192, nullptr, 1, nullptr, 1) != pdPASS)
-    g_busy = false;
+inline net::Command makeCommand(net::ExecFn exec) {
+  net::Command c;
+  c.exec = exec;
+  c.readback = readbackGroup;
+  c.busy = &g_busy;
+  return c;
 }
-inline void activateScene(const char* entity) { kick(Act::Scene, entity); }
-inline void toggleItem(const char* entity) { kick(Act::ToggleItem, entity); }
 
+// The group's on/off + brightness, sent as the CURRENT optimistic value when
+// the command runs — so a burst of taps or a drag coalesces into one call.
+inline void execGroup(const net::Command&) {
+  const char* e = deviceconfig::lightGroupEntity;
+  if (!e[0]) return;
+  const net::Ha a = net::ha();
+  const haclient::Light& l = haclient::lightGroup;
+  if (l.on && l.hasBrightness) haclient::setLightBrightness(a.h, a.p, a.t, e, l.brightnessPct);
+  else                         haclient::setLightOn(a.h, a.p, a.t, e, l.on);
+}
+inline void execScene(const net::Command& c) {
+  const net::Ha a = net::ha();
+  haclient::callService(a.h, a.p, a.t, "scene", "turn_on", c.s1);
+}
+inline void execToggleItem(const net::Command& c) {
+  const net::Ha a = net::ha();
+  haclient::callService(a.h, a.p, a.t, "light", "toggle", c.s1);
+}
+inline void execColorTemp(const net::Command& c) {
+  const char* e = deviceconfig::lightGroupEntity;
+  if (!e[0]) return;
+  const net::Ha a = net::ha();
+  haclient::setLightColorTempKelvin(a.h, a.p, a.t, e, c.i);
+}
+
+// The group light's state changed on screen — send it.
+inline void kick() {
+  net::Command c = makeCommand(execGroup);
+  c.coalesceKey = net::key("light", deviceconfig::lightGroupEntity);
+  net::post(c);
+}
+inline void activateScene(const char* entity) {
+  net::Command c = makeCommand(execScene);
+  snprintf(c.s1, sizeof(c.s1), "%s", entity);
+  net::post(c);
+}
+inline void toggleItem(const char* entity) {
+  net::Command c = makeCommand(execToggleItem);
+  snprintf(c.s1, sizeof(c.s1), "%s", entity);
+  net::post(c);
+}
 inline void kickColorTemp(int kelvin) {
-  if (g_busy || g_weatherBusy) return;
-  g_act = Act::ColorTemp;
-  g_actKelvin = kelvin;
-  g_busy = true;
-  if (xTaskCreatePinnedToCore(task, "sb_light", 8192, nullptr, 1, nullptr, 1) != pdPASS)
-    g_busy = false;
+  net::Command c = makeCommand(execColorTemp);
+  c.i = kelvin;
+  c.coalesceKey = net::key("ctemp", deviceconfig::lightGroupEntity);
+  net::post(c);
 }
 
 // DIMMER (-1) / BRIGHTER (+1): step brightness 10% (optimistic). Brightening
@@ -390,6 +410,136 @@ inline void draw(int pressed = -1) {
               Ui::kFontSmall);
     }
   }
+}
+
+// --- input (the carousel dispatches here while this page is showing) --
+
+// Lighting page: a held drag in the brightness bar updates the level
+// live on every frame (mirrors screen_shade's own slider / CrossPoint's
+// FrontlightPanelActivity) — a plain tap that never drags falls through
+// to the barHit tap-to-set handling further below instead.
+inline bool handleDrag(const InFrame& in) {
+  if (in.touchPress && barHit(in.px, in.py)) dragging = true;
+  if (dragging) {
+    if (in.touchHeld) {
+      setPct(pctFromX(in.hx));
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::Drag));
+    } else {
+      dragging = false;
+    }
+    return true;
+  }
+  return false;
+}
+
+// Lighting page: the "All lights" controls (toggle switch, DARKER/
+// BRIGHTER buttons, tap-to-set brightness bar), then a SCENE or
+// per-light chip below it.
+inline bool handleTap(const InFrame& in) {
+  if (toggleHit(in.tx, in.ty)) {
+    toggle();
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  if (in.ty >= kLcRow2Y && in.ty < kLcRow2Y + kLcBtnSz) {
+    int col = -1;
+    if (in.tx >= kLcDarkerX && in.tx < kLcDarkerX + kLcBtnSz)
+      col = 0;
+    else if (in.tx >= kLcBrighterX &&
+             in.tx < kLcBrighterX + kLcBtnSz)
+      col = 1;
+    if (col >= 0) {
+      adjust(col == 0 ? -1 : +1);
+      g_pressed = drawStepperFeedback(col);
+      return true;
+    }
+  }
+// Tap a point in the brightness bar -> jump straight to that level.
+  if (barHit(in.tx, in.ty)) {
+    setPct(pctFromX(in.tx));
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  if (deviceconfig::lightGroupColorTemp) {
+    const int tc = tempBtnHit(in.tx, in.ty);
+    if (tc >= 0) {
+      kickColorTemp(kTempPresets[tc].kelvin);
+      g_pressed = tc + 2;
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/tc + 2);
+      return true;
+    }
+  }
+  const int hitTab = tabHit(in.tx, in.ty);
+  if (hitTab >= 0 && hitTab != tab) {
+    tab = hitTab;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));  // switches the whole chip list
+    return true;
+  }
+// The page indicator (only present past 12 items on whichever tab is
+// active) advances that tab's own page — checked before chipHit so
+// it doesn't also register as a chip tap underneath it.
+  {
+    const int total = tab == 0 ? deviceconfig::sceneCount : deviceconfig::lightCount;
+    const int pc = listPageCount(total);
+    if (pagerHit(in.tx, in.ty, pc)) {
+      int& page = tab == 0 ? scenePage : lightPage;
+      page = (page + 1) % pc;
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
+      return true;
+    }
+  }
+  const int si = tab == 0 && deviceconfig::sceneCount
+      ? chipHit(kChipsY,
+               listVisibleCount(deviceconfig::sceneCount, scenePage),
+               in.tx, in.ty)
+      : -1;
+  const int li = tab == 1 && deviceconfig::lightCount
+      ? chipHit(kChipsY,
+               listVisibleCount(deviceconfig::lightCount, lightPage),
+               in.tx, in.ty)
+      : -1;
+  if (si >= 0 || li >= 0) {
+    if (si >= 0) {
+      const int abs = scenePage * kListPageSize + si;
+      activateScene(deviceconfig::scenes[abs].entity);
+      lastScene = abs;  // drawn filled black until another scene runs
+    } else {
+      const int abs = lightPage * kListPageSize + li;
+      toggleItem(deviceconfig::lights[abs].entity);
+      // Flip the icon optimistically — the next refresh corrects it if
+      // the toggle didn't actually take.
+      haclient::lightItemOn[abs] = !haclient::lightItemOn[abs];
+    }
+    g_pressed = -1;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  return false;
+}
+
+// Once this page's action task settles (or its kick was a no-op), the page
+// repaints with the confirmed state and drops any pressed-button style —
+// always RefreshEvent::TapFeedback (Fast): a flashing scrub after every tap
+// reads as the whole page "reloading". commitFrame()'s kCleanEvery still
+// promotes one of these to a Half scrub periodically, so ghosting (even on
+// dense dithered art) doesn't build up.
+//
+// Call every non-tap carousel tick, whichever page is showing, so the busy
+// edge is tracked continuously; returns true only for the showing page.
+inline bool settleCheck(bool showing) {
+  static bool prevBusy = false;
+  const bool busy = g_busy;
+  const bool settle = showing && ((prevBusy && !busy) || (g_pressed >= 0 && !busy));
+  prevBusy = busy;
+  if (settle) g_pressed = -1;
+  return settle;
 }
 
 }  // namespace screen_lighting

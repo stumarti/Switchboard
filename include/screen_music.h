@@ -17,6 +17,9 @@
 // ===========================================================================
 
 #include "screen_common.h"
+#include "refresh_policy.h"
+#include "app/input.h"
+#include "app/net.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 #include "device_config_client.h"
@@ -25,56 +28,67 @@
 
 namespace screen_music {
 
-inline volatile bool g_busy = false;
+// Commands in flight or awaiting their re-read (app/net.h).
+inline volatile uint8_t g_busy = 0;
 // -1 none, 0/1/2 = PREV/PLAY-PAUSE/NEXT (bottom bar), 3/4 = VOL-/VOL+.
 inline int g_pressed = -1;
 enum class Act : uint8_t { PlayPause, Next, Prev, Volume, Mute, Refresh };
-inline Act g_act = Act::Refresh;
+// Set by app/live.h when a held-open request brings a change: 1 = the same
+// track (state, volume, mute: a fast repaint), 2 = a new track (a full one).
+inline volatile uint8_t g_liveChange = 0;
 
-inline void task(void*) {
-  g_busy = true;
-  ensureMdns();
-  const char* h = globalsclient::haHost;
-  const uint16_t p = globalsclient::haPort;
-  const char* t = globalsclient::haToken;
-  const char* e = deviceconfig::mediaEntity;
-  if (globalsclient::ok && e && *e) {
-    switch (g_act) {
-      case Act::PlayPause: haclient::callService(h, p, t, "media_player", "media_play_pause", e); break;
-      case Act::Next:      haclient::callService(h, p, t, "media_player", "media_next_track", e); break;
-      case Act::Prev:      haclient::callService(h, p, t, "media_player", "media_previous_track", e); break;
-      case Act::Volume:    haclient::setMediaVolume(h, p, t, e, haclient::media.volumePct); break;
-      case Act::Mute:      haclient::setMediaMute(h, p, t, e, haclient::media.muted); break;
-      default: break;
-    }
-    if (g_act != Act::Refresh) delay(400);  // let HA apply before we read back
-    haclient::fetchMedia(h, p, t, e);
-
-    // Album art: only worth a fetch (a JPEG download + decode) when the
-    // track actually changed — entity_picture's URL changes with it. Not
-    // playing / no art -> drop whatever we were showing rather than let it
-    // go stale.
-    if (haclient::media.ok && haclient::media.picture[0]) {
-      if (strcmp(haclient::media.picture, albumart::g_sourceUrl) != 0)
-        albumart::fetch(h, p, t, haclient::media.picture);
-    } else {
-      albumart::clear();
-    }
+// --- commands (run on the network worker, app/net.h) -------------------
+// Bring the album art in line with the player: fetched only when the track
+// actually changed (entity_picture's URL changes with it). Not playing / no
+// art -> drop whatever we were showing rather than let it go stale.
+inline void syncArt() {
+  if (haclient::media.ok && haclient::media.picture[0]) {
+    if (strcmp(haclient::media.picture, albumart::g_sourceUrl) != 0)
+      albumart::fetch(haclient::media.picture);
+  } else {
+    albumart::clear();
   }
-  g_busy = false;
-  vTaskDelete(nullptr);
+}
+inline void syncArtJob(int) { syncArt(); }
+// Re-read the player, and its art if the track changed.
+inline void readbackMedia(int) {
+  const char* e = deviceconfig::mediaEntity;
+  if (!e[0]) return;
+  const net::Ha a = net::ha();
+  haclient::fetchMedia(a.h, a.p, a.t, e);
+  syncArt();
+}
+inline void execMedia(const net::Command& c) {
+  const char* e = deviceconfig::mediaEntity;
+  if (!e[0]) return;
+  const net::Ha a = net::ha();
+  switch (static_cast<Act>(c.i)) {
+    case Act::PlayPause: haclient::callService(a.h, a.p, a.t, "media_player", "media_play_pause", e); break;
+    case Act::Next:      haclient::callService(a.h, a.p, a.t, "media_player", "media_next_track", e); break;
+    case Act::Prev:      haclient::callService(a.h, a.p, a.t, "media_player", "media_previous_track", e); break;
+    // Volume / mute send the CURRENT optimistic value, so a drag or a run
+    // of VOL taps coalesces into one call.
+    case Act::Volume:    haclient::setMediaVolume(a.h, a.p, a.t, e, haclient::media.volumePct); break;
+    case Act::Mute:      haclient::setMediaMute(a.h, a.p, a.t, e, haclient::media.muted); break;
+    default: break;
+  }
 }
 
 inline void kick(Act act) {
-  if (g_busy || g_weatherBusy) return;
-  g_act = act;
-  g_busy = true;
-  // A bigger stack than the other pages' tasks: album-art fetches decode a
-  // JPEG (TJpg_Decoder's own workspace lives on the heap, but the HTTP
-  // client + local buffers here are meaningfully heavier than a plain HA
-  // state GET).
-  if (xTaskCreatePinnedToCore(task, "sb_media", 16384, nullptr, 1, nullptr, 1) != pdPASS)
-    g_busy = false;
+  net::Command c;
+  c.exec = act == Act::Refresh ? nullptr : execMedia;
+  c.readback = readbackMedia;
+  c.busy = &g_busy;
+  c.i = static_cast<int>(act);
+  // Transport presses are each sent; value-setting ones and a plain re-read
+  // coalesce with a queued twin.
+  if (act == Act::Volume)  c.coalesceKey = net::key("volume", deviceconfig::mediaEntity);
+  if (act == Act::Mute)    c.coalesceKey = net::key("mute", deviceconfig::mediaEntity);
+  if (act == Act::Refresh) {
+    c.coalesceKey = net::key("media?", deviceconfig::mediaEntity);
+    c.optional = true;  // a poll: never wakes an idle radio
+  }
+  net::post(c);
 }
 
 // PLAY/PAUSE toggles optimistically between the two states (media_player has
@@ -279,6 +293,111 @@ inline void draw(int pressed = -1) {
             TextAlign::Center, Color::DarkGray);
 
   drawBar(pressed, playing);
+}
+
+// --- input (the carousel dispatches here while this page is showing) --
+
+// Music page: a held drag in the volume bar updates the level live,
+// same convention as the Lighting brightness bar above.
+inline bool handleDrag(const InFrame& in) {
+  if (in.touchPress && barHit(in.px, in.py)) dragging = true;
+  if (dragging) {
+    if (in.touchHeld) {
+      setVolumePct(pctFromX(in.hx));
+      standbyIdleSinceMs = millis();
+      drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::Drag));
+    } else {
+      dragging = false;
+    }
+    return true;
+  }
+  return false;
+}
+
+// Music page: MUTE toggle, VOL-/VOL+ buttons, tap-to-set volume bar,
+// then the PREV / PLAY-PAUSE / NEXT transport bar.
+inline bool handleTap(const InFrame& in) {
+  if (toggleHit(in.tx, in.ty)) {
+    toggleMute();
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  if (in.ty >= kMuRow2Y && in.ty < kMuRow2Y + kMuBtnSz) {
+    int col = -1;
+    if (in.tx >= kMuDownX && in.tx < kMuDownX + kMuBtnSz)
+      col = 0;
+    else if (in.tx >= kMuUpX && in.tx < kMuUpX + kMuBtnSz)
+      col = 1;
+    if (col >= 0) {
+      adjustVolume(col == 0 ? -1 : +1);
+      g_pressed = drawStepperFeedback(3 + col);
+      return true;
+    }
+  }
+  if (barHit(in.tx, in.ty)) {
+    setVolumePct(pctFromX(in.tx));
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+    return true;
+  }
+  if (in.ty >= kBarBtnY) {
+    const int col = in.tx < Ui::W / 3 ? 0 : in.tx < Ui::W * 2 / 3 ? 1 : 2;
+    if (col == 0) prev();
+    else if (col == 1) togglePlay();
+    else next();
+    g_pressed = col;
+    standbyIdleSinceMs = millis();
+    drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback), /*pressed=*/col);
+    return true;
+  }
+  return false;
+}
+
+// Once this page's action task settles (or its kick was a no-op), the page
+// repaints with the confirmed state and drops any pressed-button style —
+// always RefreshEvent::TapFeedback (Fast): a flashing scrub after every tap
+// reads as the whole page "reloading". commitFrame()'s kCleanEvery still
+// promotes one of these to a Half scrub periodically, so ghosting (even on
+// dense dithered art) doesn't build up.
+//
+// Call every non-tap carousel tick, whichever page is showing, so the busy
+// edge is tracked continuously; returns true only for the showing page.
+inline bool settleCheck(bool showing) {
+  static bool prevBusy = false;
+  const bool busy = g_busy;
+  const bool settle = showing && ((prevBusy && !busy) || (g_pressed >= 0 && !busy));
+  prevBusy = busy;
+  if (settle) g_pressed = -1;
+  return settle;
+}
+
+
+// Queue an art fetch if the refresh brought a new track (app/data_refresh.h);
+// optional, so it never wakes an idle radio on its own.
+inline void loadArtIfChanged() {
+  const bool have = haclient::media.ok && haclient::media.picture[0];
+  if (have == (albumart::g_sourceUrl[0] != 0) &&
+      (!have || !strcmp(haclient::media.picture, albumart::g_sourceUrl)))
+    return;
+  net::Command c;
+  c.readback = syncArtJob;
+  c.busy = &g_busy;
+  c.coalesceKey = net::key("music-art");
+  c.optional = true;
+  net::post(c);
+}
+
+// An older server without held-open requests (app/live.h): while playing,
+// re-read every 30 s so a track change shows up without waiting for the
+// normal 15+ minute standby refresh.
+inline void pollWhilePlaying() {
+  if (g_busy || g_weatherBusy) return;
+  static uint32_t lastPoll = 0;
+  if (!strcmp(haclient::media.state, "playing") && millis() - lastPoll > 30000) {
+    lastPoll = millis();
+    kick(Act::Refresh);
+  }
 }
 
 }  // namespace screen_music

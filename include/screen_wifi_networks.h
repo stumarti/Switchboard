@@ -9,7 +9,7 @@
 // password.
 //
 // The list itself is carousel CONTENT, like screen_music/screen_lighting —
-// no status bar / commitFrame of its own, main.cpp's drawStandbyContent()
+// no status bar / commitFrame of its own, app/carousel.h's drawStandbyContent()
 // owns that. The QR view is a separate full-screen Stage (like
 // screen_settings_info), since a dense module grid wants the whole panel and
 // a Full refresh, not a partial-refresh carousel repaint.
@@ -22,6 +22,8 @@
 #include <qrcode.h>
 
 #include "screen_common.h"
+#include "refresh_policy.h"
+#include "app/input.h"
 #include "screen_fwd.h"
 #include "globals_client.h"
 
@@ -141,6 +143,20 @@ inline void enterQr(int idx) {
   g_qrIdx = idx;
   stage = Stage::WifiQr;
   drawQr();
+}
+
+// --- input (the carousel dispatches here while this page is showing) --
+
+// Wifi page: tap a network row -> straight to its QR screen (no
+// press-flash needed, same as Settings -> Select room's row tap).
+inline bool handleTap(const InFrame& in) {
+  const int i = hitTest(in.tx, in.ty);
+  if (i >= 0) {
+    standbyIdleSinceMs = millis();
+    enterQr(i);
+    return true;
+  }
+  return false;
 }
 
 }  // namespace screen_wifi_networks

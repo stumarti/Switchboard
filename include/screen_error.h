@@ -57,7 +57,9 @@ inline void drawErrorScreen(const char* barLabel, const char* title, const char*
 // ===========================================================================
 // Shown when Wi-Fi is up but the Switchboard/HA server never answered. Any key
 // retries; the Home key opens Settings. On idle it deep-sleeps and retries in
-// 30 min (rtcNoHA routes the timer wake).
+// 30 min (SleepReason::ErrorScreen routes the timer wake).
+inline constexpr uint32_t kErrorRetrySec = 30u * 60u;
+
 namespace screen_no_ha {
 
 inline void draw(bool sleeping = false) {
@@ -103,17 +105,18 @@ inline void enter() {
 
 }  // namespace screen_no_room
 
-// Idle on No-HA / No-room: deep-sleep, keeping the SAME screen on wake
-// instead of reverting to the carousel — a button wake still returns through
-// the fast wake path (rtcStandbyActive), and setup() re-checks rtcNoHA to
-// redraw the right one of the two before retrying.
+// Idle on No-HA / No-room: deep-sleep with the error screen left on the
+// panel. The 30-minute timer wake retries the fetch silently (boot.h's
+// timer-refresh path redraws whichever of the two still applies, or the
+// carousel once it's fixed); a button wake is a retry the user asked for —
+// straight to the cached carousel, which diverts back here if the fetch
+// still fails.
 [[noreturn]] inline void noHASleepNow() {
+  waitForBackgroundIdle();
   if (frontlight.present()) frontlight.off();
   if (stage == Stage::NoRoom) screen_no_room::draw(/*sleeping=*/true);
   else                        screen_no_ha::draw(/*sleeping=*/true);
-  rtcNoHA = true;
-  rtcStandbyActive = true;  // a button wake still returns through the fast path
-  deepSleepWithWake(30ULL * 60ULL * 1000000ULL);  // retry in 30 minutes
+  sleepFor(rtcstate::SleepReason::ErrorScreen, kErrorRetrySec);
 }
 
 // ===========================================================================
@@ -136,12 +139,15 @@ inline void enter() {
 }
 
 // Idle on the charge screen: deep-sleep WITHOUT redrawing, so the "Charge the
-// device" screen stays on the panel through power save. A button wake or the
-// 10-minute timer re-checks the battery (setup()'s rtcLowBattery path).
+// device" screen stays on the panel through power save. The timer wake only
+// re-reads the fuel gauge (no Wi-Fi, no panel) and goes straight back to
+// sleep while it's still low — see boot.h's low-battery check.
+inline constexpr uint32_t kRecheckSec = 10u * 60u;
+
 [[noreturn]] inline void sleepNow() {
-  rtcLowBattery = true;
+  waitForBackgroundIdle();
   if (frontlight.present()) frontlight.off();
-  deepSleepWithWake(10ULL * 60ULL * 1000000ULL);
+  sleepFor(rtcstate::SleepReason::LowBattery, kRecheckSec);
 }
 
 }  // namespace screen_low_battery

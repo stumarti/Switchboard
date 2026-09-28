@@ -8,7 +8,7 @@
 //
 // A child of screen_settings the same way screen_room_pick / screen_settings_
 // info are: it never references screen_settings itself (that would make a
-// circular #include) — main.cpp's Stage::Developer case owns returning to
+// circular #include) — app/stages.h's tickDeveloper() owns returning to
 // Settings, exactly like Stage::RoomPick / Stage::SettingsInfo already do.
 // ===========================================================================
 
@@ -95,7 +95,7 @@ inline void enter() {
 }
 
 // Rows 0-4 act here; the last row ("Back") and every other exit gesture are
-// handled by main.cpp's Stage::Developer case, same as screen_room_pick /
+// handled by app/stages.h's tickDeveloper(), same as screen_room_pick /
 // screen_settings_info.
 inline void activate(int i) {
   switch (i) {
@@ -108,9 +108,10 @@ inline void activate(int i) {
       // of a room whose server config wedges the device on every boot (see
       // deviceconfig::resetSlug()'s comment). A plain restart alone would
       // just boot straight back into the same bad room.
+      waitForBackgroundIdle();  // no refresh may re-save the cache after the wipe
       deviceconfig::resetSlug();
       persist::wipe();
-      ESP.restart();
+      restartDevice();
       break;
     default: break;
   }
