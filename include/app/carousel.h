@@ -16,6 +16,7 @@
 #include "screen_fwd.h"
 #include "refresh_policy.h"
 #include "device_config_client.h"
+#include "refresh_schedule.h"
 #include "local_settings.h"
 #include "app/frontlight.h"
 #include "app/rtc_state.h"
@@ -250,9 +251,11 @@ static void enterStandby() {
 // How long the carousel sleeps before its timer wake. On a control page we
 // arm a wake (Settings -> Timeouts -> Control page timeout) so the device
 // reverts to the status page while nobody's looking; on the status page we
-// use the normal weather-refresh interval. 0 = only a button wakes it.
+// use the normal weather-refresh interval — on the clock when the room asks
+// for that (refresh_schedule.h). 0 = only a button wakes it.
 static uint32_t carouselSleepTimerSec() {
-  const uint32_t refreshSec = static_cast<uint32_t>(deviceconfig::refreshIntervalMin) * 60u;
+  const uint32_t refreshSec =
+      refreshschedule::sleepSec(static_cast<uint32_t>(deviceconfig::refreshIntervalMin) * 60u);
   if (carouselPage == 0) return refreshSec;
   return (refreshSec > 0 && refreshSec < revertToStatusSec()) ? refreshSec : revertToStatusSec();
 }

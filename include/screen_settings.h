@@ -55,7 +55,8 @@ inline const char* subtitleFor(int i) {
               WiFi.status() == WL_CONNECTED ? WiFi.SSID().c_str() : "Not connected");
       return buf;
     case 3:
-      snprintf(buf, sizeof(buf), "Standby - every %u min", deviceconfig::refreshIntervalMin);
+      snprintf(buf, sizeof(buf), "Standby - every %u min%s", deviceconfig::refreshIntervalMin,
+               deviceconfig::refreshAligned ? ", on the clock" : "");
       return buf;
     case 4:
       snprintf(buf, sizeof(buf), "Screen %u min - Control %u min",

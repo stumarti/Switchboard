@@ -46,6 +46,7 @@
 #include "app/carousel.h"
 #include "app/data_refresh.h"
 #include "app/power.h"
+#include "refresh_schedule.h"
 
 namespace boot {
 
@@ -218,7 +219,7 @@ inline void runLowBatteryCheck() {
   carouselPage = 0;
   drawStandby(/*sleeping=*/true);
   sleepFor(SleepReason::Carousel,
-           static_cast<uint32_t>(deviceconfig::refreshIntervalMin) * 60u);
+           refreshschedule::sleepSec(static_cast<uint32_t>(deviceconfig::refreshIntervalMin) * 60u));
 }
 
 // Button wake, or a cold boot of a set-up device with a cache: paint the

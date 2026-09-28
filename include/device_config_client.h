@@ -101,6 +101,15 @@ inline char weatherEntity[64] = "";
 inline char climateEntity[64] = "";
 inline char airQualityEntity[64] = "";
 inline uint16_t refreshIntervalMin = 30;
+// standby.refreshAligned: timer wakes land on the clock (every 30 min =
+// :00 and :30 local time) instead of 30 min after the last sleep, each
+// remote standby.refreshStaggerSec later than the mark so a houseful of
+// remotes doesn't ask the server at once. standby.utcOffsetMin is the
+// server's local time zone right now (the remote's clock is UTC).
+// See refresh_schedule.h.
+inline bool refreshAligned = false;
+inline int16_t utcOffsetMin = 0;
+inline uint16_t refreshStaggerSec = 0;
 
 // lighting.group — the room's main light (Lighting carousel page).
 inline bool lightGroupEnabled = false;
@@ -309,6 +318,9 @@ inline void reset() {
   ok = false;
   name[0] = weatherEntity[0] = climateEntity[0] = airQualityEntity[0] = 0;
   refreshIntervalMin = localsettings::refreshOverrideMin ? localsettings::refreshOverrideMin : 30;
+  refreshAligned = false;
+  utcOffsetMin = 0;
+  refreshStaggerSec = 0;
   lightGroupEnabled = lightGroupBrightness = lightGroupColorTemp = false;
   lightGroupColor = lightGroupEffects = false;
   lightGroupName[0] = lightGroupEntity[0] = 0;
@@ -353,6 +365,11 @@ inline void applyJson(JsonVariantConst doc) {
     const int mins = sb["refreshIntervalMin"] | 30;
     refreshIntervalMin = mins < 1 ? 1 : static_cast<uint16_t>(mins);
   }
+  refreshAligned = sb["refreshAligned"] | false;
+  const int off = sb["utcOffsetMin"] | 0;
+  utcOffsetMin = static_cast<int16_t>(off < -14 * 60 ? -14 * 60 : (off > 14 * 60 ? 14 * 60 : off));
+  const int stagger = sb["refreshStaggerSec"] | 0;
+  refreshStaggerSec = static_cast<uint16_t>(stagger < 0 ? 0 : (stagger > 600 ? 600 : stagger));
 
   JsonObjectConst lig = doc["lighting"].as<JsonObjectConst>();
   JsonObjectConst lg = lig["group"].as<JsonObjectConst>();

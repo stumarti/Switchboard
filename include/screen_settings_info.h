@@ -32,7 +32,11 @@ inline void draw() {
   row("Weather", deviceconfig::weatherEntity[0] ? deviceconfig::weatherEntity : "-");
   row("Climate", deviceconfig::climateEntity[0] ? deviceconfig::climateEntity : "-");
   row("Light", deviceconfig::lightGroupEnabled ? deviceconfig::lightGroupEntity : "-");
-  snprintf(b, sizeof(b), "%u min", static_cast<unsigned>(deviceconfig::refreshIntervalMin));
+  if (deviceconfig::refreshAligned)
+    snprintf(b, sizeof(b), "%u min, on the clock +%us", static_cast<unsigned>(deviceconfig::refreshIntervalMin),
+             static_cast<unsigned>(deviceconfig::refreshStaggerSec));
+  else
+    snprintf(b, sizeof(b), "%u min", static_cast<unsigned>(deviceconfig::refreshIntervalMin));
   row("Refresh", b);
   snprintf(b, sizeof(b), "%s%s", WiFi.localIP().toString().c_str(),
            WiFi.status() == WL_CONNECTED ? "" : "  (offline)");
