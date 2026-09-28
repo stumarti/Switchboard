@@ -285,9 +285,11 @@ inline int16_t appBtnW(int n) {
 inline int16_t appBtnX(int i, int n) {
   return static_cast<int16_t>(kShPad + i * (appBtnW(n) + kAppGap));
 }
-// Named apps get their brand glyph; anything else (a room-specific app we
-// don't carry a dedicated icon for) falls back to a generic apps glyph.
-inline const freeink::Icon& appIcon(const char* name) {
+// The icon picked for the app in the admin UI (mdi_icon.h), else: named
+// apps get their brand glyph, and anything else a generic apps glyph.
+inline const freeink::Icon& appIcon(int i) {
+  if (i >= 0 && i < deviceconfig::kMaxTvApps && mdiicon::tvAppIcons[i]) return *mdiicon::tvAppIcons[i];
+  const char* name = deviceconfig::tvApps[i].name;
   if (name && *name) {
     if (strcasecmp(name, "netflix") == 0) return icons::get("wx_tv_app_netflix");
     if (strcasecmp(name, "youtube") == 0) return icons::get("wx_tv_app_youtube");
@@ -304,7 +306,7 @@ inline void drawAppRow(int pressed) {
     if (p) ui.fillRect(x, kAppsY, w, kAppBtnH, Color::Black, 16);
     else   ui.strokeRect(x, kAppsY, w, kAppBtnH, 2, 16);
     const Color fg = p ? Color::White : Color::Black;
-    const freeink::Icon& ic = appIcon(deviceconfig::tvApps[i].name);
+    const freeink::Icon& ic = appIcon(i);
     ui.icon(ic, static_cast<int16_t>(x + (w - ic.w) / 2), static_cast<int16_t>(kAppsY + 10), fg);
     ui.text(deviceconfig::tvApps[i].name, static_cast<int16_t>(x + 4),
             static_cast<int16_t>(kAppsY + 10 + ic.h + 6), static_cast<int16_t>(w - 8), 20,

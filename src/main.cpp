@@ -65,6 +65,7 @@
 #include "screen_music.h"
 #include "screen_tv.h"
 #include "screen_xbox.h"
+#include "screen_receiver.h"
 #include "screen_wifi_networks.h"
 #include "screen_debug.h"
 #include "screen_error.h"

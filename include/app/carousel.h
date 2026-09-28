@@ -28,13 +28,14 @@
 #include "screen_music.h"
 #include "screen_tv.h"
 #include "screen_xbox.h"
+#include "screen_receiver.h"
 #include "screen_wifi_networks.h"
 
-static constexpr uint8_t kCarouselPages = 8;
+static constexpr uint8_t kCarouselPages = 9;
 // Climate last (not Wifi) so it's one Left-press away from Status, wrapping
 // around the end of the carousel — the page swapped in most often, per request.
 static const char* const kCarouselNames[kCarouselPages] = {
-    "Status", "Lighting", "Blinds", "Music", "TV", "Xbox", "Wifi", "Climate"};
+    "Status", "Lighting", "Blinds", "Music", "TV", "Xbox", "Wifi", "Climate", "Receiver"};
 static constexpr uint8_t kPageLighting = 1;
 static constexpr uint8_t kPageBlinds   = 2;
 static constexpr uint8_t kPageMusic    = 3;
@@ -42,6 +43,7 @@ static constexpr uint8_t kPageTv       = 4;
 static constexpr uint8_t kPageXbox     = 5;
 static constexpr uint8_t kPageWifi     = 6;
 static constexpr uint8_t kPageClimate  = 7;
+static constexpr uint8_t kPageReceiver = 8;
 
 // Per-room config (deviceconfig::screens.*) can hide any page but Status
 // (page 0, which has no toggle — it's always shown).
@@ -54,6 +56,7 @@ static bool pageEnabled(uint8_t page) {
     case kPageXbox:     return deviceconfig::screenXbox;
     case kPageClimate:  return deviceconfig::screenClimate;
     case kPageWifi:     return deviceconfig::screenWifi;
+    case kPageReceiver: return deviceconfig::screenReceiver;
     default:            return true;  // Status, and any future page with no toggle
   }
 }
@@ -111,6 +114,7 @@ static const freeink::Icon* carouselIcon(uint8_t page) {
     case 5: return &icons::get("nav_xbox");
     case 6: return &icons::get("nav_wifi");
     case 7: return &icons::get("nav_climate");
+    case 8: return &icons::get("nav_receiver");
     default: return nullptr;
   }
 }
@@ -173,6 +177,8 @@ static void drawStandbyContent(bool sleeping, int pressed) {
     screen_tv::draw(pressed);
   } else if (carouselPage == kPageXbox) {
     screen_xbox::draw(pressed);
+  } else if (carouselPage == kPageReceiver) {
+    screen_receiver::draw(pressed);
   } else if (carouselPage == kPageWifi) {
     screen_wifi_networks::draw();
   } else {

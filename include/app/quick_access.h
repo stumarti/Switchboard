@@ -133,6 +133,7 @@ static int hubTargetPage(const char* target) {
   if (!strcmp(target, "blinds")) return kPageBlinds;
   if (!strcmp(target, "tv")) return kPageTv;
   if (!strcmp(target, "xbox")) return kPageXbox;
+  if (!strcmp(target, "receiver")) return kPageReceiver;
   if (!strcmp(target, "guestwifi") || !strcmp(target, "wifi")) return kPageWifi;
   return -1;
 }

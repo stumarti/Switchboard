@@ -20,7 +20,7 @@
 // briefly, which is fine in the background refresh task but would stall
 // rendering if called from drawHubGrid()/drawChips() directly. Draw code only
 // ever reads the resolved pointers below (hubIcons[]/lightIcons[]/
-// sceneIcons[]/blindIcons[]). resolveAll() runs:
+// sceneIcons[]/blindIcons[]/tvAppIcons[]/receiverIcons[]). resolveAll() runs:
 //   * at boot, CacheOnly — straight from SD, so a wake paint (or an offline
 //     session) shows the custom icons without waiting on Wi-Fi;
 //   * right after every deviceconfig::fetch(), IfMissing — an icon already
@@ -231,6 +231,8 @@ inline const freeink::Icon* hubIcons[deviceconfig::kMaxHubItems] = {};
 inline const freeink::Icon* lightIcons[deviceconfig::kMaxLights] = {};
 inline const freeink::Icon* sceneIcons[deviceconfig::kMaxScenes] = {};
 inline const freeink::Icon* blindIcons[6] = {};
+inline const freeink::Icon* tvAppIcons[deviceconfig::kMaxTvApps] = {};
+inline const freeink::Icon* receiverIcons[deviceconfig::kMaxReceiverChannels] = {};
 
 // `token` may be nullptr for CacheOnly (no network use at all).
 inline void resolveAll(const char* token, Fetch mode) {
@@ -246,6 +248,12 @@ inline void resolveAll(const char* token, Fetch mode) {
     sceneIcons[i] = get(deviceconfig::scenes[i].icon, kChipIconSize, token, mode);
   for (int i = 0; i < deviceconfig::blindsItemCount && i < 6; ++i)
     blindIcons[i] = get(deviceconfig::blindsItems[i].icon, kChipIconSize, token, mode);
+  for (int i = 0; i < deviceconfig::kMaxTvApps; ++i)
+    tvAppIcons[i] = i < deviceconfig::tvAppCount ? get(deviceconfig::tvApps[i].icon, kChipIconSize, token, mode) : nullptr;
+  for (int i = 0; i < deviceconfig::kMaxReceiverChannels; ++i)
+    receiverIcons[i] = i < deviceconfig::receiverChannelCount
+                           ? get(deviceconfig::receiverChannels[i].icon, kChipIconSize, token, mode)
+                           : nullptr;
 }
 
 }  // namespace mdiicon

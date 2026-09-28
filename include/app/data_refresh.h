@@ -20,6 +20,7 @@
 #include "mdi_icon.h"
 #include "screen_common.h"
 #include "screen_xbox.h"
+#include "screen_receiver.h"
 #include "screen_climate.h"
 #include "screen_lighting.h"
 #include "screen_blinds.h"
@@ -236,6 +237,9 @@ static ServerResult fetchServerState() {
                  sizeof(haclient::xboxMedia.status));
     screen_xbox::loadVisibleArt();  // catches a game/track change even off-page
   }
+  if (deviceconfig::receiverEntity[0] && !screen_receiver::g_busy &&
+      !haclient::applyReceiver(stateOf(deviceconfig::receiverEntity)))
+    whyMissing(deviceconfig::receiverEntity, haclient::receiver.status, sizeof(haclient::receiver.status));
 
   if (!hubActionBusy) {
     bool changed = false;
@@ -305,6 +309,8 @@ static bool fetchDataDirect() {
       haclient::fetchXboxMedia(h, p, t, deviceconfig::xboxMediaEntity);
       screen_xbox::loadVisibleArt();  // catches a game/track change even off-page
     }
+    if (deviceconfig::receiverEntity[0] && !screen_receiver::g_busy)
+      haclient::fetchReceiver(h, p, t, deviceconfig::receiverEntity);
     net::serviceCommands();
   }
   return gotWeather;

@@ -151,17 +151,34 @@ inline char mediaEntity[64] = "";
 
 // tv.* — the room's TV (TV carousel page): a `remote.*` entity for dpad/back/
 // home/power/volume, a `media_player.*` entity for app launching, and the
-// app-name -> package-name map (tv.apps, a JSON object) shown as a chip grid.
+// app row: tv.appList (name, launch value, optional MDI icon) from a current
+// server, else the older name -> package map tv.apps.
 inline char tvMediaEntity[64] = "";
 inline char tvRemoteEntity[64] = "";
 struct AppItem {
   char name[20] = "";
   char pkg[52] = "";
+  char icon[32] = "";  // an MDI name (mdi_icon.h), blank = the built-in glyph
 };
 // Capped at 4 (not the other lists' 6) — the TV page's app grid fits four.
 inline constexpr int kMaxTvApps = 4;
 inline AppItem tvApps[kMaxTvApps];
 inline int tvAppCount = 0;
+
+// receiver.* — an Enigma2 satellite/cable box (Receiver carousel page),
+// through Home Assistant's enigma2 media_player: channel up/down are its
+// next/previous track, a favourite channel is a select_source, plus volume,
+// mute and power. Up to six favourites, each with an optional MDI icon.
+inline char receiverName[24] = "Receiver";
+inline char receiverEntity[64] = "";
+struct ReceiverChannel {
+  char name[24] = "";    // the button's label
+  char source[48] = "";  // the channel as the box lists it (select_source)
+  char icon[32] = "";    // an MDI name, blank = none
+};
+inline constexpr int kMaxReceiverChannels = 6;
+inline ReceiverChannel receiverChannels[kMaxReceiverChannels];
+inline int receiverChannelCount = 0;
 
 // xbox.* — the room's Xbox console (Xbox carousel page): a `media_player.*`
 // entity for the running-game hero + launching titles, a `remote.*` entity
@@ -230,13 +247,14 @@ inline bool screenTv       = true;
 inline bool screenXbox     = true;
 inline bool screenClimate  = true;
 inline bool screenWifi     = true;
+inline bool screenReceiver = false;  // off unless the server says otherwise
 
 // screens.order — the carousel's page order as set per remote in the admin
 // UI (only the enabled pages, e.g. ["status","climate","lighting"]), as
 // carousel page indices (kPageIds' positions, which match app/carousel.h's
 // page numbering). Empty = the built-in order.
-inline constexpr const char* kPageIds[] = {"status", "lighting", "blinds", "music",
-                                           "tv",     "xbox",     "wifi",   "climate"};
+inline constexpr const char* kPageIds[] = {"status", "lighting", "blinds", "music", "tv",
+                                           "xbox",   "wifi",     "climate", "receiver"};
 inline constexpr uint8_t kPageIdCount = sizeof(kPageIds) / sizeof(kPageIds[0]);
 inline uint8_t pageOrder[kPageIdCount];
 inline uint8_t pageOrderCount = 0;
@@ -275,11 +293,15 @@ inline void reset() {
   mediaName[0] = mediaEntity[0] = 0;
   screenLighting = screenBlinds = screenMusic = screenTv = screenXbox = screenClimate = screenWifi =
       true;
+  screenReceiver = false;
   pageOrderCount = 0;
   tvMediaEntity[0] = tvRemoteEntity[0] = 0;
   tvAppCount = 0;
   xboxMediaEntity[0] = xboxRemoteEntity[0] = 0;
   xboxGameCount = 0;
+  snprintf(receiverName, sizeof(receiverName), "%s", "Receiver");
+  receiverEntity[0] = 0;
+  receiverChannelCount = 0;
   hubItemCount = 0;
 }
 
@@ -348,19 +370,49 @@ inline void applyJson(JsonVariantConst doc) {
   screenXbox     = scr["xbox"] | true;
   screenClimate  = scr["climate"] | true;
   screenWifi     = scr["wifi"] | true;
+  screenReceiver = scr["receiver"] | false;
   parsePageOrder(scr["order"].as<JsonArrayConst>());
 
   JsonObjectConst tv = doc["tv"].as<JsonObjectConst>();
   snprintf(tvMediaEntity, sizeof(tvMediaEntity), "%s", tv["mediaPlayerEntity"] | "");
   snprintf(tvRemoteEntity, sizeof(tvRemoteEntity), "%s", tv["remoteEntity"] | "");
-  for (JsonPairConst kv : tv["apps"].as<JsonObjectConst>()) {
-    if (tvAppCount >= kMaxTvApps) break;
-    const char* pkg = kv.value().as<const char*>();
-    if (!pkg || !*pkg) continue;
-    AppItem& app = tvApps[tvAppCount];
-    snprintf(app.name, sizeof(app.name), "%s", kv.key().c_str());
-    snprintf(app.pkg, sizeof(app.pkg), "%s", pkg);
-    ++tvAppCount;
+  if (tv["appList"].is<JsonArrayConst>()) {
+    for (JsonObjectConst a : tv["appList"].as<JsonArrayConst>()) {
+      if (tvAppCount >= kMaxTvApps) break;
+      const char* pkg = a["launch"] | "";
+      if (!*pkg) continue;
+      AppItem& app = tvApps[tvAppCount];
+      snprintf(app.name, sizeof(app.name), "%s", a["name"] | "");
+      snprintf(app.pkg, sizeof(app.pkg), "%s", pkg);
+      snprintf(app.icon, sizeof(app.icon), "%s", a["icon"] | "");
+      ++tvAppCount;
+    }
+  } else {
+    for (JsonPairConst kv : tv["apps"].as<JsonObjectConst>()) {
+      if (tvAppCount >= kMaxTvApps) break;
+      const char* pkg = kv.value().as<const char*>();
+      if (!pkg || !*pkg) continue;
+      AppItem& app = tvApps[tvAppCount];
+      snprintf(app.name, sizeof(app.name), "%s", kv.key().c_str());
+      snprintf(app.pkg, sizeof(app.pkg), "%s", pkg);
+      app.icon[0] = 0;
+      ++tvAppCount;
+    }
+  }
+
+  JsonObjectConst rx = doc["receiver"].as<JsonObjectConst>();
+  snprintf(receiverName, sizeof(receiverName), "%s", rx["name"] | "Receiver");
+  snprintf(receiverEntity, sizeof(receiverEntity), "%s", rx["mediaPlayerEntity"] | "");
+  for (JsonObjectConst c : rx["channels"].as<JsonArrayConst>()) {
+    if (receiverChannelCount >= kMaxReceiverChannels) break;
+    const char* src = c["source"] | "";
+    if (!*src) continue;
+    ReceiverChannel& ch = receiverChannels[receiverChannelCount];
+    snprintf(ch.name, sizeof(ch.name), "%s", c["name"] | src);
+    if (!ch.name[0]) snprintf(ch.name, sizeof(ch.name), "%s", src);
+    snprintf(ch.source, sizeof(ch.source), "%s", src);
+    snprintf(ch.icon, sizeof(ch.icon), "%s", c["icon"] | "");
+    ++receiverChannelCount;
   }
 
   JsonObjectConst xbox = doc["xbox"].as<JsonObjectConst>();

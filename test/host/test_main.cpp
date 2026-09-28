@@ -12,6 +12,7 @@
 #include <cstring>
 
 #include "ha_client.h"
+#include "device_config_client.h"
 
 static int g_failures = 0;
 static int g_checks = 0;
@@ -144,8 +145,64 @@ static void testHosts() {
   CHECK(httpjson::resolveHost("switchboard") == IPAddress(0, 0, 0, 0));  // host stub: mDNS misses
 }
 
+static void testReceiver() {
+  std::puts("ha_client: Enigma2 receiver");
+  using namespace haclient;
+  JsonDocument doc;
+  CHECK(deserializeJson(doc, R"({"state":"on","attributes":{"media_channel":"BBC One HD","media_title":"BBC One HD",
+    "media_series_title":"Six O'Clock News","source":"BBC One HD","volume_level":0.4,"is_volume_muted":false}})") ==
+        DeserializationError::Ok);
+  CHECK(applyReceiver(doc.as<JsonVariantConst>()));
+  CHECK_STR(receiver.channel, "BBC One HD");
+  CHECK_STR(receiver.programme, "Six O'Clock News");
+  CHECK_STR(receiver.source, "BBC One HD");
+  CHECK(receiver.hasVolume && receiver.volumePct == 40);
+  // Off, and no volume in this report: the last level is kept.
+  JsonDocument off;
+  CHECK(deserializeJson(off, R"({"state":"off","attributes":{}})") == DeserializationError::Ok);
+  CHECK(applyReceiver(off.as<JsonVariantConst>()));
+  CHECK_STR(receiver.state, "off");
+  CHECK(receiver.volumePct == 40);
+  CHECK_STR(receiver.channel, "");
+}
+
+static void testRoomConfig() {
+  std::puts("device_config: TV apps and the receiver");
+  JsonDocument doc;
+  CHECK(deserializeJson(doc, R"({"name":"Den",
+    "screens":{"receiver":true},
+    "tv":{"appList":[{"name":"Plex","launch":"com.plexapp.android","icon":"plex"},{"name":"Empty","launch":""},
+                     {"name":"YouTube","launch":"com.google.android.youtube.tv","icon":""}],
+          "apps":{"Plex":"com.plexapp.android"}},
+    "receiver":{"name":"Vu+ Uno","mediaPlayerEntity":"media_player.vu","channels":[
+      {"name":"BBC One","source":"BBC One HD","icon":"alpha-b-box"},{"name":"No source","source":""}]}})") ==
+        DeserializationError::Ok);
+  deviceconfig::applyJson(doc.as<JsonVariantConst>());
+  CHECK(deviceconfig::tvAppCount == 2);  // an app with no launch value is skipped
+  CHECK_STR(deviceconfig::tvApps[0].name, "Plex");
+  CHECK_STR(deviceconfig::tvApps[0].icon, "plex");
+  CHECK_STR(deviceconfig::tvApps[1].pkg, "com.google.android.youtube.tv");
+  CHECK(deviceconfig::screenReceiver);
+  CHECK_STR(deviceconfig::receiverName, "Vu+ Uno");
+  CHECK(deviceconfig::receiverChannelCount == 1);
+  CHECK_STR(deviceconfig::receiverChannels[0].source, "BBC One HD");
+
+  // An older server: the TV app map, and no receiver (its page stays off).
+  JsonDocument old;
+  CHECK(deserializeJson(old, R"({"tv":{"apps":{"YouTube":"com.google.android.youtube.tv"}}})") ==
+        DeserializationError::Ok);
+  deviceconfig::applyJson(old.as<JsonVariantConst>());
+  CHECK(deviceconfig::tvAppCount == 1);
+  CHECK_STR(deviceconfig::tvApps[0].name, "YouTube");
+  CHECK_STR(deviceconfig::tvApps[0].icon, "");
+  CHECK(!deviceconfig::screenReceiver);
+  CHECK(deviceconfig::receiverChannelCount == 0);
+}
+
 int main() {
   testParsers();
+  testReceiver();
+  testRoomConfig();
   testClock();
   testHosts();
   std::printf("%d checks, %d failed\n", g_checks, g_failures);

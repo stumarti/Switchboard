@@ -65,6 +65,7 @@ static bool handlePageDrag(const InFrame& in) {
     case kPageLighting: return screen_lighting::handleDrag(in);
     case kPageMusic:    return screen_music::handleDrag(in);
     case kPageTv:       return screen_tv::handleDrag(in);
+    case kPageReceiver: return screen_receiver::handleDrag(in);
     default:            return false;
   }
 }
@@ -78,6 +79,7 @@ static bool handlePageTap(const InFrame& in) {
     case kPageMusic:    return screen_music::handleTap(in);
     case kPageTv:       return screen_tv::handleTap(in);
     case kPageXbox:     return screen_xbox::handleTap(in);
+    case kPageReceiver: return screen_receiver::handleTap(in);
     case kPageWifi:     return screen_wifi_networks::handleTap(in);
     default:            return false;
   }
@@ -131,6 +133,7 @@ static void settleShowingPage(bool draw) {
   repaint |= screen_music::settleCheck(carouselPage == kPageMusic);
   repaint |= screen_tv::settleCheck(carouselPage == kPageTv);
   repaint |= screen_xbox::settleCheck(carouselPage == kPageXbox);
+  repaint |= screen_receiver::settleCheck(carouselPage == kPageReceiver);
   if (repaint && draw) drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
 }
 

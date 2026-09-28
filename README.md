@@ -56,7 +56,8 @@ The **carousel** is the home screen — Left/Right cycles through whichever of t
 | **Lighting** | An all-lights on/off toggle with a brightness bar and Warm/Day/Cool presets, plus grids of individual lights and one-tap scenes. |
 | **Blinds** | Up/Stop/Down for the whole room, plus each blind or cover individually. |
 | **Music** | Now-playing album art, track and artist, volume, and Previous/Pause/Next. |
-| **TV** | A D-pad remote (with OK/Back/Home), app-launch buttons (YouTube, Netflix, etc.), and mute/volume. |
+| **TV** | A D-pad remote (with OK/Back/Home), up to four app-launch buttons (each with its own icon if you pick one on the server, otherwise the YouTube/Netflix logo or a generic app icon), and mute/volume. |
+| **Receiver** | An Enigma2 satellite/cable box (Vu+, Dreambox, …) through Home Assistant's Enigma2 integration: what's on (channel and programme), up to six favourite-channel buttons with optional icons, channel up/down, power, mute and volume. Off until switched on for the room. |
 | **Xbox** | Reserved for a future Xbox controller screen — currently shows "coming soon". |
 | **Wifi** | QR codes for your household's Wi-Fi networks, so a guest can join without asking for the password out loud. |
 | **Climate** | A thermostat dial with target temperature and mode (Auto/Heat/Off), plus any extra temperature sensors you've added for the room. |

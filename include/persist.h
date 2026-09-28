@@ -149,6 +149,13 @@ struct XboxState {
   void restore() const { haclient::xboxMedia = media; }
 };
 
+struct ReceiverState {
+  haclient::Receiver receiver;
+  static constexpr const char* kName = "receiver";
+  void capture() { receiver = haclient::receiver; }
+  void restore() const { haclient::receiver = receiver; }
+};
+
 struct HubState {
   bool toggleOn[haclient::kMaxHubToggles];
   static constexpr const char* kName = "hub";
@@ -203,6 +210,7 @@ inline Record<LightingState> g_lighting;
 inline Record<BlindsState> g_blinds;
 inline Record<MusicState> g_music;
 inline Record<XboxState> g_xbox;
+inline Record<ReceiverState> g_receiver;
 inline Record<HubState> g_hub;
 
 // ---------------------------------------------------------------------------
@@ -234,6 +242,7 @@ inline int loadState() {
   n += g_blinds.load();
   n += g_music.load();
   n += g_xbox.load();
+  n += g_receiver.load();
   n += g_hub.load();
   return n;
 }
@@ -257,6 +266,7 @@ inline void save() {
   g_blinds.save();
   g_music.save();
   g_xbox.save();
+  g_receiver.save();
   g_hub.save();
 }
 

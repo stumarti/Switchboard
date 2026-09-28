@@ -657,6 +657,95 @@ inline bool fetchXboxMedia(const char* host, uint16_t port, const char* token, c
   return applyXboxMedia(doc.as<JsonVariantConst>());
 }
 
+// --- Enigma2 receiver (Receiver carousel page) ---------------------------
+// Home Assistant's enigma2 media_player: media_channel / media_title is the
+// channel, media_series_title the programme on it now, source the selected
+// channel, plus volume and mute. Kept separate from `media` (the Music
+// page's player), with the same keep-last-volume rule as applyMedia().
+struct Receiver {
+  char state[16] = "";      // on / off / playing / ...
+  char channel[48] = "";    // attributes.media_channel, else media_title
+  char programme[64] = "";  // attributes.media_series_title
+  char source[48] = "";     // attributes.source
+  int volumePct = 0;   bool hasVolume = false;
+  bool muted = false;  bool hasMuted = false;
+  bool ok = false;
+  char status[48] = "";
+};
+inline Receiver receiver;
+
+inline bool applyReceiver(JsonVariantConst doc) {
+  const Receiver prev = receiver;
+  receiver = Receiver{};
+  receiver.hasVolume = prev.hasVolume;
+  receiver.volumePct = prev.volumePct;
+  receiver.hasMuted = prev.hasMuted;
+  receiver.muted = prev.muted;
+  const char* st = doc["state"] | "";
+  snprintf(receiver.state, sizeof(receiver.state), "%s", st);
+  JsonObjectConst a = doc["attributes"].as<JsonObjectConst>();
+  const char* channel = a["media_channel"] | "";
+  snprintf(receiver.channel, sizeof(receiver.channel), "%s", *channel ? channel : (a["media_title"] | ""));
+  snprintf(receiver.programme, sizeof(receiver.programme), "%s", a["media_series_title"] | "");
+  snprintf(receiver.source, sizeof(receiver.source), "%s", a["source"] | "");
+  JsonVariantConst vol = a["volume_level"];
+  if (vol.is<float>() || vol.is<int>()) {
+    receiver.volumePct = static_cast<int>(vol.as<float>() * 100.0f + 0.5f);
+    receiver.hasVolume = true;
+  }
+  if (a["is_volume_muted"].is<bool>()) {
+    receiver.muted = a["is_volume_muted"].as<bool>();
+    receiver.hasMuted = true;
+  }
+  receiver.ok = st[0] != 0;
+  if (!receiver.ok) snprintf(receiver.status, sizeof(receiver.status), "no state");
+  return receiver.ok;
+}
+
+inline bool fetchReceiver(const char* host, uint16_t port, const char* token, const char* entity) {
+  if (!entity || !*entity) {
+    receiver = Receiver{};
+    snprintf(receiver.status, sizeof(receiver.status), "no receiver entity");
+    return false;
+  }
+  char path[96];
+  snprintf(path, sizeof(path), "/api/states/%s", entity);
+  JsonDocument filter;
+  filter["state"] = true;
+  for (const char* k : {"media_channel", "media_title", "media_series_title", "source", "volume_level",
+                        "is_volume_muted"})
+    filter["attributes"][k] = true;
+  JsonDocument doc;
+  char st[48];
+  if (!httpjson::get(host, port, path, token, doc, st, sizeof(st), nullptr, 0, &filter)) {
+    snprintf(receiver.status, sizeof(receiver.status), "%s", st);
+    receiver.ok = false;
+    return false;
+  }
+  return applyReceiver(doc.as<JsonVariantConst>());
+}
+
+// A favourite channel: media_player.select_source with the channel's name as
+// the box lists it. The name goes into JSON, so quotes/backslashes are
+// escaped.
+inline bool selectSource(const char* host, uint16_t port, const char* token, const char* entity,
+                         const char* source) {
+  if (!entity || !*entity || !source || !*source) return false;
+  char esc[100];
+  size_t o = 0;
+  for (const char* p = source; *p && o + 2 < sizeof(esc); ++p) {
+    if (*p == '"' || *p == '\\') esc[o++] = '\\';
+    esc[o++] = *p;
+  }
+  esc[o] = 0;
+  char body[200];
+  snprintf(body, sizeof(body), "{\"entity_id\":\"%s\",\"source\":\"%s\"}", entity, esc);
+  JsonDocument doc, keepNothing;
+  char st[48];
+  return httpjson::post(host, port, "/api/services/media_player/select_source", token, body, doc, st,
+                        sizeof(st), &keepNothing);
+}
+
 inline bool setMediaVolume(const char* host, uint16_t port, const char* token, const char* entity,
                            int pct) {
   if (!entity || !*entity) return false;
