@@ -130,6 +130,10 @@ Wake the device first if it's asleep, or PlatformIO may not find the port.
 
 > **Hit a `Network.h` error?** Arduino-ESP32 core 3.x needs the `pioarduino` platform (already pinned here) — a stale cached core from an older attempt is the usual cause. `Remove-Item -Recurse -Force "$env:USERPROFILE\.platformio\packages\framework-arduinoespressif32*"` and `.pio`, then rebuild.
 
+### Tests
+
+`./test/host/run.sh` builds the firmware's pure logic — the Home Assistant state parsers every page uses and the HTTP helpers' host-name handling — with `g++` on your PC and runs it; no hardware or PlatformIO needed (it fetches ArduinoJson on first run). CI runs it on every push and pull request, beside the firmware build.
+
 ## Releases & the web flasher
 
 ```

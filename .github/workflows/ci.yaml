@@ -34,3 +34,13 @@ jobs:
       - name: Build (x4pro)
         working-directory: switchboard
         run: pio run -e x4pro
+  # The firmware's pure logic (Home Assistant parsers, HTTP helpers) built
+  # with g++ on the runner and run: test/host/run.sh.
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Switchboard
+        uses: actions/checkout@v7
+
+      - name: Host tests
+        run: ./test/host/run.sh
