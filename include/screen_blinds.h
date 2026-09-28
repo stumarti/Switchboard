@@ -225,7 +225,13 @@ inline void drawAllBlindsRow(const char* name, const haclient::Cover& c, int pre
 inline void drawItemRow(int i, const char* name, const haclient::Cover& c, int pressed) {
   const int16_t y = itemRowY(i);
   const int16_t iconY = static_cast<int16_t>(y + kRowH / 2 - kRowIconSize / 2);
-  if (c.ok) ui.iconScaled(blindIcon(c), kShPad, iconY, kRowIconSize, kRowIconSize);
+  // An icon picked for this blind in the admin UI wins over the open/closed
+  // glyph, same as the chip list's override — drawn at its native size,
+  // centered in the icon box.
+  if (const freeink::Icon* custom = mdiicon::blindIcons[i])
+    ui.icon(*custom, static_cast<int16_t>(kShPad + (kRowIconSize - custom->w) / 2),
+            static_cast<int16_t>(y + (kRowH - custom->h) / 2), Color::Black);
+  else if (c.ok) ui.iconScaled(blindIcon(c), kShPad, iconY, kRowIconSize, kRowIconSize);
   else      ui.strokeRect(kShPad, iconY, kRowIconSize, kRowIconSize, 2, 8);
 
   const int16_t nameX = static_cast<int16_t>(kShPad + kRowIconSize + 16);
