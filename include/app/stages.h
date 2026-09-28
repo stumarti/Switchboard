@@ -294,7 +294,7 @@ static void tickLowBattery(const InFrame& in) {
   if (idleTimedOut()) screen_low_battery::sleepNow();  // noreturn
 }
 
-// Debug page-through of every error screen (jump list -> Error states).
+// Debug page-through of every error screen (Settings -> Developer -> Error states).
 static void tickErrPreview(const InFrame& in) {
   if (in.btnLeft) {
     screen_err_preview::prev();

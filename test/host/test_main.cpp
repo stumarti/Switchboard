@@ -229,7 +229,37 @@ static void testRoomConfig() {
   CHECK(deviceconfig::hubQuickActions);  // no hub switch: quick actions stay on
 }
 
+static void testHub() {
+  std::puts("quick access: toggle states, services and service data");
+  using namespace haclient;
+  CHECK(hubStateActive("cover", "open") && !hubStateActive("cover", "closed"));
+  CHECK(hubStateActive("lock", "locked") && !hubStateActive("lock", "unlocked"));
+  CHECK(hubStateActive("vacuum", "cleaning") && !hubStateActive("vacuum", "docked"));
+  CHECK(hubStateActive("media_player", "playing") && !hubStateActive("media_player", "off"));
+  CHECK(hubStateActive("light", "on") && !hubStateActive("switch", "off"));
+  CHECK_STR(hubToggleService("cover", true), "open_cover");
+  CHECK_STR(hubToggleService("vacuum", false), "return_to_base");
+  CHECK_STR(hubToggleService("lock", true), "lock");
+  CHECK_STR(hubToggleService("fan", false), "turn_off");
+
+  // The server sends service data as the JSON text typed in the editor.
+  JsonDocument doc;
+  CHECK(deserializeJson(doc, R"({"hub":{"items":[
+    {"name":"Dim","target":"lighting","action":{"type":"run","entity":"light.den","service":"light.turn_on",
+      "data":"{\"brightness_pct\": 40, \"rgb_color\": [255, 0, 0]}"}},
+    {"name":"Bad","target":"blinds","action":{"type":"run","service":"script.turn_on","data":"not json"}},
+    {"name":"Obj","target":"status","action":{"type":"run","service":"notify.me","data":{"message":"hi"}}}]}})") ==
+        DeserializationError::Ok);
+  deviceconfig::applyJson(doc.as<JsonVariantConst>());
+  CHECK(deviceconfig::hubItemCount == 3);
+  CHECK_STR(deviceconfig::hubItems[0].actionData, "\"brightness_pct\":40,\"rgb_color\":[255,0,0]");
+  CHECK_STR(deviceconfig::hubItems[1].actionData, "");
+  CHECK_STR(deviceconfig::hubItems[2].actionData, "\"message\":\"hi\"");
+  CHECK_STR(deviceconfig::hubItems[1].target, "blinds");
+}
+
 int main() {
+  testHub();
   testParsers();
   testReceiver();
   testRoomConfig();

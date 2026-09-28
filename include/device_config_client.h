@@ -266,6 +266,26 @@ inline constexpr uint8_t kPageIdCount = sizeof(kPageIds) / sizeof(kPageIds[0]);
 inline uint8_t pageOrder[kPageIdCount];
 inline uint8_t pageOrderCount = 0;
 
+// A hub action's service data -> the raw `"key":value,...` fragment
+// ha_client.h's hubRun() splices in beside entity_id. The server stores it
+// as JSON text (what was typed in the editor); an object is taken as-is.
+// Anything that isn't a JSON object, or doesn't fit, leaves it empty.
+inline void parseActionData(JsonVariantConst data, char* out, size_t cap) {
+  out[0] = 0;
+  JsonDocument d;
+  if (data.is<const char*>()) {
+    if (deserializeJson(d, data.as<const char*>()) != DeserializationError::Ok) return;
+  } else {
+    d.set(data);
+  }
+  if (!d.is<JsonObjectConst>() || d.as<JsonObjectConst>().size() == 0) return;
+  char buf[256];
+  const size_t n = serializeJson(d, buf, sizeof(buf));
+  if (n < 2 || n >= sizeof(buf) - 1 || n - 2 >= cap) return;  // "{...}" -> "..."
+  memcpy(out, buf + 1, n - 2);
+  out[n - 2] = 0;
+}
+
 inline void parsePageOrder(JsonArrayConst order) {
   pageOrderCount = 0;
   for (JsonVariantConst v : order) {
@@ -457,27 +477,7 @@ inline void applyJson(JsonVariantConst doc) {
                                             : HubAction::None;
     snprintf(h.actionEntity, sizeof(h.actionEntity), "%s", act["entity"] | "");
     snprintf(h.actionService, sizeof(h.actionService), "%s", act["service"] | "");
-    h.actionData[0] = 0;
-    JsonObjectConst data = act["data"].as<JsonObjectConst>();
-    size_t off = 0;
-    for (JsonPairConst kv : data) {
-      JsonVariantConst v = kv.value();
-      if (!(v.is<const char*>() || v.is<bool>() || v.is<float>() || v.is<int>())) continue;
-      char field[48];
-      if (v.is<const char*>())
-        snprintf(field, sizeof(field), "\"%s\":\"%s\"", kv.key().c_str(), v.as<const char*>());
-      else if (v.is<bool>())
-        snprintf(field, sizeof(field), "\"%s\":%s", kv.key().c_str(), v.as<bool>() ? "true" : "false");
-      else
-        snprintf(field, sizeof(field), "\"%s\":%s", kv.key().c_str(), v.as<String>().c_str());
-      const size_t fieldLen = strlen(field);
-      const size_t sep = off > 0 ? 1 : 0;
-      if (off + sep + fieldLen >= sizeof(h.actionData)) break;
-      if (sep) h.actionData[off++] = ',';
-      memcpy(h.actionData + off, field, fieldLen);
-      off += fieldLen;
-      h.actionData[off] = 0;
-    }
+    parseActionData(act["data"], h.actionData, sizeof(h.actionData));
     ++hubItemCount;
   }
 
