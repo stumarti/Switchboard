@@ -129,19 +129,23 @@ inline void drawNow() {
     tx = static_cast<int16_t>(kNowX + kPiconColW + kTextColGap);
     tw = static_cast<int16_t>(kNowW - kPiconColW - kTextColGap);
   }
-  ui.text(deviceconfig::receiverName, tx, kNowY, tw, 20, TextAlign::Left, Color::DarkGray, 1, Ui::kFontSmall);
-  // No channel name: the picon says which channel it is, and the space goes
-  // to a larger now / next. Only a box that's off or unreachable says so.
+  // No receiver or channel name: the picon says which channel it is, and the
+  // space goes to a larger now / next, centered beside it. Only a box that's
+  // off or unreachable says so.
   if (!r.ok || off) {
-    ui.text(!r.ok ? "Unavailable" : "Off", tx, static_cast<int16_t>(kNowY + 26), tw, 34, TextAlign::Left,
-            Color::Black, 1, Ui::kFont28);
+    ui.text(!r.ok ? "Unavailable" : "Off", tx, static_cast<int16_t>(kNowY + (kNowH - 34) / 2), tw, 34,
+            TextAlign::Left, Color::Black, 1, Ui::kFont28);
     return;
   }
   // Now: the server's line (with times), else Home Assistant's programme.
+  // Each block is a 24px heading + a 34px title; 10px between the two.
+  constexpr int16_t kBlockH = 24 + 34, kBlockGap = 10;
+  constexpr int16_t kNowTextY = kNowY + (kNowH - 2 * kBlockH - kBlockGap) / 2;
   const char* nowTitle = info.nowTitle[0] ? info.nowTitle : r.programme;
-  if (nowTitle[0]) drawProgramme(tx, tw, static_cast<int16_t>(kNowY + 26), "NOW", info.nowTime, nowTitle);
+  if (nowTitle[0]) drawProgramme(tx, tw, kNowTextY, "NOW", info.nowTime, nowTitle);
   if (info.nextTitle[0])
-    drawProgramme(tx, tw, static_cast<int16_t>(kNowY + 94), "NEXT", info.nextTime, info.nextTitle);
+    drawProgramme(tx, tw, static_cast<int16_t>(kNowTextY + kBlockH + kBlockGap), "NEXT", info.nextTime,
+                  info.nextTitle);
 }
 
 // --- favourite channels: 2 columns x 3 rows --------------------------------
