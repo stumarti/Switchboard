@@ -68,7 +68,7 @@ inline void saveSlug(const char* s) {
   }
 }
 // Called once, right after a successful pairing approval (screen_pairing.h),
-// with the room the admin assigned this device's MAC in the Devices page.
+// with the room the admin assigned this device's MAC on the Remotes page.
 // A no-op once the user has picked a room by hand on the device itself.
 inline void applyServerAssignedSlug(const char* s) {
   if (!s || !*s || slugUserPicked) return;

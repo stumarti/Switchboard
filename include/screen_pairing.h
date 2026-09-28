@@ -74,7 +74,7 @@ inline void draw(View v) {
       }
       bigLine("Approve this remote on", 310);
       bigLine("the Switchboard server's", 350);
-      bigLine("Devices page, then", 390);
+      bigLine("Remotes page, then", 390);
       bigLine("press any button.", 430);
       break;
   }
