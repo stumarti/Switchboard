@@ -369,7 +369,8 @@ inline void applyJson(JsonVariantConst doc) {
   const int off = sb["utcOffsetMin"] | 0;
   utcOffsetMin = static_cast<int16_t>(off < -14 * 60 ? -14 * 60 : (off > 14 * 60 ? 14 * 60 : off));
   const int stagger = sb["refreshStaggerSec"] | 0;
-  refreshStaggerSec = static_cast<uint16_t>(stagger < 0 ? 0 : (stagger > 600 ? 600 : stagger));
+  // Any length: refresh_schedule.h wraps one longer than the interval.
+  refreshStaggerSec = static_cast<uint16_t>(stagger < 0 ? 0 : (stagger > 65535 ? 65535 : stagger));
 
   JsonObjectConst lig = doc["lighting"].as<JsonObjectConst>();
   JsonObjectConst lg = lig["group"].as<JsonObjectConst>();

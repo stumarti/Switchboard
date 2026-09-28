@@ -280,6 +280,8 @@ static void testRefreshSchedule() {
   // Woke late (12:31): straight on to 13:00.
   t.tm_min = 31; t.tm_sec = 0;
   CHECK(alignedSleepSec(haclient::epochOf(t), 0, 1800, 0) == 1740);
+  // A stagger longer than the interval wraps: 20 min 30 s on 15 min = +5:30.
+  CHECK(alignedSleepSec(now, 0, 900, 1230) == alignedSleepSec(now, 0, 900, 330));
   // A stagger past the mark is still aimed at: 12:30:05 with +20 s -> 12:30:20
   // is too close (15 s), so 13:00:20.
   t.tm_min = 30; t.tm_sec = 5;
