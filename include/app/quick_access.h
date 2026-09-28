@@ -19,18 +19,21 @@
 #include "app/input.h"
 #include "app/net.h"
 #include "screen_settings.h"
-#include "screen_error.h"
 
 // NOTE: this grid is a fixed 2-col x 5-row layout (kJumpTileH etc. below) —
 // exactly 10 destinations fit. Self-test was dropped to make room for Wifi
 // (a real carousel page) rather than shrinking every tile to fit an 11th;
 // the hardware self-test screen is still reachable via Home-long-press from
 // the No-HA / No-Room error screens (see app/stages.h).
-static const char* const kJumpItems[] = {"Status", "Lighting", "Blinds", "Music",
-                                         "TV",     "Xbox",     "Wifi",    "Climate",
-                                         "Settings", "Error states"};
+// The first kCarouselPages entries are the carousel pages, in carousel.h's
+// page numbering; Settings follows them. (The error-screen preview lives in
+// Settings -> Developer.)
+static const char* const kJumpItems[] = {"Status", "Lighting", "Blinds",  "Music",   "TV",
+                                         "Xbox",   "Wifi",     "Climate", "Receiver", "Settings"};
 static constexpr int kJumpCount = 10;
-static constexpr int kJumpSettings = 8, kJumpErrors = 9;
+static constexpr int kJumpSettings = 9;
+static_assert(kJumpSettings == kCarouselPages, "Settings follows the carousel pages");
+static_assert(sizeof(kJumpItems) / sizeof(kJumpItems[0]) == kJumpCount, "");
 // 2-wide grid of icon+label tiles (5 rows for the 10 destinations) instead of
 // a linear list — each tile carries its own Material icon (weather_icons.h's
 // kWx_jump_* set, baked once at a consistent size for every destination,
@@ -55,8 +58,8 @@ static const freeink::Icon* jumpIcon(int i) {
     case 5: return &icons::get("wx_jump_xbox");
     case 6: return &icons::get("wx_jump_wifi");
     case 7: return &icons::get("wx_jump_climate");
+    case 8: return &icons::get("nav_receiver");
     case kJumpSettings: return &icons::get("wx_jump_settings");
-    case kJumpErrors:   return &icons::get("wx_jump_errors");
     default: return nullptr;
   }
 }
@@ -106,11 +109,16 @@ static int jumpHitTest(int16_t tx, int16_t ty) {
 // on deviceconfig::hubItemCount.
 //
 // Each tile is two independent tap zones (see hubZoneHit()): the top 2/3
-// navigates locally (no HA call); the bottom 1/3, when quickActionsEnabled
-// and the item has an action, fires a toggle/run HA service call. This is
-// the one part of the jump list that touches Home Assistant at all — plain
-// navigation never did and still doesn't.
+// navigates locally (no HA call); the bottom 1/3, when quick actions are on
+// (quickActionsOn()) and the item has an action, fires a toggle/run HA
+// service call. This is the one part of the jump list that touches Home
+// Assistant at all — plain navigation never did and still doesn't.
 static int hubPage = 0;
+// The room's hub.quickActionsEnabled, unless this remote's Developer toggle
+// has turned quick actions off.
+inline bool quickActionsOn() {
+  return deviceconfig::hubQuickActions && localsettings::quickActionsEnabled;
+}
 static constexpr int kHubPerPage = kJumpCount;  // reuses the same 2x5 grid
 
 static int hubPageCount() {
@@ -126,8 +134,12 @@ static void hubClampPage() {
 
 // target string -> carouselPage, or -1 for anything this app has no screen
 // for (e.g. "vacuum" — falls back to Settings on tap; see hubNavigate()).
+// A hub button's `target`: a carousel page, or kJumpSettings for Settings.
+// The ids the server's editor offers: status, lighting, blinds, media (or
+// music), tv, xbox, climate, receiver, guestwifi (or wifi), settings.
 static int hubTargetPage(const char* target) {
-  if (!strcmp(target, "media")) return kPageMusic;
+  if (!strcmp(target, "status")) return 0;
+  if (!strcmp(target, "media") || !strcmp(target, "music")) return kPageMusic;
   if (!strcmp(target, "climate")) return kPageClimate;
   if (!strcmp(target, "lighting")) return kPageLighting;
   if (!strcmp(target, "blinds")) return kPageBlinds;
@@ -135,6 +147,7 @@ static int hubTargetPage(const char* target) {
   if (!strcmp(target, "xbox")) return kPageXbox;
   if (!strcmp(target, "receiver")) return kPageReceiver;
   if (!strcmp(target, "guestwifi") || !strcmp(target, "wifi")) return kPageWifi;
+  if (!strcmp(target, "settings")) return kJumpSettings;
   return -1;
 }
 static const freeink::Icon* hubIconFor(const char* target) {
@@ -270,7 +283,7 @@ static void hubNavigate(int idx) {
     stage = Stage::Standby;
     drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
   } else {
-    // Unrecognized target (e.g. "vacuum" — no such screen exists here yet):
+    // Settings, or a target this firmware doesn't know (a newer server's):
     // Settings is a safer fallback than silently doing nothing on tap.
     screen_settings::enter();
   }
@@ -281,7 +294,7 @@ static void drawHubGrid() {
   const int start = hubPage * kHubPerPage;
   const int shown =
       deviceconfig::hubItemCount - start < kHubPerPage ? deviceconfig::hubItemCount - start : kHubPerPage;
-  const bool qa = localsettings::quickActionsEnabled;
+  const bool qa = quickActionsOn();
   if (hubFlashIdx >= 0 && millis() > hubFlashUntilMs) hubFlashIdx = -1;
 
   for (int slot = 0; slot < shown; ++slot) {
@@ -393,8 +406,6 @@ static void jumpTo(int i) {
     drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::ScreenSwitch));
   } else if (i == kJumpSettings) {
     screen_settings::enter();
-  } else if (i == kJumpErrors) {
-    screen_err_preview::enter();
   }
 }
 
@@ -445,7 +456,7 @@ static void tickQuickAccess(const InFrame& in) {
         const int gi = hubPage * kHubPerPage + slot;
         if (gi < deviceconfig::hubItemCount) {
           const bool hasAction =
-              localsettings::quickActionsEnabled &&
+              quickActionsOn() &&
               deviceconfig::hubItems[gi].actionType != deviceconfig::HubAction::None;
           if (zone == 0 || !hasAction) {
             hubNavigate(gi);

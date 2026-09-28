@@ -32,7 +32,8 @@ static const char* kState = R"({
   "states": {
     "weather.home": {"state": "partlycloudy", "attributes": {"temperature": 18.4, "humidity": 60, "wind_speed": 12, "wind_speed_unit": "km/h", "uv_index": 3}},
     "climate.room": {"state": "heat", "attributes": {"temperature": 21, "current_temperature": 20.5, "min_temp": 7, "max_temp": 30, "target_temp_step": 0.5, "hvac_modes": ["off", "heat", "auto"]}},
-    "light.all": {"state": "on", "attributes": {"brightness": 128}},
+    "light.all": {"state": "on", "attributes": {"brightness": 128, "effect": "Rainbow",
+      "effect_list": ["Solid", "Rainbow", "", "An effect name far too long to send back"]}},
     "light.a": {"state": "off", "attributes": {}},
     "light.gone": {"state": "unavailable", "attributes": {}},
     "sensor.t": {"state": "19.25", "attributes": {}},
@@ -72,6 +73,9 @@ static void testParsers() {
   CHECK(applyLight(st["light.all"]));
   CHECK(lightGroup.on);
   CHECK(lightGroup.brightnessPct == 50);  // 128/255
+  CHECK_STR(lightGroup.effect, "Rainbow");
+  CHECK(lightGroup.effectCount == 2);  // a blank name and one too long to send back are left out
+  CHECK_STR(lightGroup.effects[1], "Rainbow");
 
   bool on = true;
   CHECK(applyOnOff(st["light.a"], on));
@@ -187,10 +191,12 @@ static void testReceiver() {
 }
 
 static void testRoomConfig() {
-  std::puts("device_config: TV apps and the receiver");
+  std::puts("device_config: TV apps, the receiver, light controls, hub quick actions");
   JsonDocument doc;
   CHECK(deserializeJson(doc, R"({"name":"Den",
     "screens":{"receiver":true},
+    "lighting":{"group":{"enabled":true,"entity":"light.den","controls":{"brightness":true,"color":true,"effects":true}}},
+    "hub":{"quickActionsEnabled":false,"items":[]},
     "tv":{"appList":[{"name":"Plex","launch":"com.plexapp.android","icon":"plex"},{"name":"Empty","launch":""},
                      {"name":"YouTube","launch":"com.google.android.youtube.tv","icon":""}],
           "apps":{"Plex":"com.plexapp.android"}},
@@ -203,6 +209,8 @@ static void testRoomConfig() {
   CHECK_STR(deviceconfig::tvApps[0].icon, "plex");
   CHECK_STR(deviceconfig::tvApps[1].pkg, "com.google.android.youtube.tv");
   CHECK(deviceconfig::screenReceiver);
+  CHECK(deviceconfig::lightGroupColor && deviceconfig::lightGroupEffects && !deviceconfig::lightGroupColorTemp);
+  CHECK(!deviceconfig::hubQuickActions);
   CHECK_STR(deviceconfig::receiverName, "Vu+ Uno");
   CHECK(deviceconfig::receiverChannelCount == 1);
   CHECK_STR(deviceconfig::receiverChannels[0].source, "BBC One HD");
@@ -217,9 +225,41 @@ static void testRoomConfig() {
   CHECK_STR(deviceconfig::tvApps[0].icon, "");
   CHECK(!deviceconfig::screenReceiver);
   CHECK(deviceconfig::receiverChannelCount == 0);
+  CHECK(!deviceconfig::lightGroupColor && !deviceconfig::lightGroupEffects);
+  CHECK(deviceconfig::hubQuickActions);  // no hub switch: quick actions stay on
+}
+
+static void testHub() {
+  std::puts("quick access: toggle states, services and service data");
+  using namespace haclient;
+  CHECK(hubStateActive("cover", "open") && !hubStateActive("cover", "closed"));
+  CHECK(hubStateActive("lock", "locked") && !hubStateActive("lock", "unlocked"));
+  CHECK(hubStateActive("vacuum", "cleaning") && !hubStateActive("vacuum", "docked"));
+  CHECK(hubStateActive("media_player", "playing") && !hubStateActive("media_player", "off"));
+  CHECK(hubStateActive("light", "on") && !hubStateActive("switch", "off"));
+  CHECK_STR(hubToggleService("cover", true), "open_cover");
+  CHECK_STR(hubToggleService("vacuum", false), "return_to_base");
+  CHECK_STR(hubToggleService("lock", true), "lock");
+  CHECK_STR(hubToggleService("fan", false), "turn_off");
+
+  // The server sends service data as the JSON text typed in the editor.
+  JsonDocument doc;
+  CHECK(deserializeJson(doc, R"({"hub":{"items":[
+    {"name":"Dim","target":"lighting","action":{"type":"run","entity":"light.den","service":"light.turn_on",
+      "data":"{\"brightness_pct\": 40, \"rgb_color\": [255, 0, 0]}"}},
+    {"name":"Bad","target":"blinds","action":{"type":"run","service":"script.turn_on","data":"not json"}},
+    {"name":"Obj","target":"status","action":{"type":"run","service":"notify.me","data":{"message":"hi"}}}]}})") ==
+        DeserializationError::Ok);
+  deviceconfig::applyJson(doc.as<JsonVariantConst>());
+  CHECK(deviceconfig::hubItemCount == 3);
+  CHECK_STR(deviceconfig::hubItems[0].actionData, "\"brightness_pct\":40,\"rgb_color\":[255,0,0]");
+  CHECK_STR(deviceconfig::hubItems[1].actionData, "");
+  CHECK_STR(deviceconfig::hubItems[2].actionData, "\"message\":\"hi\"");
+  CHECK_STR(deviceconfig::hubItems[1].target, "blinds");
 }
 
 int main() {
+  testHub();
   testParsers();
   testReceiver();
   testRoomConfig();

@@ -2,9 +2,9 @@
 
 // ===========================================================================
 // screen_developer — Settings -> Developer: on-device debug toggles that
-// don't belong in the ordinary Settings list. Currently just the pixel grid
-// overlay (screen_common.h's drawPixelGrid); more toggles can be added as
-// rows the same way.
+// don't belong in the ordinary Settings list: the pixel grid overlay
+// (screen_common.h's drawPixelGrid), standby, quick actions, the button
+// checker, a page-through of every error screen, and a hard reset.
 //
 // A child of screen_settings the same way screen_room_pick / screen_settings_
 // info are: it never references screen_settings itself (that would make a
@@ -15,6 +15,7 @@
 #include "screen_common.h"
 #include "screen_fwd.h"
 #include "screen_debug.h"
+#include "screen_error.h"
 #include "persist.h"
 
 namespace screen_developer {
@@ -25,10 +26,11 @@ inline constexpr DevItem kItems[] = {
     {"Disable standby"},
     {"Quick actions"},
     {"Button checker"},
+    {"Error states"},
     {"Hard reset"},
     {"Back"},
 };
-inline constexpr int kCount = 6;
+inline constexpr int kCount = 7;
 inline int sel = 0;
 // Same one-frame-flash-then-act convention as screen_settings::pressed.
 inline int pressed = -1;
@@ -37,9 +39,12 @@ inline const char* subtitleFor(int i) {
   switch (i) {
     case 0: return localsettings::pixelGrid ? "ON" : "OFF";
     case 1: return localsettings::standbyDisabled ? "ON - won't sleep" : "OFF";
-    case 2: return localsettings::quickActionsEnabled ? "ON - hub bottom-strip taps" : "OFF";
+    case 2:
+      if (!localsettings::quickActionsEnabled) return "OFF";
+      return deviceconfig::hubQuickActions ? "ON - hub bottom-strip taps" : "ON - but off for this room";
     case 3: return "Buttons, touch, backlight";
-    case 4: return "Wipes room config, reboots";
+    case 4: return "Every error screen, Left/Right";
+    case 5: return "Wipes room config, reboots";
     default: return "Return to Settings";
   }
 }
@@ -94,7 +99,7 @@ inline void enter() {
   draw(Rf::Full);
 }
 
-// Rows 0-4 act here; the last row ("Back") and every other exit gesture are
+// Rows 0-5 act here; the last row ("Back") and every other exit gesture are
 // handled by app/stages.h's tickDeveloper(), same as screen_room_pick /
 // screen_settings_info.
 inline void activate(int i) {
@@ -103,7 +108,8 @@ inline void activate(int i) {
     case 1: localsettings::standbyDisabled = !localsettings::standbyDisabled; draw(); break;
     case 2: localsettings::setQuickActionsEnabled(!localsettings::quickActionsEnabled); draw(); break;
     case 3: screen_debug::enter(); break;
-    case 4:
+    case 4: screen_err_preview::enter(); break;
+    case 5:
       // Wipe the picked room + its cached state first — the rescue path out
       // of a room whose server config wedges the device on every boot (see
       // deviceconfig::resetSlug()'s comment). A plain restart alone would

@@ -52,9 +52,13 @@ struct Air {
   char status[48] = "";
 };
 
+inline constexpr int kMaxLightEffects = 24;  // two pages of the Colour tab
 struct Light {
   bool on = false;
   int brightnessPct = 0;   bool hasBrightness = false;  // from attributes.brightness (0..255)
+  char effect[32] = "";                                 // attributes.effect, the running one
+  char effects[kMaxLightEffects][32] = {};              // attributes.effect_list
+  uint8_t effectCount = 0;
   bool ok = false;
   char status[48] = "";
 };
@@ -352,6 +356,14 @@ inline bool applyLight(JsonVariantConst doc) {
     lightGroup.brightnessPct = static_cast<int>((b.as<float>() * 100.0f / 255.0f) + 0.5f);
     lightGroup.hasBrightness = true;
   }
+  snprintf(lightGroup.effect, sizeof(lightGroup.effect), "%s", doc["attributes"]["effect"] | "");
+  for (JsonVariantConst e : doc["attributes"]["effect_list"].as<JsonArrayConst>()) {
+    if (lightGroup.effectCount >= kMaxLightEffects) break;
+    const char* name = e | "";
+    // A name that wouldn't fit can't be sent back to HA intact: leave it out.
+    if (!name[0] || strlen(name) >= sizeof(lightGroup.effects[0])) continue;
+    snprintf(lightGroup.effects[lightGroup.effectCount++], sizeof(lightGroup.effects[0]), "%s", name);
+  }
   lightGroup.ok = st[0] != 0;
   if (!lightGroup.ok) snprintf(lightGroup.status, sizeof(lightGroup.status), "no state");
   return lightGroup.ok;
@@ -369,6 +381,8 @@ inline bool fetchLight(const char* host, uint16_t port, const char* token, const
   JsonDocument filter;
   filter["state"] = true;
   filter["attributes"]["brightness"] = true;
+  filter["attributes"]["effect"] = true;
+  filter["attributes"]["effect_list"] = true;
 
   JsonDocument doc;
   if (!httpjson::get(host, port, path, token, doc, lightGroup.status, sizeof(lightGroup.status),
@@ -467,6 +481,31 @@ inline bool setLightColorTempKelvin(const char* host, uint16_t port, const char*
   JsonDocument doc, keepNothing;
   char st[48];
   return httpjson::post(host, port, "/api/services/light/turn_on", token, body, doc, st, sizeof(st),
+                        &keepNothing);
+}
+// A colour preset: light.turn_on with rgb_color.
+inline bool setLightRgb(const char* host, uint16_t port, const char* token, const char* entity,
+                        uint8_t r, uint8_t g, uint8_t b) {
+  if (!entity || !*entity) return false;
+  char body[120];
+  snprintf(body, sizeof(body), "{\"entity_id\":\"%s\",\"rgb_color\":[%u,%u,%u]}", entity, r, g, b);
+  JsonDocument doc, keepNothing;
+  char st[48];
+  return httpjson::post(host, port, "/api/services/light/turn_on", token, body, doc, st, sizeof(st),
+                        &keepNothing);
+}
+// One of the light's own effects (attributes.effect_list): light.turn_on with effect.
+inline bool setLightEffect(const char* host, uint16_t port, const char* token, const char* entity,
+                           const char* effect) {
+  if (!entity || !*entity || !effect || !*effect) return false;
+  JsonDocument body;
+  body["entity_id"] = entity;
+  body["effect"] = effect;  // an effect name can carry quotes: let ArduinoJson escape it
+  char buf[160];
+  serializeJson(body, buf, sizeof(buf));
+  JsonDocument doc, keepNothing;
+  char st[48];
+  return httpjson::post(host, port, "/api/services/light/turn_on", token, buf, doc, st, sizeof(st),
                         &keepNothing);
 }
 inline bool setLightBrightness(const char* host, uint16_t port, const char* token, const char* entity,
@@ -1026,10 +1065,33 @@ inline void domainOf(const char* entity, char* out, size_t outCap) {
   snprintf(out, outCap, "%.*s", static_cast<int>(n < outCap - 1 ? n : outCap - 1), entity);
 }
 
-// A hub toggle button's live state, keyed generically off `state == "on"` —
-// covers light/switch/input_boolean/fan/media_player, the common toggleable
-// domains. `out` is left unchanged on failure (caller keeps showing the last
-// known state rather than flipping to "off" on a transient fetch error).
+// Whether a hub toggle's entity counts as "on" (its strip drawn filled):
+// open for a cover or valve, locked for a lock, cleaning for a vacuum,
+// anything but off/standby for a media player, else state == "on" (light,
+// switch, fan, input_boolean, automation, humidifier, siren, ...).
+inline bool hubStateActive(const char* domain, const char* state) {
+  if (!strcmp(domain, "cover") || !strcmp(domain, "valve"))
+    return !strcmp(state, "open") || !strcmp(state, "opening");
+  if (!strcmp(domain, "lock")) return !strcmp(state, "locked") || !strcmp(state, "locking");
+  if (!strcmp(domain, "vacuum")) return !strcmp(state, "cleaning");
+  if (!strcmp(domain, "media_player"))
+    return state[0] && strcmp(state, "off") && strcmp(state, "standby") && strcmp(state, "unavailable") &&
+           strcmp(state, "unknown");
+  return !strcmp(state, "on");
+}
+// The service that turns a hub toggle's entity on (or off): turn_on /
+// turn_off, except the domains that name theirs differently.
+inline const char* hubToggleService(const char* domain, bool on) {
+  if (!strcmp(domain, "cover")) return on ? "open_cover" : "close_cover";
+  if (!strcmp(domain, "valve")) return on ? "open_valve" : "close_valve";
+  if (!strcmp(domain, "lock")) return on ? "lock" : "unlock";
+  if (!strcmp(domain, "vacuum")) return on ? "start" : "return_to_base";
+  return on ? "turn_on" : "turn_off";
+}
+
+// A hub toggle button's live state (hubStateActive()). `out` is left
+// unchanged on failure (caller keeps showing the last known state rather
+// than flipping to "off" on a transient fetch error).
 inline bool fetchHubToggleState(const char* host, uint16_t port, const char* token,
                                 const char* entity, bool& out) {
   if (!entity || !*entity) return false;
@@ -1041,20 +1103,24 @@ inline bool fetchHubToggleState(const char* host, uint16_t port, const char* tok
   char status[48];
   if (!httpjson::get(host, port, path, token, doc, status, sizeof(status), nullptr, 0, &filter))
     return false;
-  return applyOnOff(doc.as<JsonVariantConst>(), out);
+  const char* st = doc["state"] | "";
+  if (!st[0]) return false;
+  char domain[24];
+  domainOf(entity, domain, sizeof(domain));
+  out = hubStateActive(domain, st);
+  return true;
 }
 
-// Toggle-type quick action: always <domain>.turn_on / <domain>.turn_off —
-// every common toggleable domain (light, switch, input_boolean, fan,
-// media_player, humidifier, siren) follows this pair, so there's no
-// per-direction override to plumb through hub.items[]'s single `service`
-// field (that field is for `run` actions below, a single explicit call).
+// Toggle-type quick action: <domain>.turn_on / turn_off, or the domain's
+// own pair (hubToggleService()), so there's no per-direction override to
+// plumb through hub.items[]'s single `service` field (that field is for
+// `run` actions below, a single explicit call).
 inline bool hubToggle(const char* host, uint16_t port, const char* token, const char* entity, bool on) {
   if (!entity || !*entity) return false;
   char domain[24];
   domainOf(entity, domain, sizeof(domain));
   if (!domain[0]) return false;
-  return callService(host, port, token, domain, on ? "turn_on" : "turn_off", entity);
+  return callService(host, port, token, domain, hubToggleService(domain, on), entity);
 }
 
 // Run-type quick action: the explicit `service` ("domain.service") if the
@@ -1067,7 +1133,9 @@ inline bool hubToggle(const char* host, uint16_t port, const char* token, const 
 // actionData) spliced into the body alongside entity_id.
 inline bool hubRun(const char* host, uint16_t port, const char* token, const char* entity,
                    const char* service, const char* dataFields) {
-  if (!entity || !*entity) return false;
+  if (!entity) entity = "";
+  const bool hasService = service && *service;
+  if (!*entity && !hasService) return false;  // nothing to call
   char domain[24], svc[32];
   domainOf(entity, domain, sizeof(domain));
   if (service && *service) {
@@ -1086,11 +1154,16 @@ inline bool hubRun(const char* host, uint16_t port, const char* token, const cha
   if (!domain[0]) return false;
   char path[80];
   snprintf(path, sizeof(path), "/api/services/%s/%s", domain, svc);
+  // The entity is optional with an explicit service (a script.turn_on that
+  // names its script in the data, a notify call, ...).
   char body[192];
-  if (dataFields && *dataFields)
+  const bool hasData = dataFields && *dataFields;
+  if (*entity && hasData)
     snprintf(body, sizeof(body), "{\"entity_id\":\"%s\",%s}", entity, dataFields);
-  else
+  else if (*entity)
     snprintf(body, sizeof(body), "{\"entity_id\":\"%s\"}", entity);
+  else
+    snprintf(body, sizeof(body), "{%s}", hasData ? dataFields : "");
   JsonDocument doc, keepNothing;
   char st[48];
   return httpjson::post(host, port, path, token, body, doc, st, sizeof(st), &keepNothing);
