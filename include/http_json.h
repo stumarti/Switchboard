@@ -20,6 +20,9 @@
 #include <freertos/FreeRTOS.h>
 #include <stdio.h>
 #include <string.h>
+#include <WiFi.h>
+
+#include "config.h"  // SWITCHBOARD_SERVER_HOST, FIRMWARE_VERSION
 
 namespace httpjson {
 
@@ -111,6 +114,12 @@ inline IPAddress resolveHost(const char* host, bool fresh = false) {
 //   etagOut     : receives the response's ETag (may be "").
 //   timeoutMs   : read timeout, 0 = the usual 6 s (a held-open request —
 //                 app/live.h — needs longer than the server holds it).
+// Reported to the Switchboard server in headers on each of its requests —
+// X-Battery, X-RSSI, X-Firmware — for its admin Home page (battery and
+// weak-signal warnings, firmware versions). Set by pollBattery()
+// (screen_common.h); 0 = not read yet, so no header.
+inline volatile uint8_t g_reportBatteryPct = 0;
+
 struct Conditional {
   const char* ifNoneMatch = nullptr;
   char* etagOut = nullptr;
@@ -153,6 +162,18 @@ inline bool request(const char* host, uint16_t port, const char* path, const cha
       char auth[320];
       snprintf(auth, sizeof(auth), "Bearer %s", bearer);
       http.addHeader("Authorization", auth);
+    }
+    if (host && !strcmp(host, SWITCHBOARD_SERVER_HOST)) {
+      char v[8];
+      if (g_reportBatteryPct >= 1 && g_reportBatteryPct <= 100) {
+        snprintf(v, sizeof(v), "%u", static_cast<unsigned>(g_reportBatteryPct));
+        http.addHeader("X-Battery", v);
+      }
+      if (WiFi.status() == WL_CONNECTED) {
+        snprintf(v, sizeof(v), "%d", static_cast<int>(WiFi.RSSI()));
+        http.addHeader("X-RSSI", v);
+      }
+      http.addHeader("X-Firmware", FIRMWARE_VERSION);
     }
     if (body) http.addHeader("Content-Type", "application/json");
     if (cond && cond->ifNoneMatch && *cond->ifNoneMatch)

@@ -16,6 +16,7 @@
 #include "device_config_client.h"
 #include "local_settings.h"
 #include "app/wifi_link.h"
+#include "http_json.h"  // g_reportBatteryPct
 
 using Color = freeink::ui::Color;
 using TextAlign = freeink::ui::TextAlign;
@@ -114,7 +115,10 @@ inline void pollBattery(bool force = false) {
   if (!force && now - g_battPollMs < 1500) return;
   g_battPollMs = now;
   uint16_t p = 0;
-  if (battery.readPercentageChecked(p) && p >= 1 && p <= 100) g_battPct = static_cast<uint8_t>(p);
+  if (battery.readPercentageChecked(p) && p >= 1 && p <= 100) {
+    g_battPct = static_cast<uint8_t>(p);
+    httpjson::g_reportBatteryPct = g_battPct;  // sent to the server (X-Battery)
+  }
 }
 
 // --- shared chrome layout ---------------------------------------------------
