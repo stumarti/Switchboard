@@ -296,15 +296,35 @@ static void drawHubGrid() {
     // A custom icon picked for this button (admin UI's icon picker) wins
     // over the fixed glyph its `target` would otherwise show.
     const freeink::Icon* ic = mdiicon::hubIcons[gi] ? mdiicon::hubIcons[gi] : hubIconFor(it.target);
-    if (ic)
-      ui.icon(*ic, static_cast<int16_t>(x + (kJumpTileW - ic->w) / 2), static_cast<int16_t>(y + 14),
-              Color::Black);
-    ui.text(it.name, x, static_cast<int16_t>(y + 70), kJumpTileW, 24, TextAlign::Center, Color::Black,
-            1, Ui::kFontSmall);
     const int page = hubTargetPage(it.target);
-    if (page >= 0 && page == carouselPage && page < kCarouselPages)
-      ui.text("now", x, static_cast<int16_t>(y + topH - 18), kJumpTileW, 16, TextAlign::Center,
-              Color::DarkGray, 1, Ui::kFontSmall);
+    const bool now = page >= 0 && page == carouselPage && page < kCarouselPages;
+    if (hasAction) {
+      // The action strip leaves too little height for icon-above-title, so
+      // the icon sits on the left and the title (plus "now") to its right,
+      // all vertically centered in the navigate zone above the strip.
+      constexpr int16_t kPadL = 14, kGap = 10;
+      const int16_t iconW = ic ? static_cast<int16_t>(ic->w) : 0;
+      if (ic)
+        ui.icon(*ic, static_cast<int16_t>(x + kPadL), static_cast<int16_t>(y + (topH - ic->h) / 2),
+                Color::Black);
+      const int16_t tx = static_cast<int16_t>(x + kPadL + (ic ? iconW + kGap : 0));
+      const int16_t tw = static_cast<int16_t>(x + kJumpTileW - 8 - tx);
+      const int16_t blockH = now ? 24 + 16 : 24;
+      const int16_t ty = static_cast<int16_t>(y + (topH - blockH) / 2);
+      ui.text(it.name, tx, ty, tw, 24, TextAlign::Left, Color::Black, 1, Ui::kFontSmall);
+      if (now)
+        ui.text("now", tx, static_cast<int16_t>(ty + 24), tw, 16, TextAlign::Left, Color::DarkGray, 1,
+                Ui::kFontSmall);
+    } else {
+      if (ic)
+        ui.icon(*ic, static_cast<int16_t>(x + (kJumpTileW - ic->w) / 2), static_cast<int16_t>(y + 14),
+                Color::Black);
+      ui.text(it.name, x, static_cast<int16_t>(y + 70), kJumpTileW, 24, TextAlign::Center, Color::Black,
+              1, Ui::kFontSmall);
+      if (now)
+        ui.text("now", x, static_cast<int16_t>(y + topH - 18), kJumpTileW, 16, TextAlign::Center,
+                Color::DarkGray, 1, Ui::kFontSmall);
+    }
 
     if (hasAction) {
       const int16_t stripY = static_cast<int16_t>(y + topH);
