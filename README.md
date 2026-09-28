@@ -61,6 +61,8 @@ The **carousel** is the home screen — Left/Right cycles through whichever of t
 | **Wifi** | QR codes for your household's Wi-Fi networks, so a guest can join without asking for the password out loud. |
 | **Climate** | A thermostat dial with target temperature and mode (Auto/Heat/Off), plus any extra temperature sensors you've added for the room. |
 
+Most pages are **passive**: they show what the last refresh brought and wait for a press. Music and Xbox are **live** while something is playing — and only then, only while that page is on screen and Wi-Fi is already up: the remote holds one request open on the server, which answers the moment the track or game changes. A new track repaints in full with its art (resized and dithered by the server, so the remote never decodes an image); a pause or a volume change is a quick partial repaint. The Wi-Fi timeout (Settings → Timeouts) still turns the radio off on schedule, which ends the watch. Against an older server the pages fall back to re-reading every 30 s while playing.
+
 Two more things, reachable from any carousel page:
 
 - **Tap Home** → the **jump list**: a grid to jump straight to any visible screen, Settings, or the hardware self-test, instead of stepping through the carousel one page at a time.

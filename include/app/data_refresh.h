@@ -26,6 +26,7 @@
 #include "screen_music.h"
 #include "app/wifi_link.h"
 #include "app/net.h"
+#include "app/live.h"
 #include "app/carousel.h"  // ensureCarouselPageEnabled()
 #include "app/quick_access.h"  // hubDirty / hubActionBusy
 
@@ -177,6 +178,7 @@ static ServerResult fetchServerState() {
   }
   if (date[0]) haclient::parseHttpDate(date);
 
+  live::applyLabels(doc["live"].as<JsonObjectConst>());  // which pages are live (app/live.h)
   JsonObjectConst states = doc["states"].as<JsonObjectConst>();
   JsonObjectConst errors = doc["errors"].as<JsonObjectConst>();
   // The state object for `entity`, or null (not configured / HA had none).
@@ -223,9 +225,11 @@ static ServerResult fetchServerState() {
         whyMissing(deviceconfig::blindsItems[i].entity, haclient::coverItems[i].status,
                    sizeof(haclient::coverItems[i].status));
 
-  if (deviceconfig::mediaEnabled && !screen_music::g_busy &&
-      !haclient::applyMedia(stateOf(deviceconfig::mediaEntity)))
-    whyMissing(deviceconfig::mediaEntity, haclient::media.status, sizeof(haclient::media.status));
+  if (deviceconfig::mediaEnabled && !screen_music::g_busy) {
+    if (!haclient::applyMedia(stateOf(deviceconfig::mediaEntity)))
+      whyMissing(deviceconfig::mediaEntity, haclient::media.status, sizeof(haclient::media.status));
+    screen_music::loadArtIfChanged();  // a new track since the last look
+  }
   if (deviceconfig::xboxMediaEntity[0] && !screen_xbox::g_busy) {
     if (!haclient::applyXboxMedia(stateOf(deviceconfig::xboxMediaEntity)))
       whyMissing(deviceconfig::xboxMediaEntity, haclient::xboxMedia.status,
@@ -362,7 +366,11 @@ static void kickWeatherRefresh() { net::requestRefresh(); }
 // The worker's refresh job (registered by startNetwork()).
 static void runRefreshJob() { refreshStandby(); }
 
-// Start the network worker. Every interactive boot path calls this once,
+// Start the network worker (and the live watch beside it, app/live.h).
+// Every interactive boot path calls this once,
 // after the cached config is loaded; the unattended timer paths don't need
 // it (they call refreshStandby() directly and go back to sleep).
-static void startNetwork() { net::start(runRefreshJob); }
+static void startNetwork() {
+  net::start(runRefreshJob);
+  live::start();
+}

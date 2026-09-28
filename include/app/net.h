@@ -103,6 +103,9 @@ inline volatile bool g_executing = false;  // a command or readback is running n
 inline volatile bool g_refreshWanted = false;
 inline void (*g_refreshFn)() = nullptr;    // app/data_refresh.h's refresh body
 inline TaskHandle_t g_task = nullptr;
+// Run on every pass of the worker loop (app/live.h applies a held-open
+// request's answer here, so page state is only ever written by this task).
+inline void (*g_idleHook)() = nullptr;
 // Last time the worker did any network work — the UI thread powers the
 // radio down once this (and the user) has been quiet long enough.
 inline volatile uint32_t g_lastActivityMs = 0;
@@ -284,6 +287,7 @@ inline void workerTask(void*) {
   for (;;) {
     serviceCommands();
     serviceReadbacks();
+    if (g_idleHook) g_idleHook();
     if (g_refreshWanted && g_count == 0 && g_refreshFn) {
       g_refreshWanted = false;
       g_executing = true;
@@ -303,7 +307,7 @@ inline void start(void (*refreshFn)()) {
   g_refreshFn = refreshFn;
   if (g_task) return;
   // A roomy stack: the refresh parses big HA JSON documents and album art
-  // decodes a JPEG. Same core and priority the per-screen tasks used.
+  // is fetched here. Same core and priority the per-screen tasks used.
   xTaskCreatePinnedToCore(workerTask, "sb_net", 16384, nullptr, 1, &g_task, 1);
 }
 

@@ -33,22 +33,30 @@ inline volatile uint8_t g_busy = 0;
 // -1 none, 0/1/2 = PREV/PLAY-PAUSE/NEXT (bottom bar), 3/4 = VOL-/VOL+.
 inline int g_pressed = -1;
 enum class Act : uint8_t { PlayPause, Next, Prev, Volume, Mute, Refresh };
+// Set by app/live.h when a held-open request brings a change: 1 = the same
+// track (state, volume, mute: a fast repaint), 2 = a new track (a full one).
+inline volatile uint8_t g_liveChange = 0;
 
 // --- commands (run on the network worker, app/net.h) -------------------
-// Re-read the player — and the album art, but only when the track actually
-// changed (entity_picture's URL changes with it). Not playing / no art ->
-// drop whatever we were showing rather than let it go stale.
+// Bring the album art in line with the player: fetched only when the track
+// actually changed (entity_picture's URL changes with it). Not playing / no
+// art -> drop whatever we were showing rather than let it go stale.
+inline void syncArt() {
+  if (haclient::media.ok && haclient::media.picture[0]) {
+    if (strcmp(haclient::media.picture, albumart::g_sourceUrl) != 0)
+      albumart::fetch(haclient::media.picture);
+  } else {
+    albumart::clear();
+  }
+}
+inline void syncArtJob(int) { syncArt(); }
+// Re-read the player, and its art if the track changed.
 inline void readbackMedia(int) {
   const char* e = deviceconfig::mediaEntity;
   if (!e[0]) return;
   const net::Ha a = net::ha();
   haclient::fetchMedia(a.h, a.p, a.t, e);
-  if (haclient::media.ok && haclient::media.picture[0]) {
-    if (strcmp(haclient::media.picture, albumart::g_sourceUrl) != 0)
-      albumart::fetch(a.h, a.p, a.t, haclient::media.picture);
-  } else {
-    albumart::clear();
-  }
+  syncArt();
 }
 inline void execMedia(const net::Command& c) {
   const char* e = deviceconfig::mediaEntity;
@@ -365,8 +373,24 @@ inline bool settleCheck(bool showing) {
 }
 
 
-// While playing, re-poll every 30 s so a track change (title/artist) shows
-// up without waiting for the normal 15+ minute standby refresh.
+// Queue an art fetch if the refresh brought a new track (app/data_refresh.h);
+// optional, so it never wakes an idle radio on its own.
+inline void loadArtIfChanged() {
+  const bool have = haclient::media.ok && haclient::media.picture[0];
+  if (have == (albumart::g_sourceUrl[0] != 0) &&
+      (!have || !strcmp(haclient::media.picture, albumart::g_sourceUrl)))
+    return;
+  net::Command c;
+  c.readback = syncArtJob;
+  c.busy = &g_busy;
+  c.coalesceKey = net::key("music-art");
+  c.optional = true;
+  net::post(c);
+}
+
+// An older server without held-open requests (app/live.h): while playing,
+// re-read every 30 s so a track change shows up without waiting for the
+// normal 15+ minute standby refresh.
 inline void pollWhilePlaying() {
   if (g_busy || g_weatherBusy) return;
   static uint32_t lastPoll = 0;

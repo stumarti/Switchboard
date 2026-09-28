@@ -117,24 +117,6 @@ inline void pollBattery(bool force = false) {
   if (battery.readPercentageChecked(p) && p >= 1 && p <= 100) g_battPct = static_cast<uint8_t>(p);
 }
 
-// TJpg_Decoder (album_art.h, xbox_art.h) is one global decoder instance
-// (TJpgDec) with file-scope callback state, not something two concurrent
-// decodes can share safely. Every JPEG-decode call site acquires this before
-// touching TJpgDec and releases it in every return path — a simple spin-wait
-// (bounded) rather than a FreeRTOS primitive, matching this file's existing
-// plain-flag busy-gating style (g_busy/g_weatherBusy) elsewhere.
-inline volatile bool g_jpegDecodeBusy = false;
-inline bool acquireJpegDecoder(uint32_t timeoutMs = 4000) {
-  const uint32_t deadline = millis() + timeoutMs;
-  while (g_jpegDecodeBusy) {
-    if (millis() > deadline) return false;
-    delay(5);
-  }
-  g_jpegDecodeBusy = true;
-  return true;
-}
-inline void releaseJpegDecoder() { g_jpegDecodeBusy = false; }
-
 // --- shared chrome layout ---------------------------------------------------
 inline constexpr int16_t kStatusBarH = 52;
 inline constexpr int16_t kFooterBarH = 72;

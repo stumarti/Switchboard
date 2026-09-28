@@ -109,11 +109,14 @@ inline IPAddress resolveHost(const char* host, bool fresh = false) {
 //                 hold. A 304 reply is a success with `notModified` set and
 //                 `doc` left empty: keep using that copy.
 //   etagOut     : receives the response's ETag (may be "").
+//   timeoutMs   : read timeout, 0 = the usual 6 s (a held-open request —
+//                 app/live.h — needs longer than the server holds it).
 struct Conditional {
   const char* ifNoneMatch = nullptr;
   char* etagOut = nullptr;
   size_t etagCap = 0;
   bool notModified = false;
+  uint32_t timeoutMs = 0;
 };
 
 inline bool request(const char* host, uint16_t port, const char* path, const char* bearer,
@@ -141,7 +144,7 @@ inline bool request(const char* host, uint16_t port, const char* path, const cha
     char url[192];
     snprintf(url, sizeof(url), "http://%s:%u%s", ip.toString().c_str(), port, path);
 
-    http.setTimeout(6000);
+    http.setTimeout(cond && cond->timeoutMs ? cond->timeoutMs : 6000);
     if (!http.begin(url)) {
       snprintf(status, statusCap, "bad URL");
       return false;

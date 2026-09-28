@@ -43,6 +43,9 @@ namespace screen_xbox {
 
 // Commands in flight or awaiting their re-read (app/net.h).
 inline volatile uint8_t g_busy = 0;
+// Set by app/live.h when a held-open request brings a change: 1 = same game
+// (a fast repaint), 2 = a different game or none (a full one).
+inline volatile uint8_t g_liveChange = 0;
 // -1 none; 0 = power toggle; 1..6 = library rows (row i on the current page).
 inline int g_pressed = -1;
 enum class Act : uint8_t { Power, Launch, Refresh };
@@ -166,10 +169,6 @@ inline void freeRow(int slot) {
 }
 
 inline void fetchVisibleArt(int) {
-  const char* h = globalsclient::haHost;
-  const uint16_t p = globalsclient::haPort;
-  const char* t = globalsclient::haToken;
-
   // Hero: the running game's entity_picture, or nothing (draw the mark) when
   // idle/off — keyed by state+title so a track/game change re-fetches but an
   // unrelated repaint (e.g. the power toggle's own settle) doesn't.
@@ -182,7 +181,7 @@ inline void fetchVisibleArt(int) {
     if (playing && globalsclient::ok) {
       char slug[64];
       xboxart::slugify(haclient::xboxMedia.title, slug, sizeof(slug));
-      g_heroBits = xboxart::get(h, p, t, slug, haclient::xboxMedia.picture, xboxart::kHeroSize);
+      g_heroBits = xboxart::get(slug, haclient::xboxMedia.picture, xboxart::kHeroSize);
     }
     snprintf(g_heroKey, sizeof(g_heroKey), "%s", heroKey);
     g_artDirty = true;
@@ -198,7 +197,7 @@ inline void fetchVisibleArt(int) {
     if (gi >= 0 && globalsclient::ok && deviceconfig::xboxGames[gi].art[0]) {
       char slug[48];
       xboxart::slugify(pid, slug, sizeof(slug));
-      g_rowBits[slot] = xboxart::get(h, p, t, slug, deviceconfig::xboxGames[gi].art, xboxart::kRowSize);
+      g_rowBits[slot] = xboxart::get(slug, deviceconfig::xboxGames[gi].art, xboxart::kRowSize);
     }
     snprintf(g_rowKey[slot], sizeof(g_rowKey[slot]), "%s", pid);
     g_artDirty = true;
@@ -435,8 +434,9 @@ inline bool settleCheck(bool showing) {
   return settle;
 }
 
-// Same 30 s re-poll as Music while a game is running, so the hero/"Playing"
-// row catches a title change (or the console going idle) promptly.
+// An older server without held-open requests (app/live.h): the same 30 s
+// re-poll as Music while a game is running, so the hero/"Playing" row
+// catches a title change (or the console going idle) promptly.
 inline void pollWhilePlaying() {
   if (g_busy || g_weatherBusy) return;
   static uint32_t lastPoll = 0;

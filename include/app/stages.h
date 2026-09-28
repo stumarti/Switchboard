@@ -23,6 +23,7 @@
 #include "app/input.h"
 #include "app/wifi_link.h"
 #include "app/carousel.h"
+#include "app/live.h"
 #include "app/quick_access.h"
 #include "app/data_refresh.h"
 #include "app/power.h"
@@ -82,19 +83,47 @@ static bool handlePageTap(const InFrame& in) {
   }
 }
 
-// Live re-polls for the showing page (a moving blind, a playing track).
+// Keeping the showing page current while it's live (app/live.h): a playing
+// track or a running game is watched through one held-open request, renewed
+// here every frame so it lapses the moment the page, the stage or the screen
+// changes. A moving blind still re-reads until it stops. Every other page is
+// passive: it waits for a press.
 static void pollShowingPage() {
+  live::Page watch = live::Page::None;
   switch (carouselPage) {
     case kPageBlinds: screen_blinds::pollWhileMoving(); break;
-    case kPageMusic:  screen_music::pollWhilePlaying(); break;
-    case kPageXbox:   screen_xbox::pollWhilePlaying(); break;
+    case kPageMusic:
+      if (live::g_unsupported) screen_music::pollWhilePlaying();
+      else if (live::isLive(live::Page::Music)) watch = live::Page::Music;
+      break;
+    case kPageXbox:
+      if (live::g_unsupported) screen_xbox::pollWhilePlaying();
+      else if (live::isLive(live::Page::Xbox)) watch = live::Page::Xbox;
+      break;
     default: break;
   }
+  live::want(watch);
+}
+
+// A change the live watch brought: a new track or game is a full refresh
+// (the art changed; clear its ghost), anything else a fast one. Changes to a
+// page not showing are dropped — turning to it repaints in full anyway.
+static bool repaintLiveChange() {
+  uint8_t music = screen_music::g_liveChange, xbox = screen_xbox::g_liveChange;
+  if (!music && !xbox) return false;
+  screen_music::g_liveChange = 0;
+  screen_xbox::g_liveChange = 0;
+  const uint8_t change = carouselPage == kPageMusic ? music : carouselPage == kPageXbox ? xbox : 0;
+  if (!change) return false;
+  drawStandby(/*sleeping=*/false,
+              refreshModeFor(change == 2 ? RefreshEvent::ScreenSwitch : RefreshEvent::DataLanding));
+  return true;
 }
 
 // Every page's settleCheck() runs every tick (so each tracks its own busy
-// edge continuously), but only the showing page can ask for a repaint.
-static void settleShowingPage() {
+// edge continuously), but only the showing page can ask for a repaint —
+// unless this frame already repainted (`draw` false).
+static void settleShowingPage(bool draw) {
   bool repaint = false;
   repaint |= screen_climate::settleCheck(carouselPage == kPageClimate);
   repaint |= screen_blinds::settleCheck(carouselPage == kPageBlinds);
@@ -102,7 +131,7 @@ static void settleShowingPage() {
   repaint |= screen_music::settleCheck(carouselPage == kPageMusic);
   repaint |= screen_tv::settleCheck(carouselPage == kPageTv);
   repaint |= screen_xbox::settleCheck(carouselPage == kPageXbox);
-  if (repaint) drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
+  if (repaint && draw) drawStandby(/*sleeping=*/false, refreshModeFor(RefreshEvent::TapFeedback));
 }
 
 // Keep the carousel in step with the background Wi-Fi link and data refresh:
@@ -178,7 +207,7 @@ static void tickCarousel(const InFrame& in) {
 
   if (syncCarouselWithNetwork()) return;
   pollShowingPage();
-  if (!in.tap) settleShowingPage();
+  if (!in.tap) settleShowingPage(/*draw=*/!repaintLiveChange());
   if (maybeShowLowBattery()) return;
   if (idleTimedOut()) standbySleepNow();  // frontlight off, moon, deep sleep
 }
