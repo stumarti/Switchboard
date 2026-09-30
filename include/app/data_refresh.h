@@ -254,7 +254,8 @@ static ServerResult fetchServerState() {
     for (int i = 0; i < deviceconfig::hubItemCount; ++i) {
       if (deviceconfig::hubItems[i].actionType != deviceconfig::HubAction::Toggle) continue;
       const bool before = haclient::hubToggleOn[i];
-      haclient::applyOnOff(stateOf(deviceconfig::hubItems[i].actionEntity), haclient::hubToggleOn[i]);
+      haclient::applyHubToggle(stateOf(deviceconfig::hubItems[i].actionEntity), deviceconfig::hubItems[i].actionEntity,
+                               haclient::hubToggleOn[i]);
       changed |= before != haclient::hubToggleOn[i];
     }
     if (changed) hubDirty = true;

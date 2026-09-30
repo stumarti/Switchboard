@@ -1,0 +1,41 @@
+# The manual's sidebar, in order. `page` is the path under manual/.
+- title: Start here
+  pages:
+    - { title: Overview, page: index }
+    - { title: Getting started, page: getting-started }
+    - { title: Try the demo, page: demo }
+
+- title: The remote
+  pages:
+    - { title: Screens, page: remote/screens }
+    - { title: Quick Access and the shade, page: remote/navigation }
+    - { title: Settings, page: remote/settings }
+    - { title: Pairing, page: remote/pairing }
+    - { title: Updates, page: remote/updates }
+    - { title: When something's wrong, page: remote/errors }
+
+- title: The server
+  pages:
+    - { title: Home, page: server/home }
+    - { title: Remote layouts, page: server/remote-layouts }
+    - { title: Remotes, page: server/remotes }
+    - { title: Viewports, page: server/viewports }
+    - { title: Settings, page: server/settings }
+    - { title: Theme, page: server/theme }
+    - { title: Remote updates, page: server/remote-updates }
+    - { title: Battery life, page: server/battery-life }
+    - { title: Pairing & auth, page: server/pairing-and-auth }
+
+- title: Running it
+  pages:
+    - { title: Configuration, page: server/configuration }
+    - { title: Security, page: server/security }
+
+- title: Building on it
+  pages:
+    - { title: Building the firmware, page: remote/building }
+    - { title: Releases, page: remote/releases }
+    - { title: Server development, page: server/development }
+    - { title: API, page: server/api }
+    - { title: Profile format, page: server/profile-format }
+    - { title: Screenshots, page: screenshots }

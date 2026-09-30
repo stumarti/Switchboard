@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if page.title and page.title != "Switchboard manual" %}{{ page.title }} · {% endif %}Switchboard manual</title>
+<link rel="stylesheet" href="{{ '/assets/manual.css' | relative_url }}">
+</head>
+<body>
+{%- assign here = page.url | remove: '.html' | remove_first: '/manual/' -%}
+{%- if here == '' or here == '/' -%}{%- assign here = 'index' -%}{%- endif -%}
+{%- assign flat = '' | split: '' -%}
+{%- for group in site.data.manual -%}{%- assign flat = flat | concat: group.pages -%}{%- endfor -%}
+<header class="top">
+  <button class="menu" type="button" aria-label="Menu" onclick="document.body.classList.toggle('nav-open')">☰</button>
+  <a class="brand" href="{{ '/manual/' | relative_url }}">Switchboard <span>manual</span></a>
+  <a class="flash" href="{{ '/' | relative_url }}">⚡ Web flasher</a>
+</header>
+<div class="shell">
+  <nav class="side">
+    {%- for group in site.data.manual %}
+    <div class="group">{{ group.title }}</div>
+    <ul>
+      {%- for p in group.pages %}
+      <li><a href="{{ '/manual/' | append: p.page | append: '.html' | relative_url }}"{% if p.page == here %} class="on" aria-current="page"{% endif %}>{{ p.title }}</a></li>
+      {%- endfor %}
+    </ul>
+    {%- endfor %}
+    <div class="group">Source</div>
+    <ul>
+      <li><a href="https://github.com/stumarti/Switchboard">Firmware on GitHub</a></li>
+      <li><a href="https://github.com/stumarti/Switchboard-Server">Server on GitHub</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    {{ content }}
+    <footer class="pager">
+      {%- for p in flat -%}
+        {%- if p.page == here -%}
+          {%- assign prev = forloop.index0 | minus: 1 -%}
+          {%- assign next = forloop.index0 | plus: 1 -%}
+          {%- if forloop.index0 > 0 -%}{%- assign pp = flat[prev] -%}<a class="prev" href="{{ '/manual/' | append: pp.page | append: '.html' | relative_url }}">← {{ pp.title }}</a>{%- endif -%}
+          {%- if next < flat.size -%}{%- assign np = flat[next] -%}<a class="next" href="{{ '/manual/' | append: np.page | append: '.html' | relative_url }}">{{ np.title }} →</a>{%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+    </footer>
+  </main>
+</div>
+</body>
+</html>

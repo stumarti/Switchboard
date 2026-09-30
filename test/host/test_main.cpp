@@ -239,6 +239,18 @@ static void testHub() {
   CHECK(hubStateActive("vacuum", "cleaning") && !hubStateActive("vacuum", "docked"));
   CHECK(hubStateActive("media_player", "playing") && !hubStateActive("media_player", "off"));
   CHECK(hubStateActive("light", "on") && !hubStateActive("switch", "off"));
+  {
+    // The server's state for a hub toggle follows the same rules: an open
+    // cover, a locked lock and a playing speaker are all "on".
+    JsonDocument hub;
+    deserializeJson(hub, R"({"cover.b": {"state": "open"}, "lock.d": {"state": "locked"}, "media_player.s": {"state": "playing"}, "switch.c": {"state": "off"}})");
+    bool b = false, d = false, sp = false, c = true, gone = true;
+    CHECK(applyHubToggle(hub["cover.b"], "cover.b", b) && b);
+    CHECK(applyHubToggle(hub["lock.d"], "lock.d", d) && d);
+    CHECK(applyHubToggle(hub["media_player.s"], "media_player.s", sp) && sp);
+    CHECK(applyHubToggle(hub["switch.c"], "switch.c", c) && !c);
+    CHECK(!applyHubToggle(hub["switch.x"], "switch.x", gone) && gone);
+  }
   CHECK_STR(hubToggleService("cover", true), "open_cover");
   CHECK_STR(hubToggleService("vacuum", false), "return_to_base");
   CHECK_STR(hubToggleService("lock", true), "lock");
