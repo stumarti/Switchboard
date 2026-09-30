@@ -19,6 +19,7 @@ Every Switchboard remote already talks to this: `Settings → Select room` calls
 | GET | `/api/overview` | The Home page: device counts and health, what needs attention, how requests to Home Assistant are going | session |
 | PUT | `/api/clients/<mac>` | Set a device's `name`, `type`, `room` or `layout` (`layout: null` goes back to the defaults) | session |
 | GET | `/api/clients/schema` | The pages, tile types, sizes and refresh intervals the layout builders offer | session |
+| GET | `/api/ha/publish` | Battery publishing to Home Assistant: on or off, the sensors, the last sync and any error | session |
 | GET | `/api/ha/status` | Whether the server can reach Home Assistant with the saved connection | session |
 | GET | `/api/ha/entities` | Search HA's entities (`domains`, `q`, `deviceClass`, `limit`) for the admin UI's pickers | session |
 | POST | `/api/ha/lookup` | Look up specific entity ids (`{ids: [...]}`): each entity, or `null` if HA doesn't have it | session |

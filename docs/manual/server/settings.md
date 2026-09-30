@@ -8,6 +8,8 @@ Settings are shared by every room and device. The server's clock is shown beside
 
 The address, port and long-lived access token the server uses to reach Home Assistant. The server fetches Home Assistant's state for every device; a remote only asks Home Assistant itself when the server can't reach it.
 
+The same tab can **publish every device's battery to Home Assistant** as sensors, off by default. See [Battery life](battery-life.md#in-home-assistant).
+
 ## Wi-Fi
 
 <figure class="shot"><img src="../images/admin/settings-wifi.png" alt="Settings, Wi-Fi"><figcaption>The network remotes join, and the networks they show as QR codes.</figcaption></figure>

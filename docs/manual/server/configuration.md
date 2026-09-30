@@ -24,4 +24,4 @@ If this repo is private, GHCR images are private by default too — `docker logi
 
 ## Where data lives
 
-Everything is stored under `DATA_DIR` (`/data` in the container): room profiles, `_globals.json`, viewport layouts, paired devices, the compiled theme, firmware builds (`firmware/`) and battery history (`_battery-history.json`). Back up that one folder.
+Everything is stored under `DATA_DIR` (`/data` in the container): room profiles, `_globals.json`, viewport layouts, paired devices, the compiled theme, firmware builds (`firmware/`) battery history (`_battery-history.json`) and which battery sensors were published to Home Assistant (`_ha-published.json`). Back up that one folder.
