@@ -31,7 +31,7 @@ A smart-home remote for the **Xteink X4 Pro** e-reader. One e-ink panel, four bu
 ## Quick start
 
 1. **Get Switchboard Server running first.** Follow its [README](https://github.com/stumarti/Switchboard-Server) — it's a couple of minutes with `docker compose up -d`. Set an admin password on first open, then create at least one room (e.g. "Kitchen") and fill in its Home Assistant entities before moving on.
-2. **Flash the device.** Plug the X4 Pro into your computer over USB and use the [browser flasher](https://stumarti.github.io/Switchboard/) (Chrome or Edge on desktop). Prefer to build it yourself? See [Building from source](wiki/Building-from-Source.md).
+2. **Flash the device.** Plug the X4 Pro into your computer over USB and use the [browser flasher](https://stumarti.github.io/Switchboard/) (Chrome or Edge on desktop). Prefer to build it yourself? See [Building the firmware](https://stumarti.github.io/Switchboard/manual/remote/building.html).
 3. **First boot.** The device shows a splash, then walks you through joining your Wi-Fi (pick your network, type the password on the on-screen keyboard).
 4. **Pair with the server.** The device registers itself and asks you to approve it. Open Switchboard Server's **Remotes** page, approve it there (optionally picking its room in the same step), then **press any button on the remote** to continue.
 5. **(Optional) Pick a different room later**, or if you didn't assign one at approval time: tap the **Home** key → **Settings** → **Select room**.
@@ -41,17 +41,16 @@ That's it — the carousel now shows whatever you set up for that room on the se
 ## Using it
 
 - **Left/Right** step through the room's pages: Status, Lighting, Blinds, Music, TV, Receiver, Xbox, Wi-Fi and Climate.
-- **Tap Home** for the jump list; **hold Home** for the backlight shade.
-- **Settings** (from the jump list) picks the room, shows device info, and holds the timeouts and developer tools.
+- **Tap Home** for Quick Access (or the jump list); **hold Home** for the backlight shade.
+- **Settings** (from Quick Access) picks the room, shows device info, and holds the timeouts and developer tools.
 
-## Documentation
+## Manual
 
-The in-depth guide lives in the [wiki](wiki/Home.md):
+**[The Switchboard manual](https://stumarti.github.io/Switchboard/manual/)** covers the remote and the server, with screenshots of every screen. It's served by GitHub Pages from [`docs/manual/`](docs/manual/), beside the web flasher.
 
-- [Screens](wiki/Screens.md) — every page, the jump list, the shade and Settings
-- [Pairing](wiki/Pairing.md) and [Theme](wiki/Theme.md)
-- [Updates](wiki/Updates.md) — over-the-air firmware updates
-- [Self-test](wiki/Self-Test.md) — the hardware button checker
-- [Building from source](wiki/Building-from-Source.md) and [Releases](wiki/Releases.md)
+- [Getting started](https://stumarti.github.io/Switchboard/manual/getting-started.html)
+- The remote: [screens](https://stumarti.github.io/Switchboard/manual/remote/screens.html), [Quick Access and the shade](https://stumarti.github.io/Switchboard/manual/remote/navigation.html), [settings](https://stumarti.github.io/Switchboard/manual/remote/settings.html), [updates](https://stumarti.github.io/Switchboard/manual/remote/updates.html)
+- [Building the firmware](https://stumarti.github.io/Switchboard/manual/remote/building.html) and [releases](https://stumarti.github.io/Switchboard/manual/remote/releases.html)
+- [Try the demo](https://stumarti.github.io/Switchboard/manual/demo.html): the server with a pretend Home Assistant, no hardware needed
 
 The remote is a client: it doesn't talk to Home Assistant directly and carries no room setup on board. All of that lives in [Switchboard Server](https://github.com/stumarti/Switchboard-Server), which it finds on your network via mDNS (`switchboard.local:45678` by default).

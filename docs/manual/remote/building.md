@@ -1,4 +1,4 @@
-# Building from source
+# Building the firmware
 
 ## Hardware it targets
 
@@ -41,6 +41,8 @@ The firmware version comes from `git describe` (`tools/gen_version.py`): a build
 
 `./test/host/run.sh` builds the firmware's pure logic — the Home Assistant state parsers every page uses, the HTTP helpers' host-name handling, the refresh schedule and the update policy — with `g++` on your PC and runs it; no hardware or PlatformIO needed (it fetches ArduinoJson on first run). CI runs it on every push and pull request, beside the firmware build.
 
+`tools/screenshots/run.sh` goes further: it compiles the whole firmware for your PC and draws every screen, talking to a real server (see [Screenshots](../screenshots.md)).
+
 ## Source layout
 
 ```
@@ -58,12 +60,13 @@ tools/
   gen_version.py         derives FIRMWARE_VERSION from git describe
   gen_atkinson_fonts.sh  regenerates fonts from tools/fonts/*.ttf
   gen_weather_icons.py   regenerates icons from tools/weather_svg/*.svg
+  screenshots/           draws the remote's screens for this manual
 test/host/            host-side unit tests
-docs/
-  index.html          the browser flasher, served via GitHub Pages
+docs/                 GitHub Pages
+  index.html          the browser flasher
   firmware/           latest release's flashable image + manifest.json
   images/             the README's gallery photos
-wiki/                 this wiki
+  manual/             this manual
 ```
 
 ## Rendering notes
