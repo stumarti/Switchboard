@@ -1138,6 +1138,16 @@ inline bool fetchHubToggleState(const char* host, uint16_t port, const char* tok
   return true;
 }
 
+// The same, from a state the server already sent (app/data_refresh.h).
+inline bool applyHubToggle(JsonVariantConst doc, const char* entity, bool& out) {
+  const char* st = doc["state"] | "";
+  if (!st[0] || !entity) return false;
+  char domain[24];
+  domainOf(entity, domain, sizeof(domain));
+  out = hubStateActive(domain, st);
+  return true;
+}
+
 // Toggle-type quick action: <domain>.turn_on / turn_off, or the domain's
 // own pair (hubToggleService()), so there's no per-direction override to
 // plumb through hub.items[]'s single `service` field (that field is for
