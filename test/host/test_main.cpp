@@ -363,6 +363,21 @@ static void testOtaPolicy() {
   CHECK(deserializeJson(off, R"({"firmware":{"enabled":false,"button":true}})") == DeserializationError::Ok);
   deviceconfig::applyJson(off.as<JsonVariantConst>());
   CHECK(!deviceconfig::fwEnabled && !deviceconfig::fwButton);
+
+  // The Developer menu: shown unless the server hides it; hidden, its bench
+  // toggles stop counting (a stay-awake switch nobody can reach).
+  CHECK(deviceconfig::developerMenu);  // not in that config: shown
+  localsettings::standbyDisabled = true;
+  localsettings::pixelGrid = true;
+  localsettings::quickActionsEnabled = false;
+  CHECK(deviceconfig::devStandbyDisabled() && deviceconfig::devPixelGrid() && !deviceconfig::devQuickActionsOn());
+  JsonDocument hidden;
+  CHECK(deserializeJson(hidden, R"({"developerMenu":false})") == DeserializationError::Ok);
+  deviceconfig::applyJson(hidden.as<JsonVariantConst>());
+  CHECK(!deviceconfig::developerMenu);
+  CHECK(!deviceconfig::devStandbyDisabled() && !deviceconfig::devPixelGrid() && deviceconfig::devQuickActionsOn());
+  localsettings::standbyDisabled = localsettings::pixelGrid = false;
+  localsettings::quickActionsEnabled = true;
 }
 
 int main() {

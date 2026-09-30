@@ -115,9 +115,9 @@ static int jumpHitTest(int16_t tx, int16_t ty) {
 // Assistant at all — plain navigation never did and still doesn't.
 static int hubPage = 0;
 // The room's hub.quickActionsEnabled, unless this remote's Developer toggle
-// has turned quick actions off.
+// has turned quick actions off (while its Developer menu is shown).
 inline bool quickActionsOn() {
-  return deviceconfig::hubQuickActions && localsettings::quickActionsEnabled;
+  return deviceconfig::hubQuickActions && deviceconfig::devQuickActionsOn();
 }
 static constexpr int kHubPerPage = kJumpCount;  // reuses the same 2x5 grid
 

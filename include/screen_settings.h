@@ -34,6 +34,16 @@ inline const SettingsItem kItems[] = {
     {"Back",        &icons::get("wx_ui_back")},
 };
 inline constexpr int kCount = 8;
+inline constexpr int kDeveloper = 5;  // hidden when the server says so
+// The rows on screen, top to bottom: kItems indices. `sel`, `pressed` and
+// hit tests count rows; activate() takes a row too.
+inline int rowItems[kCount];
+inline int rowCount() {
+  int n = 0;
+  for (int i = 0; i < kCount; ++i)
+    if (i != kDeveloper || deviceconfig::developerMenu) rowItems[n++] = i;
+  return n;
+}
 inline int sel = 0;
 // The row actually being pressed right now (tap, or Power on the cursor row)
 // — filled black for that one frame of feedback, same convention as the
@@ -83,9 +93,11 @@ inline void drawList() {
   ui.clear();
   drawStatusBar("Settings", false, &icons::get("wx_ui_cog"));
   const int16_t top = kListTop;
-  for (int i = 0; i < kCount; ++i) {
-    const int16_t y = static_cast<int16_t>(top + i * kRowH);
-    const bool press = i == pressed;
+  const int rows = rowCount();
+  for (int r = 0; r < rows; ++r) {
+    const int i = rowItems[r];
+    const int16_t y = static_cast<int16_t>(top + r * kRowH);
+    const bool press = r == pressed;
     // No box for the Left/Right cursor row — `sel` only tracks which row
     // Power will activate; the dotted separators alone divide the list.
     if (press)
@@ -105,7 +117,7 @@ inline void drawList() {
     ui.text(subtitleFor(i), textX, static_cast<int16_t>(y + kRowH / 2 + 4), textW, 28,
             TextAlign::Left, subFg);
 
-    if (i < kCount - 1)
+    if (r < rows - 1)
       drawDottedLine(kRowPadX, static_cast<int16_t>(y + kRowH - 1),
                     static_cast<int16_t>(Ui::W - 2 * kRowPadX));
   }
@@ -114,7 +126,7 @@ inline int listHitTest(int16_t ty) {
   const int16_t top = kListTop;
   if (ty < top) return -1;
   const int i = (ty - top) / kRowH;
-  if (i < 0 || i >= kCount) return -1;
+  if (i < 0 || i >= rowCount()) return -1;
   return i;
 }
 
@@ -134,8 +146,9 @@ inline void enter() {
 
 inline int hitTest(int16_t ty) { return listHitTest(ty); }
 
-inline void activate(int i) {
-  switch (i) {
+inline void activate(int row) {
+  if (row < 0 || row >= rowCount()) return;
+  switch (rowItems[row]) {
     case 0: screen_room_pick::enter(); break;
     case 1: screen_settings_info::enter(); break;
     case 2:  // Wi-Fi setup: forget the network, reboot into provisioning
@@ -155,7 +168,7 @@ inline void activate(int i) {
       enterStandby();
       break;
     case 4: screen_timeouts::enter(); break;   // Timeouts
-    case 5: screen_developer::enter(); break;  // Developer
+    case kDeveloper: screen_developer::enter(); break;  // Developer
     case 6: restartDevice(); break;            // Restart
     default: carouselPage = 0; enterStandby(); break;  // Back
   }

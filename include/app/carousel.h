@@ -269,7 +269,7 @@ static uint32_t carouselSleepTimerSec() {
 // this can't be [[noreturn]]. Every caller returns right after it, so a
 // returning call is handled the same as a sleeping one.
 static void standbySleepNow() {
-  if (localsettings::standbyDisabled) {
+  if (deviceconfig::devStandbyDisabled()) {
     standbyIdleSinceMs = millis();  // don't re-trigger next loop() tick
     return;
   }
@@ -286,7 +286,7 @@ static void standbySleepNow() {
 // fall back to the status page and sleep exactly like the carousel does, so
 // no screen can keep the device awake until the battery is flat.
 static void sleepFromIdleScreen() {
-  if (localsettings::standbyDisabled) {  // bench aid: stay on this screen, awake
+  if (deviceconfig::devStandbyDisabled()) {  // bench aid: stay on this screen, awake
     standbyIdleSinceMs = millis();
     return;
   }

@@ -127,6 +127,15 @@ inline char fwOfferVersion[48] = "";
 inline uint32_t fwOfferSize = 0;
 inline char fwOfferSha[65] = "";
 
+// developerMenu — whether Settings on the remote has its Developer menu (the
+// room's, or this remote's own layout, on the server). Hidden, its bench
+// toggles are off too: a remote on the wall can't be left awake, or with a
+// grid on it, by a switch nobody can reach.
+inline bool developerMenu = true;
+inline bool devPixelGrid() { return developerMenu && localsettings::pixelGrid; }
+inline bool devStandbyDisabled() { return developerMenu && localsettings::standbyDisabled; }
+inline bool devQuickActionsOn() { return !developerMenu || localsettings::quickActionsEnabled; }
+
 // lighting.group — the room's main light (Lighting carousel page).
 inline bool lightGroupEnabled = false;
 inline char lightGroupName[32] = "";
@@ -365,6 +374,7 @@ inline void reset() {
   receiverChannelCount = 0;
   hubItemCount = 0;
   hubQuickActions = true;
+  developerMenu = true;
 }
 
 // Fill every field from a /api/devices/<slug>/config document — the same
@@ -525,6 +535,7 @@ inline void applyJson(JsonVariantConst doc) {
     ++xboxGameCount;
   }
 
+  developerMenu = doc["developerMenu"] | true;
   JsonObjectConst hub = doc["hub"].as<JsonObjectConst>();
   hubQuickActions = hub["quickActionsEnabled"] | true;
   for (JsonObjectConst it : hub["items"].as<JsonArrayConst>()) {

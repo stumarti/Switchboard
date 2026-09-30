@@ -89,7 +89,7 @@ inline void drawPixelGrid() {
 // no partial, no power): a data refresh that changed nothing, or a
 // confirmation repaint that matches the optimistic one, costs no refresh.
 inline void commitFrame(Rf r) {
-  if (localsettings::pixelGrid) drawPixelGrid();
+  if (deviceconfig::devPixelGrid()) drawPixelGrid();
   if (ui.frameIsShown()) return;
   if (r == Rf::Full) {
     ui.flushFull();

@@ -221,10 +221,10 @@ static void tickCarousel(const InFrame& in) {
 // ===========================================================================
 
 // No Home Assistant: any key retries (back to the carousel + a fresh fetch),
-// Home opens Settings, hold Home opens the self-test. Idle sleeps and
-// retries in 30 min.
+// Home opens Settings, hold Home opens the self-test (with the Developer
+// menu shown). Idle sleeps and retries in 30 min.
 static void tickNoHA(const InFrame& in) {
-  if (in.homeLong) { screen_debug::enter(); return; }
+  if (in.homeLong && deviceconfig::developerMenu) { screen_debug::enter(); return; }  // unless hidden
   if (in.homeTap) { screen_settings::enter(); return; }  // "open configuration"
   if (in.btnLeft || in.btnRight || in.btnPower || in.tap || in.touchPress) {
     // RETRY: back to the carousel, re-run the fetch
@@ -250,7 +250,7 @@ static void tickNoHA(const InFrame& in) {
 // No room config: same shape as No-HA, but Home goes straight to the room
 // picker.
 static void tickNoRoom(const InFrame& in) {
-  if (in.homeLong) { screen_debug::enter(); return; }
+  if (in.homeLong && deviceconfig::developerMenu) { screen_debug::enter(); return; }  // unless hidden
   if (in.homeTap)  { screen_room_pick::enter(); return; }  // "open Settings" -> pick a room
   if (in.btnLeft || in.btnRight || in.btnPower || in.tap || in.touchPress) {
     carouselPage = 0;
@@ -310,8 +310,9 @@ static void tickErrPreview(const InFrame& in) {
 // Settings list: Left/Right move the cursor, Power or a tap activates a row.
 static void tickSettings(const InFrame& in) {
   if (in.homeTap) { carouselPage = 0; enterStandby(); return; }
-  if (in.btnLeft)  { screen_settings::sel = (screen_settings::sel + screen_settings::kCount - 1) % screen_settings::kCount; screen_settings::pressed = -1; screen_settings::draw(); return; }
-  if (in.btnRight) { screen_settings::sel = (screen_settings::sel + 1) % screen_settings::kCount; screen_settings::pressed = -1; screen_settings::draw(); return; }
+  const int rows = screen_settings::rowCount();  // the Developer row may be hidden
+  if (in.btnLeft)  { screen_settings::sel = (screen_settings::sel + rows - 1) % rows; screen_settings::pressed = -1; screen_settings::draw(); return; }
+  if (in.btnRight) { screen_settings::sel = (screen_settings::sel + 1) % rows; screen_settings::pressed = -1; screen_settings::draw(); return; }
   // Flash the row black for one frame before acting on it, same as a
   // touch tap below — Power alone (no prior highlight change) reads as a
   // press on the cursor row too.

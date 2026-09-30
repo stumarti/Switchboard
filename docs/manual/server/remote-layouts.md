@@ -26,6 +26,10 @@ Each page has its own card: the Status page's weather and indoor climate, then l
 - **Receiver:** an Enigma2 box's media player and up to six favourite channels. It works from Home Assistant's Enigma2 integration alone (channel, programme on now, and the channel's picon if the integration's "Use channel icon" is on). Give the room the box's address (its OpenWebif, such as `http://192.168.1.50` or `http://root:password@vu.local`) and the server also reads the programme on next and each favourite's picon; **Check** shows what the box reports. The address stays on the server: remotes never see it.
 - **Climate:** the thermostat, and any other temperature sensors to show.
 
+## Settings on the remote
+
+Under **Refresh & settings**, **Developer menu** (on by default) says whether the room's remotes have the Developer menu in their Settings: the pixel grid, stay awake, the Quick Access strips switch, the button checker, the error screens and the hard reset. Switch it off for remotes that aren't for tinkering. Hidden, those switches stop counting too, so nobody can leave a remote awake, or with a grid on it, by a switch they can't get back to. A remote customised on its own page has its own switch. It takes effect at each remote's next refresh.
+
 ## Quick Access
 
 <figure class="shot"><img src="../images/admin/remote-layout-quick-access.png" alt="The Quick Access card"><figcaption>The buttons a Home tap shows on the remote.</figcaption></figure>
