@@ -301,6 +301,16 @@ inline int localHour() {
   return static_cast<int>(local / 3600);
 }
 
+// "02:13", local time now; "" without a clock this boot.
+inline void localTimeText(char* out, size_t cap) {
+  out[0] = 0;
+  int64_t now = 0;
+  if (!haclient::nowUtc(now)) return;
+  int64_t local = (now + static_cast<int64_t>(deviceconfig::utcOffsetMin) * 60) % 86400;
+  if (local < 0) local += 86400;
+  snprintf(out, cap, "%02d:%02d", static_cast<int>(local / 3600), static_cast<int>((local % 3600) / 60));
+}
+
 // A timer wake that should install the server's offer now.
 inline bool scheduledDue(uint8_t battPct) {
   return otapolicy::scheduledDue(deviceconfig::fwEnabled && deviceconfig::fwFromHour >= 0, deviceconfig::fwOfferVersion,
