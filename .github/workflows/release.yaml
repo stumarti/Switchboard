@@ -20,10 +20,25 @@ jobs:
           path: switchboard
           fetch-depth: 0   # full history so `git describe` (gen_version.py) sees the tag
 
+      # Only a commit already on develop (reviewed, CI green) may become a
+      # release: a tag pushed on some other branch stops here.
+      - name: The tagged commit must be on develop
+        working-directory: switchboard
+        run: |
+          git fetch --no-tags origin develop
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/develop || {
+            echo "::error::${{ github.ref_name }} isn't on develop; tag a commit from develop."
+            exit 1
+          }
+
       - name: Check out freeink-sdk
         uses: actions/checkout@v7
         with:
           repository: Free-Ink/freeink-sdk
+          # Pinned: a release must build from SDK code someone has looked at,
+          # not whatever is on its default branch that day. Bump deliberately
+          # (build and try it first), in its own commit.
+          ref: a1cf5b4be3e5259f856fe0497129e360e4e1346d
           path: freeink-sdk
 
       - name: Set up Python
@@ -67,10 +82,28 @@ jobs:
             0x10000 "$BUILD_DIR/firmware.bin"
           echo "MERGED_BIN=$OUT" >> "$GITHUB_ENV"
 
+      # The app image alone (what a remote installs over the air from the
+      # Switchboard server's Settings -> Remote updates), and its SHA-256:
+      # the server checks the download against it before accepting it.
+      - name: App image for over-the-air updates
+        working-directory: switchboard
+        run: |
+          set -euo pipefail
+          APP="switchboard-app-${{ github.ref_name }}.bin"
+          cp .pio/build/x4pro/firmware.bin "$APP"
+          sha256sum "$APP" > "$APP.sha256"
+          # The build must say it is this tag (tools/gen_version.py), or the
+          # server would refuse it.
+          grep -a -q "SWITCHBOARD_FW:${{ github.ref_name }}" "$APP"
+          echo "APP_BIN=$APP" >> "$GITHUB_ENV"
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          files: switchboard/${{ env.MERGED_BIN }}
+          files: |
+            switchboard/${{ env.MERGED_BIN }}
+            switchboard/${{ env.APP_BIN }}
+            switchboard/${{ env.APP_BIN }}.sha256
           generate_release_notes: true
 
       # Push the latest merged image + manifest to docs/firmware/ on

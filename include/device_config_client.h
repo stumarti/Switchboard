@@ -111,6 +111,20 @@ inline bool refreshAligned = false;
 inline int16_t utcOffsetMin = 0;
 inline uint16_t refreshStaggerSec = 0;
 
+// firmware.* — over-the-air updates, from the server's Settings -> Remote
+// updates (off unless switched on there). fwOffer* is what the server wants
+// this remote to install now (empty = nothing); ota_update.h asks again
+// before installing. fwFromHour/fwToHour: the scheduled window in local
+// time, -1 = no schedule.
+inline bool fwEnabled = false;
+inline bool fwButton = false;
+inline int8_t fwFromHour = -1;
+inline int8_t fwToHour = -1;
+inline uint8_t fwMinBattery = 30;
+inline char fwOfferVersion[48] = "";
+inline uint32_t fwOfferSize = 0;
+inline char fwOfferSha[65] = "";
+
 // lighting.group — the room's main light (Lighting carousel page).
 inline bool lightGroupEnabled = false;
 inline char lightGroupName[32] = "";
@@ -321,6 +335,11 @@ inline void reset() {
   refreshAligned = false;
   utcOffsetMin = 0;
   refreshStaggerSec = 0;
+  fwEnabled = fwButton = false;
+  fwFromHour = fwToHour = -1;
+  fwMinBattery = 30;
+  fwOfferVersion[0] = fwOfferSha[0] = 0;
+  fwOfferSize = 0;
   lightGroupEnabled = lightGroupBrightness = lightGroupColorTemp = false;
   lightGroupColor = lightGroupEffects = false;
   lightGroupName[0] = lightGroupEntity[0] = 0;
@@ -368,6 +387,31 @@ inline void applyJson(JsonVariantConst doc) {
   refreshAligned = sb["refreshAligned"] | false;
   const int off = sb["utcOffsetMin"] | 0;
   utcOffsetMin = static_cast<int16_t>(off < -14 * 60 ? -14 * 60 : (off > 14 * 60 ? 14 * 60 : off));
+  JsonObjectConst fw = doc["firmware"].as<JsonObjectConst>();
+  fwEnabled = fw["enabled"] | false;
+  if (fwEnabled) {
+    fwButton = fw["button"] | false;
+    JsonObjectConst win = fw["schedule"].as<JsonObjectConst>();
+    if (!win.isNull()) {
+      const int from = win["fromHour"] | -1, to = win["toHour"] | -1;
+      if (from >= 0 && from <= 23 && to >= 0 && to <= 23) {
+        fwFromHour = static_cast<int8_t>(from);
+        fwToHour = static_cast<int8_t>(to);
+      }
+    }
+    const int minBatt = fw["minBattery"] | 30;
+    fwMinBattery = static_cast<uint8_t>(minBatt < 10 ? 10 : (minBatt > 90 ? 90 : minBatt));
+    JsonObjectConst offer = fw["offer"].as<JsonObjectConst>();
+    const char* ver = offer["version"] | "";
+    const char* sha = offer["sha256"] | "";
+    const uint32_t size = offer["size"] | 0u;
+    // Only a complete offer: a version, a size and a 64-hex SHA-256.
+    if (ver[0] && strlen(ver) < sizeof(fwOfferVersion) && size > 0 && strlen(sha) == 64) {
+      snprintf(fwOfferVersion, sizeof(fwOfferVersion), "%s", ver);
+      snprintf(fwOfferSha, sizeof(fwOfferSha), "%s", sha);
+      fwOfferSize = size;
+    }
+  }
   const int stagger = sb["refreshStaggerSec"] | 0;
   // Any length: refresh_schedule.h wraps one longer than the interval.
   refreshStaggerSec = static_cast<uint16_t>(stagger < 0 ? 0 : (stagger > 65535 ? 65535 : stagger));

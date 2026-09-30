@@ -14,6 +14,7 @@
 #include "ha_client.h"
 #include "device_config_client.h"
 #include "refresh_schedule.h"
+#include "ota_policy.h"
 
 static int g_failures = 0;
 static int g_checks = 0;
@@ -311,7 +312,43 @@ static void testRefreshSchedule() {
   CHECK(!deviceconfig::refreshAligned && deviceconfig::refreshStaggerSec == 0);  // an older server
 }
 
+static void testOtaPolicy() {
+  std::puts("ota: update window, battery, retries, the server's offer");
+  using namespace otapolicy;
+  CHECK(inWindow(3, 2, 5) && !inWindow(5, 2, 5) && !inWindow(1, 2, 5));
+  CHECK(inWindow(23, 22, 4) && inWindow(2, 22, 4) && !inWindow(12, 22, 4));  // past midnight
+  CHECK(!inWindow(-1, 2, 5));  // no clock: never
+  CHECK(scheduledDue(true, "v0.2.0", 3, 2, 5, 80, 30, 0));
+  CHECK(!scheduledDue(true, "", 3, 2, 5, 80, 30, 0));           // nothing offered
+  CHECK(!scheduledDue(true, "v0.2.0", 3, 2, 5, 25, 30, 0));     // battery too low
+  CHECK(!scheduledDue(true, "v0.2.0", 3, 2, 5, 0, 30, 0));      // battery not read yet
+  CHECK(!scheduledDue(true, "v0.2.0", 3, 2, 5, 80, 30, kMaxScheduledTries));  // gave up on it
+  CHECK(!scheduledDue(false, "v0.2.0", 3, 2, 5, 80, 30, 0));
+
+  JsonDocument doc;
+  CHECK(deserializeJson(doc, R"({"firmware":{"enabled":true,"button":true,"schedule":{"fromHour":2,"toHour":5},
+    "minBattery":40,"offer":{"version":"v0.2.0","size":1510672,
+    "sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}})") == DeserializationError::Ok);
+  deviceconfig::applyJson(doc.as<JsonVariantConst>());
+  CHECK(deviceconfig::fwEnabled && deviceconfig::fwButton);
+  CHECK(deviceconfig::fwFromHour == 2 && deviceconfig::fwToHour == 5 && deviceconfig::fwMinBattery == 40);
+  CHECK_STR(deviceconfig::fwOfferVersion, "v0.2.0");
+  CHECK(deviceconfig::fwOfferSize == 1510672);
+  // An incomplete offer (a short checksum) is no offer; updates off = nothing.
+  JsonDocument bad;
+  CHECK(deserializeJson(bad, R"({"firmware":{"enabled":true,"offer":{"version":"v0.2.0","size":10,"sha256":"abc"}}})") ==
+        DeserializationError::Ok);
+  deviceconfig::applyJson(bad.as<JsonVariantConst>());
+  CHECK_STR(deviceconfig::fwOfferVersion, "");
+  CHECK(!deviceconfig::fwButton && deviceconfig::fwFromHour == -1);
+  JsonDocument off;
+  CHECK(deserializeJson(off, R"({"firmware":{"enabled":false,"button":true}})") == DeserializationError::Ok);
+  deviceconfig::applyJson(off.as<JsonVariantConst>());
+  CHECK(!deviceconfig::fwEnabled && !deviceconfig::fwButton);
+}
+
 int main() {
+  testOtaPolicy();
   testRefreshSchedule();
   testHub();
   testParsers();

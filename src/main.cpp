@@ -79,7 +79,19 @@
 #include "app/stages.h"
 #include "app/boot.h"
 
-void setup() { boot::run(); }
+// Embedded in the image so the server can tell a Switchboard remote build,
+// and its version, from any other file (lib/firmware.js inspect()).
+extern "C" __attribute__((used)) const char kSwitchboardFirmwareMarker[] = "SWITCHBOARD_FW:" FIRMWARE_VERSION;
+
+// Don't let the Arduino core mark a freshly installed update good at boot:
+// ota::confirm() does, once this firmware has reached the server. Until then
+// a reset (a crash, or a deep-sleep wake) returns to the previous firmware.
+extern "C" bool verifyRollbackLater() { return true; }
+
+void setup() {
+  Serial.printf("[boot] %s\n", kSwitchboardFirmwareMarker);
+  boot::run();
+}
 
 void loop() {
   const InFrame in = readInputFrame();
