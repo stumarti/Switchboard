@@ -115,8 +115,10 @@ inline uint16_t refreshStaggerSec = 0;
 // updates (off unless switched on there). fwOffer* is what the server wants
 // this remote to install now (empty = nothing); ota_update.h asks again
 // before installing. fwFromHour/fwToHour: the scheduled window in local
-// time, -1 = no schedule.
+// time, -1 = no schedule. fwNow: "Update now" on the server — install the
+// offer at the next timer wake, whatever the window.
 inline bool fwEnabled = false;
+inline bool fwNow = false;
 inline bool fwButton = false;
 inline int8_t fwFromHour = -1;
 inline int8_t fwToHour = -1;
@@ -335,7 +337,7 @@ inline void reset() {
   refreshAligned = false;
   utcOffsetMin = 0;
   refreshStaggerSec = 0;
-  fwEnabled = fwButton = false;
+  fwEnabled = fwButton = fwNow = false;
   fwFromHour = fwToHour = -1;
   fwMinBattery = 30;
   fwOfferVersion[0] = fwOfferSha[0] = 0;
@@ -391,6 +393,7 @@ inline void applyJson(JsonVariantConst doc) {
   fwEnabled = fw["enabled"] | false;
   if (fwEnabled) {
     fwButton = fw["button"] | false;
+    fwNow = fw["now"] | false;
     JsonObjectConst win = fw["schedule"].as<JsonObjectConst>();
     if (!win.isNull()) {
       const int from = win["fromHour"] | -1, to = win["toHour"] | -1;

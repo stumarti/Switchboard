@@ -7,6 +7,9 @@
 //   scheduledDue   a timer wake inside the server's update window, with an
 //                  offer, enough battery, and fewer than kMaxScheduledTries
 //                  failed tries at this version already
+//   nowDue         "Update now" on the server: any timer wake, whatever the
+//                  window (the server stops asking once this remote has
+//                  reported an attempt, so there's no retry cap here)
 //   inWindow       an hour within [from, to), wrapping past midnight
 // ===========================================================================
 
@@ -33,6 +36,10 @@ inline bool scheduledDue(bool enabled, const char* offerVersion, int localHour, 
                          uint8_t battPct, uint8_t minBatt, uint8_t triesAtThisVersion) {
   return enabled && offerVersion && offerVersion[0] && inWindow(localHour, from, to) &&
          batteryOk(battPct, minBatt) && triesAtThisVersion < kMaxScheduledTries;
+}
+
+inline bool nowDue(bool enabled, bool now, const char* offerVersion, uint8_t battPct, uint8_t minBatt) {
+  return enabled && now && offerVersion && offerVersion[0] && batteryOk(battPct, minBatt);
 }
 
 }  // namespace otapolicy

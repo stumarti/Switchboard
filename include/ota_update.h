@@ -311,8 +311,12 @@ inline void localTimeText(char* out, size_t cap) {
   snprintf(out, cap, "%02d:%02d", static_cast<int>(local / 3600), static_cast<int>((local % 3600) / 60));
 }
 
-// A timer wake that should install the server's offer now.
+// A timer wake that should install the server's offer now: inside the
+// update window, or any time after "Update now" on the server.
 inline bool scheduledDue(uint8_t battPct) {
+  if (otapolicy::nowDue(deviceconfig::fwEnabled, deviceconfig::fwNow, deviceconfig::fwOfferVersion, battPct,
+                        deviceconfig::fwMinBattery))
+    return true;
   return otapolicy::scheduledDue(deviceconfig::fwEnabled && deviceconfig::fwFromHour >= 0, deviceconfig::fwOfferVersion,
                                  localHour(), deviceconfig::fwFromHour, deviceconfig::fwToHour, battPct,
                                  deviceconfig::fwMinBattery, triesAt(deviceconfig::fwOfferVersion));

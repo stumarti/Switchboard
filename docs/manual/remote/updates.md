@@ -13,6 +13,7 @@ Remotes can update their firmware over Wi-Fi from the server. It's off until it'
 
 - **By button:** **Settings → Device info → Check for update** (unless the server has switched the button off). The remote says it's up to date, or shows the version on offer, its size and about how long it takes, to install now or not.
 - **On a schedule:** during the window set on the server, on a normal timer wake. The screen counts down 10 seconds first; press any button to put it off.
+- **Update now:** after **Update now** on the server's Home page, at the remote's next timer wake, whatever the window. Same countdown.
 
 While it installs, the screen shows the version it's going from and to, a progress bar, the time left and when it started. Then it restarts by itself.
 
