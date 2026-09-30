@@ -46,6 +46,8 @@
 #include "app/carousel.h"
 #include "app/data_refresh.h"
 #include "app/power.h"
+#include "refresh_schedule.h"
+#include "screen_ota.h"
 
 namespace boot {
 
@@ -212,13 +214,17 @@ inline void runLowBatteryCheck() {
     sleepFor(SleepReason::ErrorScreen, kErrorRetrySec);
   }
 
+  // Inside the server's update window with an update offered: install it
+  // now (restarts into it on success; carries on to sleep otherwise).
+  if (wifi && ota::scheduledDue(g_battPct)) screen_ota::runScheduled();
+
   // Nobody's interacting — revert to the status page. If that frame is
   // exactly what the panel already shows (nothing new fetched, the data
   // didn't change), commitFrame() skips the refresh entirely.
   carouselPage = 0;
   drawStandby(/*sleeping=*/true);
   sleepFor(SleepReason::Carousel,
-           static_cast<uint32_t>(deviceconfig::refreshIntervalMin) * 60u);
+           refreshschedule::sleepSec(static_cast<uint32_t>(deviceconfig::refreshIntervalMin) * 60u));
 }
 
 // Button wake, or a cold boot of a set-up device with a cache: paint the

@@ -131,6 +131,10 @@ inline bool hubToggleOn[kMaxHubToggles] = {};
 // has parsed one.
 inline struct tm clockUtc = {};
 inline bool clockValid = false;
+// Set when THIS boot parsed a Date header (not restored from the SD cache):
+// then clockUtc + the millis() since clockSetMs is the time now.
+inline bool clockThisBoot = false;
+inline uint32_t clockSetMs = 0;
 
 // When what the Status page shows last actually CHANGED (the HA clock at
 // that refresh) — its "Updated" footer. Not simply the last fetch time: a
@@ -194,6 +198,29 @@ inline void parseHttpDate(const char* s) {
   t.tm_wday = dayOfWeek(year, monIdx + 1, day);
   clockUtc = t;
   clockValid = true;
+  clockThisBoot = true;
+  clockSetMs = millis();
+}
+
+// Seconds since 1970 for a UTC struct tm (Howard Hinnant's days_from_civil):
+// no libc timegm, which newlib doesn't promise.
+inline int64_t epochOf(const struct tm& t) {
+  int y = t.tm_year + 1900;
+  const int m = t.tm_mon + 1;
+  y -= m <= 2;
+  const int era = (y >= 0 ? y : y - 399) / 400;
+  const int yoe = y - era * 400;
+  const int doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + t.tm_mday - 1;
+  const int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  const int64_t days = static_cast<int64_t>(era) * 146097 + doe - 719468;
+  return days * 86400 + t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec;
+}
+
+// The time now, UTC, if this boot has heard one; false otherwise.
+inline bool nowUtc(int64_t& out) {
+  if (!clockValid || !clockThisBoot) return false;
+  out = epochOf(clockUtc) + static_cast<int64_t>((millis() - clockSetMs) / 1000u);
+  return true;
 }
 
 // --- fetch helpers ------------------------------------------------------

@@ -21,6 +21,10 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: Free-Ink/freeink-sdk
+          # Pinned: a release must build from SDK code someone has looked at,
+          # not whatever is on its default branch that day. Bump deliberately
+          # (build and try it first), in its own commit.
+          ref: a1cf5b4be3e5259f856fe0497129e360e4e1346d
           path: freeink-sdk
 
       - name: Set up Python

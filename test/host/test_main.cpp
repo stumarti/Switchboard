@@ -13,6 +13,8 @@
 
 #include "ha_client.h"
 #include "device_config_client.h"
+#include "refresh_schedule.h"
+#include "ota_policy.h"
 
 static int g_failures = 0;
 static int g_checks = 0;
@@ -258,7 +260,96 @@ static void testHub() {
   CHECK_STR(deviceconfig::hubItems[1].target, "blinds");
 }
 
+static void testRefreshSchedule() {
+  std::puts("refresh_schedule: wakes on the clock, staggered");
+  using refreshschedule::alignedSleepSec;
+  struct tm t = {};
+  t.tm_year = 126; t.tm_mon = 8; t.tm_mday = 28; t.tm_hour = 12; t.tm_min = 7; t.tm_sec = 30;
+  const int64_t now = haclient::epochOf(t);
+  CHECK(now == 1790597250);  // 2026-09-28 12:07:30 UTC
+  // Every 30 min, UTC: the next mark is 12:30:00, 22.5 min away; +12 s stagger.
+  CHECK(alignedSleepSec(now, 0, 1800, 0) == 1350);
+  CHECK(alignedSleepSec(now, 0, 1800, 12) == 1362);
+  // Hourly in local time UTC+5:30 (17:37:30 local): the next hour is 18:00.
+  CHECK(alignedSleepSec(now, 330, 3600, 0) == 1350);
+  // Every 15 min, UTC-4 (08:07:30): 08:15.
+  CHECK(alignedSleepSec(now, -240, 900, 0) == 450);
+  // Woke a little early for 12:30 (12:29:20, drift): that refresh counts, so
+  // the next is 13:00, not 40 s away.
+  t.tm_min = 29; t.tm_sec = 20;
+  CHECK(alignedSleepSec(haclient::epochOf(t), 0, 1800, 0) == 1840);
+  // Woke late (12:31): straight on to 13:00.
+  t.tm_min = 31; t.tm_sec = 0;
+  CHECK(alignedSleepSec(haclient::epochOf(t), 0, 1800, 0) == 1740);
+  // A stagger longer than the interval wraps: 20 min 30 s on 15 min = +5:30.
+  CHECK(alignedSleepSec(now, 0, 900, 1230) == alignedSleepSec(now, 0, 900, 330));
+  // A stagger past the mark is still aimed at: 12:30:05 with +20 s -> 12:30:20
+  // is too close (15 s), so 13:00:20.
+  t.tm_min = 30; t.tm_sec = 5;
+  CHECK(alignedSleepSec(haclient::epochOf(t), 0, 1800, 20) == 1815);
+
+  // Not aligned, or no clock this boot: the plain interval.
+  deviceconfig::refreshAligned = false;
+  CHECK(refreshschedule::sleepSec(1800) == 1800);
+  deviceconfig::refreshAligned = true;
+  haclient::clockThisBoot = false;
+  CHECK(refreshschedule::sleepSec(1800) == 1800);
+  haclient::parseHttpDate("Mon, 28 Sep 2026 12:07:30 GMT");  // host millis() is 0
+  deviceconfig::utcOffsetMin = 60;
+  deviceconfig::refreshStaggerSec = 30;
+  CHECK(refreshschedule::sleepSec(1800) == 1380);  // 13:07:30 local -> 13:30:30
+  CHECK(refreshschedule::sleepSec(7 * 60) == 7 * 60);  // doesn't divide a day: not aligned
+
+  JsonDocument doc;
+  CHECK(deserializeJson(doc, R"({"standby":{"refreshIntervalMin":15,"refreshAligned":true,"utcOffsetMin":-300,
+    "refreshStaggerSec":42}})") == DeserializationError::Ok);
+  deviceconfig::applyJson(doc.as<JsonVariantConst>());
+  CHECK(deviceconfig::refreshIntervalMin == 15 && deviceconfig::refreshAligned);
+  CHECK(deviceconfig::utcOffsetMin == -300 && deviceconfig::refreshStaggerSec == 42);
+  JsonDocument old;
+  CHECK(deserializeJson(old, R"({"standby":{"refreshIntervalMin":30}})") == DeserializationError::Ok);
+  deviceconfig::applyJson(old.as<JsonVariantConst>());
+  CHECK(!deviceconfig::refreshAligned && deviceconfig::refreshStaggerSec == 0);  // an older server
+}
+
+static void testOtaPolicy() {
+  std::puts("ota: update window, battery, retries, the server's offer");
+  using namespace otapolicy;
+  CHECK(inWindow(3, 2, 5) && !inWindow(5, 2, 5) && !inWindow(1, 2, 5));
+  CHECK(inWindow(23, 22, 4) && inWindow(2, 22, 4) && !inWindow(12, 22, 4));  // past midnight
+  CHECK(!inWindow(-1, 2, 5));  // no clock: never
+  CHECK(scheduledDue(true, "v0.2.0", 3, 2, 5, 80, 30, 0));
+  CHECK(!scheduledDue(true, "", 3, 2, 5, 80, 30, 0));           // nothing offered
+  CHECK(!scheduledDue(true, "v0.2.0", 3, 2, 5, 25, 30, 0));     // battery too low
+  CHECK(!scheduledDue(true, "v0.2.0", 3, 2, 5, 0, 30, 0));      // battery not read yet
+  CHECK(!scheduledDue(true, "v0.2.0", 3, 2, 5, 80, 30, kMaxScheduledTries));  // gave up on it
+  CHECK(!scheduledDue(false, "v0.2.0", 3, 2, 5, 80, 30, 0));
+
+  JsonDocument doc;
+  CHECK(deserializeJson(doc, R"({"firmware":{"enabled":true,"button":true,"schedule":{"fromHour":2,"toHour":5},
+    "minBattery":40,"offer":{"version":"v0.2.0","size":1510672,
+    "sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}})") == DeserializationError::Ok);
+  deviceconfig::applyJson(doc.as<JsonVariantConst>());
+  CHECK(deviceconfig::fwEnabled && deviceconfig::fwButton);
+  CHECK(deviceconfig::fwFromHour == 2 && deviceconfig::fwToHour == 5 && deviceconfig::fwMinBattery == 40);
+  CHECK_STR(deviceconfig::fwOfferVersion, "v0.2.0");
+  CHECK(deviceconfig::fwOfferSize == 1510672);
+  // An incomplete offer (a short checksum) is no offer; updates off = nothing.
+  JsonDocument bad;
+  CHECK(deserializeJson(bad, R"({"firmware":{"enabled":true,"offer":{"version":"v0.2.0","size":10,"sha256":"abc"}}})") ==
+        DeserializationError::Ok);
+  deviceconfig::applyJson(bad.as<JsonVariantConst>());
+  CHECK_STR(deviceconfig::fwOfferVersion, "");
+  CHECK(!deviceconfig::fwButton && deviceconfig::fwFromHour == -1);
+  JsonDocument off;
+  CHECK(deserializeJson(off, R"({"firmware":{"enabled":false,"button":true}})") == DeserializationError::Ok);
+  deviceconfig::applyJson(off.as<JsonVariantConst>());
+  CHECK(!deviceconfig::fwEnabled && !deviceconfig::fwButton);
+}
+
 int main() {
+  testOtaPolicy();
+  testRefreshSchedule();
   testHub();
   testParsers();
   testReceiver();

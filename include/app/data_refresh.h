@@ -16,6 +16,7 @@
 #include "ha_client.h"
 #include "persist.h"
 #include "pairing_client.h"
+#include "ota_update.h"
 #include "theme_client.h"
 #include "mdi_icon.h"
 #include "screen_common.h"
@@ -109,6 +110,7 @@ static ServerResult fetchBundle(bool forceIcons) {
   }
   if (cond.notModified) {
     Serial.println("[bundle] unchanged (304)");
+    ota::confirm();  // reached the server: new firmware (if any) is good
     resolveIcons(false);
     return ServerResult::Ok;
   }
@@ -125,6 +127,7 @@ static ServerResult fetchBundle(bool forceIcons) {
   snprintf(g_bundleEtag, sizeof(g_bundleEtag), "%s", etag);
   snprintf(g_bundleSlug, sizeof(g_bundleSlug), "%s", deviceconfig::activeSlug);
   Serial.println("[bundle] updated");
+  ota::confirm();  // reached the server: new firmware (if any) is good
   return ServerResult::Ok;
 }
 

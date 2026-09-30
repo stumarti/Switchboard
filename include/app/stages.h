@@ -28,6 +28,7 @@
 #include "app/data_refresh.h"
 #include "app/power.h"
 #include "screen_settings.h"
+#include "screen_ota.h"
 #include "screen_error.h"
 #include "screen_debug.h"
 #include "screen_power.h"
@@ -332,7 +333,19 @@ static void tickSettings(const InFrame& in) {
 
 // Device info: any key goes back to Settings.
 static void tickSettingsInfo(const InFrame& in) {
+  if (in.tap && screen_settings_info::updateButtonHit(in.tx, in.ty)) { screen_ota::enter(); return; }
   if (in.homeTap || in.homeLong || in.btnLeft || in.btnPower || in.tap) screen_settings::enter();
+}
+
+// Firmware update: INSTALL / NOT NOW (or BACK); Home or Left leaves (not
+// mid-install: that blocks in screen_ota::install() until it restarts).
+static void tickOta(const InFrame& in) {
+  using screen_ota::Phase;
+  if (in.homeTap || in.homeLong || in.btnLeft) { screen_settings_info::enter(); return; }
+  const int hit = in.tap ? screen_ota::buttonHit(in.tx, in.ty) : (in.btnPower ? 0 : -1);
+  if (hit < 0) return;
+  if (screen_ota::phase == Phase::Offer && hit == 0) { screen_ota::install(/*unattended=*/false); return; }
+  if (hit == 1 || screen_ota::phase != Phase::Offer) screen_settings_info::enter();
 }
 
 // Select room: Left/Right move, tap picks, Home/Power back to Settings.
@@ -545,6 +558,7 @@ static void tickStage(const InFrame& in) {
     case Stage::ErrPreview:   tickErrPreview(in); break;
     case Stage::Settings:     tickSettings(in); break;
     case Stage::SettingsInfo: tickSettingsInfo(in); break;
+    case Stage::Ota:          tickOta(in); break;
     case Stage::RoomPick:     tickRoomPick(in); break;
     case Stage::Developer:    tickDeveloper(in); break;
     case Stage::Timeouts:     tickTimeouts(in); break;

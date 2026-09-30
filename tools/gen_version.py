@@ -9,6 +9,9 @@ import subprocess
 # tree appends "-dirty". Falls back to the raw commit hash if there's no tag
 # yet, and to "unknown" if this isn't a git checkout at all (e.g. a source
 # zip) so the build never fails over this.
+#
+# Runs as a pre: script (platformio.ini): flags added by a post script only
+# reach the libraries, not src/, which is why builds used to report "dev".
 # ---------------------------------------------------------------------------
 
 def get_version():

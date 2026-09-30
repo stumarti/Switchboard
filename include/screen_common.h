@@ -30,7 +30,7 @@ inline BatteryMonitor battery;
 // (app/carousel.h); everything else is one screen_*.h.
 enum class Stage : uint8_t {
   Splash, Wifi, Standby, Settings, SettingsInfo, RoomPick, Developer, Timeouts, Debug, NoHA,
-  NoRoom, ErrPreview, LowBattery, WifiQr, PowerMenu
+  NoRoom, ErrPreview, LowBattery, WifiQr, PowerMenu, Ota
 };
 inline Stage stage = Stage::Splash;
 
