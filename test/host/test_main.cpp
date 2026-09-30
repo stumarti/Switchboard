@@ -342,6 +342,30 @@ static void testOtaPolicy() {
   CHECK(!nowDue(true, true, "", 80, 30));
   CHECK(!nowDue(true, true, "v0.2.0", 25, 30));
   CHECK(!nowDue(false, true, "v0.2.0", 80, 30));
+  {
+    // An image's marker, found across chunk boundaries, and its board.
+    // (With the bare prefix first, as the firmware's own scanner string sits in it.)
+    const char img[] = "\x01\x02SWITCHBOARD_FW:\0SWITCHBOARD_\x00SWITCHBSWITCHBOARD_FW:x4pro:v1.4.0\0rest";
+    MarkerScan m;
+    for (size_t i = 0; i < sizeof(img); i += 5) m.feed(reinterpret_cast<const uint8_t*>(img) + i, sizeof(img) - i < 5 ? sizeof(img) - i : 5);
+    CHECK(m.found);
+    CHECK_STR(m.tail, "x4pro:v1.4.0");
+    CHECK(boardMatches(m, "x4pro"));
+    CHECK(!boardMatches(m, "sticky"));
+    CHECK(!boardMatches(m, "x4"));  // a prefix of the board isn't the board
+    MarkerScan other;
+    const char st[] = "SWITCHBOARD_FW:sticky:v0.2.0";
+    other.feed(reinterpret_cast<const uint8_t*>(st), sizeof(st));
+    CHECK(boardMatches(other, "sticky") && !boardMatches(other, "x4pro"));
+    MarkerScan legacy;  // from before boards: the x4pro's
+    const char old[] = "SWITCHBOARD_FW:v0.2.3";
+    legacy.feed(reinterpret_cast<const uint8_t*>(old), sizeof(old));
+    CHECK(boardMatches(legacy, "x4pro") && !boardMatches(legacy, "sticky"));
+    MarkerScan none;
+    const char no[] = "no marker here";
+    none.feed(reinterpret_cast<const uint8_t*>(no), sizeof(no));
+    CHECK(!none.found && !boardMatches(none, "x4pro"));
+  }
 
   JsonDocument doc;
   CHECK(deserializeJson(doc, R"({"firmware":{"enabled":true,"button":true,"now":true,"schedule":{"fromHour":2,"toHour":5},

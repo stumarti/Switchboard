@@ -174,6 +174,7 @@ inline bool request(const char* host, uint16_t port, const char* path, const cha
         http.addHeader("X-RSSI", v);
       }
       http.addHeader("X-Firmware", FIRMWARE_VERSION);
+      http.addHeader("X-Board", SWITCHBOARD_BOARD);
     }
     if (body) http.addHeader("Content-Type", "application/json");
     if (cond && cond->ifNoneMatch && *cond->ifNoneMatch)

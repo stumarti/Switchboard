@@ -85,16 +85,20 @@ jobs:
       # The app image alone (what a remote installs over the air from the
       # Switchboard server's Settings -> Remote updates), and its SHA-256:
       # the server checks the download against it before accepting it.
+      # Named for its board (x4pro, SWITCHBOARD_BOARD in platformio.ini): a
+      # server keeps each board's builds apart, and firmware for another
+      # device, from its own repository, publishes switchboard-<its board>-app-*.
       - name: App image for over-the-air updates
         working-directory: switchboard
         run: |
           set -euo pipefail
-          APP="switchboard-app-${{ github.ref_name }}.bin"
+          BOARD=x4pro
+          APP="switchboard-${BOARD}-app-${{ github.ref_name }}.bin"
           cp .pio/build/x4pro/firmware.bin "$APP"
           sha256sum "$APP" > "$APP.sha256"
-          # The build must say it is this tag (tools/gen_version.py), or the
-          # server would refuse it.
-          grep -a -q "SWITCHBOARD_FW:${{ github.ref_name }}" "$APP"
+          # The build must say it is this board and this tag
+          # (tools/gen_version.py), or the server would refuse it.
+          grep -a -q "SWITCHBOARD_FW:${BOARD}:${{ github.ref_name }}" "$APP"
           echo "APP_BIN=$APP" >> "$GITHUB_ENV"
 
       - name: Publish GitHub Release

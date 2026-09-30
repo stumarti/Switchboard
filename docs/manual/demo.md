@@ -16,9 +16,9 @@ Open `http://localhost:45680` and sign in with the password `demo`. Ctrl-C stops
 | | |
 |---|---|
 | **Rooms** | Living Room (every page: lights and scenes, blinds, music, TV, Xbox, an Enigma2 receiver, climate, Quick Access), Kitchen and Bedroom |
-| **Remotes** | Four, one of them low on battery, plus a new one waiting for approval |
+| **Remotes** | Four X4 Pros, one of them low on battery, a Sticky (another kind of remote, on its own board), and a new one waiting for approval |
 | **Viewports** | A kitchen panel (weather, energy, heating, presence, security), a boardroom sign with a room finder, and a reception screen with company news |
-| **Remote updates** | Switched on, with v1.4.0 out to one pilot remote |
+| **Remote updates** | Switched on: the X4 Pro's v1.4.0 out to one pilot, and the Sticky's own v0.2.0 released to every Sticky |
 | **Home Assistant** | `tools/demo/fake-ha.js`: states, weather forecasts, energy history, calendars, album and box art, and an RSS feed |
 
 <figure class="shot"><img src="images/admin/layouts.png" alt="The demo's layouts"><figcaption>The demo's Layouts page.</figcaption></figure>

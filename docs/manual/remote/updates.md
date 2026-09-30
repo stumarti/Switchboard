@@ -21,6 +21,7 @@ While it installs, the screen shows the version it's going from and to, a progre
 
 - **Battery:** it won't start below the server's minimum battery (30% by default).
 - **Integrity:** the image downloads into the spare app slot, and its SHA-256 is checked before the remote switches to it.
+- **The right device:** the image must say it's for this remote's board (`x4pro`); firmware for another kind of device is refused, whatever the server offers.
 - **Rollback:** new firmware only counts as good once it reaches the server on its first run. If it restarts or sleeps before that, the remote goes back to the previous firmware by itself.
 - **Reporting:** every attempt, good or bad, is reported to the server.
 - **Retries:** a scheduled update that fails twice at the same version isn't tried again until a different version is released.

@@ -16,6 +16,15 @@
 #define FIRMWARE_VERSION "dev"
 #endif
 
+// The board this firmware is for: the kind of device, as the server knows it
+// (its X-Board header, and the image's SWITCHBOARD_FW:<board>:<version>
+// marker). The server only offers a device updates built for its own board,
+// and ota_update.h refuses an image for any other. Set per PlatformIO env;
+// firmware for another device, from its own repository, picks its own name.
+#ifndef SWITCHBOARD_BOARD
+#define SWITCHBOARD_BOARD "x4pro"
+#endif
+
 // ---- Wi-Fi ----------------------------------------------------------------
 // Set these before flashing. Leave WIFI_SSID empty ("") to make the Wi-Fi
 // stage a visible no-op (it renders the screen, waits briefly, then moves on)
