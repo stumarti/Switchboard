@@ -74,7 +74,7 @@ void setup() {
   display.clearScreen(0xFF);
   const uint16_t w = display.getDisplayWidth();
   const uint16_t h = display.getDisplayHeight() / 2;
-  const size_t blockBytes = ((w + 7) / 8) * h;
+  const size_t blockBytes = ((static_cast<size_t>(w) + 7u) / 8u) * static_cast<size_t>(h);
   uint8_t* block = (uint8_t*)malloc(blockBytes);
   if (block) {
     memset(block, 0x00, blockBytes);  // all black
