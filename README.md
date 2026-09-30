@@ -28,149 +28,30 @@ A smart-home remote for the **Xteink X4 Pro** e-reader. One e-ink panel, four bu
 - A **Home Assistant** instance on your network.
 - **[Switchboard Server](https://github.com/stumarti/Switchboard-Server)** running somewhere on your LAN (a Docker container — a spare mini PC, NAS, or Unraid box all work). This is what tells your remote which lights/blinds/TV etc. actually exist in the room it's in — the firmware doesn't know anything about your house on its own.
 
-## Setup
+## Quick start
 
 1. **Get Switchboard Server running first.** Follow its [README](https://github.com/stumarti/Switchboard-Server) — it's a couple of minutes with `docker compose up -d`. Set an admin password on first open, then create at least one room (e.g. "Kitchen") and fill in its Home Assistant entities before moving on.
-2. **Flash the device.** Easiest way: plug the X4 Pro into your computer over USB and use the [browser flasher](https://stumarti.github.io/Switchboard/) (Chrome or Edge on desktop). Prefer to build it yourself? See [Building from source](#building-from-source) below.
+2. **Flash the device.** Plug the X4 Pro into your computer over USB and use the [browser flasher](https://stumarti.github.io/Switchboard/) (Chrome or Edge on desktop). Prefer to build it yourself? See [Building from source](wiki/Building-from-Source.md).
 3. **First boot.** The device shows a splash, then walks you through joining your Wi-Fi (pick your network, type the password on the on-screen keyboard).
-4. **Pair with the server.** The device registers itself and asks you to approve it — open Switchboard Server's **Devices** page and approve it there, optionally picking its room in the same step, then **press any button on the remote** to continue. See "Pairing" below.
-5. **(Optional) Pick a different room later**, or if you didn't assign one at approval time: tap the **Home** key → **Settings** → **Select room**. This always wins over whatever room the server has assigned by MAC address.
+4. **Pair with the server.** The device registers itself and asks you to approve it. Open Switchboard Server's **Remotes** page, approve it there (optionally picking its room in the same step), then **press any button on the remote** to continue.
+5. **(Optional) Pick a different room later**, or if you didn't assign one at approval time: tap the **Home** key → **Settings** → **Select room**.
 
-That's it — the carousel now reflects whatever you set up for that room on the server. Move the remote to a different room later by repeating step 5; nothing needs re-flashing.
+That's it — the carousel now shows whatever you set up for that room on the server. Move the remote to a different room later by repeating step 5; nothing needs re-flashing.
 
-## Pairing
+## Using it
 
-Every physical remote pairs with Switchboard Server once, by MAC address — this is what proves it's allowed to pull a room's config (which includes your Home Assistant token and WiFi password). A never-paired (or revoked) device registers once, then shows "Approve this remote on the Switchboard server, then press any button" — it doesn't keep polling the server; each button press checks once. (If it can't reach the server at all, it retries every 30 seconds.) A device that's already paired skips straight past it, no network round trip needed, and a paired remote whose token the server stops accepting quietly re-registers and picks up a fresh one rather than dropping back to this screen. Approving a device from the server's **Devices** page is also how its default room gets set — pick a room there, or leave it unset and pick one later on the device itself via **Settings → Select room** (a room picked on the device always wins over the server's assignment). See Switchboard-Server's README for the admin side.
+- **Left/Right** step through the room's pages: Status, Lighting, Blinds, Music, TV, Receiver, Xbox, Wi-Fi and Climate.
+- **Tap Home** for the jump list; **hold Home** for the backlight shade.
+- **Settings** (from the jump list) picks the room, shows device info, and holds the timeouts and developer tools.
 
-## Theme
+## Documentation
 
-An admin can re-skin every icon and the on-screen font from Switchboard Server's **Theme** page (pick a font, search-and-replace any icon from Material Design Icons) — the device downloads the compiled result automatically and loads it from its SD card, no reflashing needed. Nothing to do on the device itself; a re-skin just shows up within one refresh cycle of being published. A device with no SD card, or before anything's been published, just shows the firmware's own built-in look.
+The in-depth guide lives in the [wiki](wiki/Home.md):
 
-## What each screen does
+- [Screens](wiki/Screens.md) — every page, the jump list, the shade and Settings
+- [Pairing](wiki/Pairing.md) and [Theme](wiki/Theme.md)
+- [Updates](wiki/Updates.md) — over-the-air firmware updates
+- [Self-test](wiki/Self-Test.md) — the hardware button checker
+- [Building from source](wiki/Building-from-Source.md) and [Releases](wiki/Releases.md)
 
-The **carousel** is the home screen — Left/Right cycles through whichever of these your room has turned on (set per-room in Switchboard Server):
-
-| Screen | What it does |
-|---|---|
-| **Status** | The default page: today's date, weather, indoor temperature, wind, humidity, and a 3-day forecast. What the remote shows when it's just sitting on the dock. |
-| **Lighting** | An all-lights on/off toggle with a brightness bar and Warm/Day/Cool presets, plus grids of individual lights and one-tap scenes. |
-| **Blinds** | Up/Stop/Down for the whole room, plus each blind or cover individually. |
-| **Music** | Now-playing album art, track and artist, volume, and Previous/Pause/Next. |
-| **TV** | A D-pad remote (with OK/Back/Home), up to four app-launch buttons (each with its own icon if you pick one on the server, otherwise the YouTube/Netflix logo or a generic app icon), and mute/volume. |
-| **Receiver** | An Enigma2 satellite/cable box (Vu+, Dreambox, …) through Home Assistant's Enigma2 integration: the channel on now with its picon, the programme on now (with its times) and next, up to six favourite-channel buttons (each with the channel's picon or an icon), channel up/down, power, mute and volume. "Next" and the favourites' picons need the box's address on the server (it reads the box's own web interface); without it the page shows what Home Assistant has. Off until switched on for the room. |
-| **Xbox** | Reserved for a future Xbox controller screen — currently shows "coming soon". |
-| **Wifi** | QR codes for your household's Wi-Fi networks, so a guest can join without asking for the password out loud. |
-| **Climate** | A thermostat dial with target temperature and mode (Auto/Heat/Off), plus any extra temperature sensors you've added for the room. |
-
-Most pages are **passive**: they show what the last refresh brought and wait for a press. Music and Xbox are **live** while something is playing — and only then, only while that page is on screen and Wi-Fi is already up: the remote holds one request open on the server, which answers the moment the track or game changes. A new track repaints in full with its art (resized and dithered by the server, so the remote never decodes an image); a pause or a volume change is a quick partial repaint. The Wi-Fi timeout (Settings → Timeouts) still turns the radio off on schedule, which ends the watch. Against an older server the pages fall back to re-reading every 30 s while playing.
-
-Two more things, reachable from any carousel page:
-
-- **Tap Home** → the **jump list**: a grid to jump straight to any visible screen, Settings, or the hardware self-test, instead of stepping through the carousel one page at a time.
-- **Hold Home** → the **control shade**: quick sliders for backlight brightness and warmth (warm/cool), without leaving whatever page you're on.
-
-### Settings
-
-Reached from the jump list, or the shade's cog icon:
-
-- **Select room** — attach this remote to a different room's profile (see Setup above).
-- **Device info** — firmware version and connection status.
-- **Wi-Fi setup** — forget the current network and reconnect.
-- **Refresh now** — force an immediate pull from Home Assistant.
-- **Timeouts** — how long before the screen sleeps, a control page reverts to Status, how often it refreshes, and how long the Wi-Fi radio stays on while idle (by default, the same as the screen; the next button press reconnects).
-- **Developer** — a pixel-grid overlay, a "don't sleep" toggle, the hardware self-test, and a hard reset that clears the picked room (useful if a bad room config ever gets the device stuck).
-
-If the server or Home Assistant can't be reached, the device shows a plain error screen instead of hanging — any button retries, and Home still gets you into Settings.
-
-## The hardware self-test
-
-**Settings → Developer → Button checker.** Confirms every input actually works on a freshly-assembled or newly-flashed unit:
-
-- **Buttons** — ticks off Left, Right, Power, and Home (the capacitive key below the panel) the first time each is pressed.
-- **Touchscreen** — shows live coordinates and a running tap count as you touch the screen.
-- **Backlight** — steps through 0/25/50/75/100% brightness.
-- **Refresh** — lets you trigger a full (clean) e-ink refresh on demand, separate from the fast partial refreshes used everywhere else.
-
-Hold Home to restart the test.
-
----
-
-## Building from source
-
-### Hardware it targets
-
-Selected by `-DFREEINK_DEVICE_X4PRO`:
-
-- ESP32-S3 (16 MB flash, 8 MB PSRAM), 800×480 e-ink (SSD1677, or UC8179 on newer units — auto-detected)
-- GT911 capacitive touch
-- Nav keys: Left = GPIO0, Right = GPIO7, Power = GPIO3
-- Warm/cool PWM frontlight, PCF8563/BM8563 RTC
-
-### One-time setup
-
-1. Clone the [FreeInk SDK](https://github.com/Free-Ink/freeink-sdk) next to this project:
-   ```
-   git clone https://github.com/Free-Ink/freeink-sdk
-   ```
-   So you end up with:
-   ```
-   parent/
-     freeink-sdk/
-     Switchboard/     <- this project
-   ```
-2. Set your Wi-Fi in `include/config.h` (`WIFI_SSID` / `WIFI_PASS`).
-3. If your Switchboard Server isn't at the default `switchboard.local:45678`, point `SWITCHBOARD_SERVER_HOST`/`PORT` in the same file at it.
-
-### Build & flash
-
-```
-pio run -e x4pro -t upload -t monitor
-```
-
-Wake the device first if it's asleep, or PlatformIO may not find the port.
-
-> **Hit a `Network.h` error?** Arduino-ESP32 core 3.x needs the `pioarduino` platform (already pinned here) — a stale cached core from an older attempt is the usual cause. `Remove-Item -Recurse -Force "$env:USERPROFILE\.platformio\packages\framework-arduinoespressif32*"` and `.pio`, then rebuild.
-
-### Tests
-
-`./test/host/run.sh` builds the firmware's pure logic — the Home Assistant state parsers every page uses and the HTTP helpers' host-name handling — with `g++` on your PC and runs it; no hardware or PlatformIO needed (it fetches ArduinoJson on first run). CI runs it on every push and pull request, beside the firmware build.
-
-## Releases & the web flasher
-
-```
-git tag v0.4.0
-git push origin v0.4.0
-```
-
-GitHub Actions builds the firmware, merges it into one flashable image, attaches it to a GitHub Release, and publishes it to `docs/firmware/` — which is what the [browser flasher](https://stumarti.github.io/Switchboard/) actually serves, once GitHub Pages is turned on for this repo (Settings → Pages → `develop` / `/docs`). Chrome/Edge desktop only — Web Serial isn't available elsewhere.
-
-## The Switchboard Server
-
-This firmware is a client — it doesn't talk to Home Assistant directly and carries no room setup on board. All of that lives in [Switchboard Server](https://github.com/stumarti/Switchboard-Server), published as `ghcr.io/stumarti/switchboard-server` with an Unraid template included. It's found automatically via mDNS (`switchboard.local:45678` by default — see `include/config.h` to change it) and exposes what the firmware needs: the room list, each room's full config, and the household's shared Wi-Fi/Home Assistant connection.
-
-## Layout
-
-```
-platformio.ini        env:x4pro, links the FreeInk SDK libs by symlink
-include/
-  config.h            Wi-Fi creds, server host/port, device slug
-  screen_*.h           one file per carousel/settings/menu screen
-  *_client.h            HTTP clients for the server's API
-  ui.h, atkinson_font.h, weather_icons.h, assets.h   drawing + fonts + icons
-src/
-  main.cpp             the state machine: boot, carousel, settings, sleep/wake
-tools/
-  gen_version.py        derives FIRMWARE_VERSION from git describe
-  gen_atkinson_fonts.sh  regenerates fonts from tools/fonts/*.ttf
-  gen_weather_icons.py   regenerates icons from tools/weather_svg/*.svg
-docs/
-  index.html            the browser flasher, served via GitHub Pages
-  firmware/               latest release's flashable image + manifest.json
-  images/                  the gallery photos above
-```
-
-## Notes
-
-- Rendering is landscape-native (800×480), drawn straight into the panel's framebuffer.
-- Splash and the self-test use a full (clean) e-ink refresh; the carousel uses fast partial refreshes, auto-promoting to a full refresh once enough have piled up.
-- Every text face is Atkinson Hyperlegible, baked into `include/atkinson_font.h` at fixed sizes — regenerate via `tools/gen_atkinson_fonts.sh` for a new size.
+The remote is a client: it doesn't talk to Home Assistant directly and carries no room setup on board. All of that lives in [Switchboard Server](https://github.com/stumarti/Switchboard-Server), which it finds on your network via mDNS (`switchboard.local:45678` by default).
