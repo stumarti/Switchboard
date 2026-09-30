@@ -15,7 +15,7 @@ Open Settings from Quick Access (or Jump to), or the shade's cog.
 - **Wi-Fi setup:** forget the network and join another.
 - **Refresh now:** pull everything from the server straight away.
 - **Timeouts:** how long before the screen sleeps, how long a control page stays up before going back to Status, how often it refreshes, and how long the Wi-Fi radio stays on while idle (by default, as long as the screen; the next press reconnects).
-- **Developer:** a pixel grid overlay, a switch to stop it sleeping, the Quick Access strips on or off, the hardware button checker, a preview of every error screen, and a hard reset that clears the picked room (useful if a bad room setup ever gets a remote stuck).
+- **Developer:** a pixel grid overlay, a switch to stop it sleeping, the Quick Access strips on or off, the hardware button checker, a preview of every error screen, and a hard reset that clears the picked room (useful if a bad room setup ever gets a remote stuck). The server can hide this menu, for a remote that isn't for tinkering (see [Remote layouts](../server/remote-layouts.md#settings-on-the-remote)): the row goes, so does the button checker on the error screens, and its pixel grid, stay-awake and Quick Access strip switches stop counting.
 - **Restart.**
 
 ## The hardware button checker

@@ -214,8 +214,9 @@ inline void runLowBatteryCheck() {
     sleepFor(SleepReason::ErrorScreen, kErrorRetrySec);
   }
 
-  // Inside the server's update window with an update offered: install it
-  // now (restarts into it on success; carries on to sleep otherwise).
+  // An update offered, and inside the server's update window (or "Update
+  // now" was pressed there): install it now (restarts into it on success;
+  // carries on to sleep otherwise).
   if (wifi && ota::scheduledDue(g_battPct)) screen_ota::runScheduled();
 
   // Nobody's interacting — revert to the status page. If that frame is

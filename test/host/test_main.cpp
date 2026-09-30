@@ -336,13 +336,19 @@ static void testOtaPolicy() {
   CHECK(!scheduledDue(true, "v0.2.0", 3, 2, 5, 0, 30, 0));      // battery not read yet
   CHECK(!scheduledDue(true, "v0.2.0", 3, 2, 5, 80, 30, kMaxScheduledTries));  // gave up on it
   CHECK(!scheduledDue(false, "v0.2.0", 3, 2, 5, 80, 30, 0));
+  // "Update now": any hour, schedule or not; still needs an offer and battery.
+  CHECK(nowDue(true, true, "v0.2.0", 80, 30));
+  CHECK(!nowDue(true, false, "v0.2.0", 80, 30));
+  CHECK(!nowDue(true, true, "", 80, 30));
+  CHECK(!nowDue(true, true, "v0.2.0", 25, 30));
+  CHECK(!nowDue(false, true, "v0.2.0", 80, 30));
 
   JsonDocument doc;
-  CHECK(deserializeJson(doc, R"({"firmware":{"enabled":true,"button":true,"schedule":{"fromHour":2,"toHour":5},
+  CHECK(deserializeJson(doc, R"({"firmware":{"enabled":true,"button":true,"now":true,"schedule":{"fromHour":2,"toHour":5},
     "minBattery":40,"offer":{"version":"v0.2.0","size":1510672,
     "sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}})") == DeserializationError::Ok);
   deviceconfig::applyJson(doc.as<JsonVariantConst>());
-  CHECK(deviceconfig::fwEnabled && deviceconfig::fwButton);
+  CHECK(deviceconfig::fwEnabled && deviceconfig::fwButton && deviceconfig::fwNow);
   CHECK(deviceconfig::fwFromHour == 2 && deviceconfig::fwToHour == 5 && deviceconfig::fwMinBattery == 40);
   CHECK_STR(deviceconfig::fwOfferVersion, "v0.2.0");
   CHECK(deviceconfig::fwOfferSize == 1510672);
@@ -352,11 +358,26 @@ static void testOtaPolicy() {
         DeserializationError::Ok);
   deviceconfig::applyJson(bad.as<JsonVariantConst>());
   CHECK_STR(deviceconfig::fwOfferVersion, "");
-  CHECK(!deviceconfig::fwButton && deviceconfig::fwFromHour == -1);
+  CHECK(!deviceconfig::fwButton && !deviceconfig::fwNow && deviceconfig::fwFromHour == -1);
   JsonDocument off;
   CHECK(deserializeJson(off, R"({"firmware":{"enabled":false,"button":true}})") == DeserializationError::Ok);
   deviceconfig::applyJson(off.as<JsonVariantConst>());
   CHECK(!deviceconfig::fwEnabled && !deviceconfig::fwButton);
+
+  // The Developer menu: shown unless the server hides it; hidden, its bench
+  // toggles stop counting (a stay-awake switch nobody can reach).
+  CHECK(deviceconfig::developerMenu);  // not in that config: shown
+  localsettings::standbyDisabled = true;
+  localsettings::pixelGrid = true;
+  localsettings::quickActionsEnabled = false;
+  CHECK(deviceconfig::devStandbyDisabled() && deviceconfig::devPixelGrid() && !deviceconfig::devQuickActionsOn());
+  JsonDocument hidden;
+  CHECK(deserializeJson(hidden, R"({"developerMenu":false})") == DeserializationError::Ok);
+  deviceconfig::applyJson(hidden.as<JsonVariantConst>());
+  CHECK(!deviceconfig::developerMenu);
+  CHECK(!deviceconfig::devStandbyDisabled() && !deviceconfig::devPixelGrid() && deviceconfig::devQuickActionsOn());
+  localsettings::standbyDisabled = localsettings::pixelGrid = false;
+  localsettings::quickActionsEnabled = true;
 }
 
 int main() {
