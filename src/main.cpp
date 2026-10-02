@@ -79,9 +79,11 @@
 #include "app/stages.h"
 #include "app/boot.h"
 
-// Embedded in the image so the server can tell a Switchboard remote build,
-// and its version, from any other file (lib/firmware.js inspect()).
-extern "C" __attribute__((used)) const char kSwitchboardFirmwareMarker[] = "SWITCHBOARD_FW:" FIRMWARE_VERSION;
+// Embedded in the image so the server can tell a Switchboard build, its
+// board and its version, from any other file (lib/firmware.js inspect()),
+// and so a remote can check a download is for its own board (ota_update.h).
+extern "C" __attribute__((used)) const char kSwitchboardFirmwareMarker[] =
+    "SWITCHBOARD_FW:" SWITCHBOARD_BOARD ":" FIRMWARE_VERSION;
 
 // Don't let the Arduino core mark a freshly installed update good at boot:
 // ota::confirm() does, once this firmware has reached the server. Until then

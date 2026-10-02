@@ -78,6 +78,7 @@ inline Check fetchOffer(Offer& out, char* status, size_t statusCap) {
   snprintf(auth, sizeof(auth), "Bearer %s", pairing::token);
   http.addHeader("Authorization", auth);
   http.addHeader("X-Firmware", FIRMWARE_VERSION);
+  http.addHeader("X-Board", SWITCHBOARD_BOARD);
   const int code = http.GET();
   if (code == 204) {
     http.end();
@@ -109,6 +110,7 @@ inline void report(const char* version, const char* from, bool ok, const char* e
   body["version"] = version;
   body["from"] = from;
   body["ok"] = ok;
+  body["board"] = SWITCHBOARD_BOARD;
   body["error"] = error ? error : "";
   char buf[320];
   serializeJson(body, buf, sizeof(buf));
@@ -167,6 +169,7 @@ inline bool install(const Offer& offer, uint8_t battPct, Progress progress, char
   snprintf(auth, sizeof(auth), "Bearer %s", pairing::token);
   http.addHeader("Authorization", auth);
   http.addHeader("X-Firmware", FIRMWARE_VERSION);
+  http.addHeader("X-Board", SWITCHBOARD_BOARD);
   const int code = http.GET();
   if (code != 200) {
     http.end();
@@ -193,6 +196,8 @@ inline bool install(const Offer& offer, uint8_t battPct, Progress progress, char
     }
   }
 
+  // The image must say it's for this board (its SWITCHBOARD_FW marker).
+  otapolicy::MarkerScan marker;
   mbedtls_sha256_context sha;
   mbedtls_sha256_init(&sha);
   mbedtls_sha256_starts(&sha, 0);
@@ -219,6 +224,7 @@ inline bool install(const Offer& offer, uint8_t battPct, Progress progress, char
     if (!n) continue;
     lastByteMs = millis();
     mbedtls_sha256_update(&sha, buf, n);
+    marker.feed(buf, n);
     if (Update.write(buf, n) != n) {
       ok = false;
       why = Update.errorString();
@@ -240,6 +246,10 @@ inline bool install(const Offer& offer, uint8_t battPct, Progress progress, char
       ok = false;
       why = "Checksum mismatch: the download was damaged";
     }
+  }
+  if (ok && !otapolicy::boardMatches(marker, SWITCHBOARD_BOARD)) {
+    ok = false;
+    why = "That firmware is for another kind of device";
   }
   if (!ok) {
     Update.abort();

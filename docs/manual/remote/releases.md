@@ -10,7 +10,7 @@ GitHub Actions (`.github/workflows/release.yaml`) then:
 - checks the tagged commit is on `develop` — tag a commit that's been reviewed and merged, or the release stops;
 - builds the firmware against the pinned FreeInk SDK commit;
 - merges it into one flashable image and attaches it to a GitHub Release;
-- attaches the app image on its own, `switchboard-app-<version>.bin`, with its `.sha256`, for the server's [remote updates](../server/remote-updates.md);
+- attaches the app image on its own, `switchboard-x4pro-app-<version>.bin`, with its `.sha256`, for the server's [remote updates](../server/remote-updates.md) (`x4pro` is this firmware's board, `SWITCHBOARD_BOARD` in `platformio.ini`; the image's marker says it too);
 - publishes the flashable image to `docs/firmware/`.
 
 ## The browser flasher
