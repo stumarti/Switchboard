@@ -46,10 +46,11 @@ That's it — the carousel now shows whatever you set up for that room on the se
 
 ## Manual
 
-**[The Switchboard manual](https://stumarti.github.io/Switchboard/manual/)** covers the remote and the server, with screenshots of every screen. It's served by GitHub Pages from [`docs/manual/`](docs/manual/), beside the web flasher.
+**[The Switchboard manual](https://stumarti.github.io/Switchboard/manual/)** covers the remote, the viewport and the server, with screenshots of every screen. It's served by GitHub Pages from [`docs/manual/`](docs/manual/), beside the web flasher.
 
 - [Getting started](https://stumarti.github.io/Switchboard/manual/getting-started.html)
 - The remote: [screens](https://stumarti.github.io/Switchboard/manual/remote/screens.html), [Quick Access and the shade](https://stumarti.github.io/Switchboard/manual/remote/navigation.html), [settings](https://stumarti.github.io/Switchboard/manual/remote/settings.html), [updates](https://stumarti.github.io/Switchboard/manual/remote/updates.html)
+- The viewport ([Switchboard Viewport](https://github.com/stumarti/Switchboard-Viewport), a colour wall display): [setting up](https://stumarti.github.io/Switchboard/manual/viewport/setup.html), [screens](https://stumarti.github.io/Switchboard/manual/viewport/screens.html), [buttons, refresh and sleep](https://stumarti.github.io/Switchboard/manual/viewport/buttons.html), [updates](https://stumarti.github.io/Switchboard/manual/viewport/updates.html)
 - [Building the firmware](https://stumarti.github.io/Switchboard/manual/remote/building.html) and [releases](https://stumarti.github.io/Switchboard/manual/remote/releases.html)
 - [Try the demo](https://stumarti.github.io/Switchboard/manual/demo.html): the server with a pretend Home Assistant, no hardware needed
 
