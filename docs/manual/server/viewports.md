@@ -25,7 +25,7 @@ A viewport is a colour wall-mounted e-ink display, for example the reTerminal E1
     | Room temperatures | temperature and humidity, grouped by floor |
     | People | who is home, in green |
     | Now playing | what each player is playing |
-    | Departures | next departures, red when imminent |
+    | Departures | the next two departures per route, red when imminent. From a stop sensor's arrivals list (route, headsign, live and timetabled times: live ones in the route's colour, timetabled-only in black; optionally only some routes; named after the next bus when you don't name it), or one sensor (or attribute) per departure reading "Due", minutes ("12", "12 min"), a time ("17:05") or a timestamp |
     | Alarm | its state, since when, and optionally when it was last armed, disarmed or triggered |
     | Doors & windows | open (red) or closed |
     | Motion | last motion per sensor, blue when recent |
