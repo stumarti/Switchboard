@@ -21,7 +21,7 @@ The kitchen panel's three screens. **Start from… → Kitchen panel** in the la
 - **Now.** What needs attention, newest first: the alarm, heating that's calling, hot water, open doors and windows, plants that need water, a robot that's cleaning or mowing, or any entity you add.
 - **Today.** Today's calendar events, timed events first, each in its calendar's colour.
 
-**Heating** shows the whole house against its setpoint, flooded red while any zone is calling for heat, with hot water underneath. On the right, each zone has a bar: red while heating up to its setpoint, blue while above it.
+**Heating** says whether the heating is on (the left side flooded red while any zone is calling for heat) and how many zones are calling, with hot water underneath. On the right, each zone has a bar: red while heating up to its setpoint, blue while above it.
 
 **Security** shows the alarm (green when disarmed, red when armed or triggered) and since when, with a summary under it. Next to it are the doors and windows (red when open), then motion sensors and cameras, each with the time of its last change.
 

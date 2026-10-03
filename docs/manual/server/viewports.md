@@ -17,7 +17,7 @@ A viewport is a colour wall-mounted e-ink display, for example the reTerminal E1
     | Home battery | charge, status (*Charging*, *Discharging*, *Idle*, from its power sensor) and when charging finishes or discharging runs out (the battery's own timestamp entities, else worked out from its power) |
     | Status icons | up to 12 icons, each following any entity or attribute (or several, e.g. any door open); rules set the colour, a different icon, or hide it |
     | Now | what needs attention: the alarm, heating calling, hot water, open doors and windows, plants needing water, a robot at work, or any entity, each a coloured two-line item |
-    | Heating | the whole house against its setpoint, flooded red while calling, hot water, and each zone's bar |
+    | Heating | on or off, flooded red while any zone calls, how many are calling, optionally the whole house's temperature and setpoint, hot water, and each zone's bar |
     | Alert lines | "Front door, Garage +1 open", or "All clear" |
     | Calendar | upcoming events from any calendars, each in its calendar's colour; or just today's, timed events first, with the first words of each description |
     | Heat pump | mode, outside temperature, setpoint, COP |

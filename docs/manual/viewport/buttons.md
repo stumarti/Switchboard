@@ -8,11 +8,14 @@ A viewport runs on battery, so it spends nearly all its time in deep sleep. It w
 
 | Button | Press | Hold (1 second) |
 |---|---|---|
-| **Left** | Previous screen | **Device info**: what each button does, the refresh interval, battery, firmware, server, Wi-Fi network and signal, MAC |
-| **Middle** (green) | Refresh: fetch the latest and redraw this screen | **Wi-Fi setup**: start the hotspot and QR codes again ([Setting up](setup.md)) |
-| **Right** | Next screen | **Clear screen**: fill the panel white. The next wake redraws it |
+| **Left** | Previous screen (direct buttons: the last screen) | **Device info**: what each button does, the refresh interval, battery, firmware, server, Wi-Fi network and signal, MAC |
+| **Middle** (green) | Refresh: fetch the latest and redraw this screen (direct buttons: the first screen) | **Wi-Fi setup**: start the hotspot and QR codes again ([Setting up](setup.md)) |
+| **Right** | Next screen (direct buttons: the second screen) | **Clear screen**: fill the panel white. The next wake redraws it |
 
-The left and right buttons step through the layout's screens in order, wrapping round at either end.
+The layout's **Carousel → Buttons** setting picks how they work:
+
+- **Step** (the default): right and left step through the layout's screens in order, wrapping round at either end, and the middle refreshes the one on show.
+- **Straight to a screen**: each button always shows the same screen, whichever is on show: the middle the first, the right the second, the left the last. The kitchen dashboard uses this, so it works as the panel's own firmware did: middle for Status, right for Heating, left for Security. Device info then names each button's screen.
 
 ## The carousel
 
@@ -32,7 +35,7 @@ The server decides the time of each wake and sends it with every screen (`refres
 - sooner when something is due: a meeting starting or ending, a departure becoming imminent, or a conditional section that's on show (every few minutes, so it stays current);
 - never sooner than a minute, and never later than 12 hours.
 
-If the display can't reach the server, it tries again in 15 minutes. While it waits to be approved, it checks every 2 minutes.
+If the display can't reach Wi-Fi, the server or Home Assistant, it tries again after its usual interval (quiet hours included), remembered from the last time it reached the server. While it waits to be approved, it checks every 2 minutes.
 
 ## Quiet hours
 
