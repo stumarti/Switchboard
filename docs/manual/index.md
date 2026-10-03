@@ -8,6 +8,13 @@
   <figure><div class="remote"><img src="images/remote/music.png" alt="The Music page"></div><figcaption>Music</figcaption></figure>
 </div>
 
+<div class="shots wide">
+  <figure><div class="panel"><img src="images/viewport/device/kitchen-panel-status.png" alt="A viewport's Status screen"></div><figcaption>A viewport: the kitchen dashboard</figcaption></figure>
+  <figure><div class="panel"><img src="images/viewport/device/kitchen-panel-energy.png" alt="A viewport's Energy screen"></div><figcaption>Energy, on the same panel</figcaption></figure>
+</div>
+
+**Batteries that last.** A remote runs for about 30 days on a charge with light use, and a viewport for around 3 months. E-ink only uses power to change the picture, the devices sleep whenever they can, and the server tells you how many days each one has left. See [Battery life](server/battery-life.md).
+
 ## How it fits together
 
 - **The remote** is dumb hardware. It knows nothing about your house until the server tells it, and it only draws what it's sent.

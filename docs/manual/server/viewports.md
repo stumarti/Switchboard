@@ -12,8 +12,8 @@ A viewport is a colour wall-mounted e-ink display, for example the reTerminal E1
     | Type | What it shows |
     |---|---|
     | Weather | now, "later" and the next days |
-    | Energy totals | predicted and generated solar, house use, grid import and export, as tiles or a sidebar list |
-    | Energy graph | two panels: actual solar against the prediction; below it, what the house used, stacked by source (solar, battery, grid), with export to the grid below the line |
+    | Energy totals | predicted and generated solar, house use, grid import and export, to one decimal place, as tiles or a sidebar list |
+    | Energy graph | two panels with a legend each, filling the column to the footer: actual solar (yellow bars) against the prediction (a dashed line); below it, what the house used, stacked by source (solar, battery, grid), with charging the battery and export to the grid below the line. Hours along both |
     | Home battery | charge, and status from the battery's power meter (W or kW; negative while charging, or positive for inverters that report it that way): *Charging* or *Discharging* beyond ± the idle watts, else *Idle*. While charging, "full at 16:20"; while discharging, "empty at 04:05". Each comes from its own sensor, as a time (timestamp sensor or input_datetime) or the time left (s, min, h, or 1:45:00) |
     | Status icons | up to 12 icons, each following any entity or attribute (or several, e.g. any door open); rules set the colour, a different icon, or hide it |
     | Now | what needs attention: the alarm, heating calling, hot water, open doors and windows, plants needing water, a robot at work, or any entity, each a coloured two-line item |
@@ -25,14 +25,15 @@ A viewport is a colour wall-mounted e-ink display, for example the reTerminal E1
     | Room temperatures | temperature and humidity, grouped by floor |
     | People | who is home, in green |
     | Now playing | what each player is playing |
-    | Departures | the next two departures per route, red when imminent. From a stop sensor's arrivals list (route, headsign, live and timetabled times: live ones in the route's colour, timetabled-only in black; optionally only some routes; named after the next bus when you don't name it), or one sensor (or attribute) per departure reading "Due", minutes ("12", "12 min"), a time ("17:05") or a timestamp |
+    | Departures | the next two departures per line, red when imminent. From a stop sensor's arrivals list (route, headsign, live and timetabled times): left unnamed, it's a stop board with a line per route and headsign, soonest first; named for a route ("C3" or "C3 Maynooth"), one line with only that route's buses; *Only routes* picks several. Live times are in the route's colour, timetabled-only ones in black. Or one sensor (or attribute) per departure reading "Due", minutes ("12", "12 min"), a time ("17:05") or a timestamp |
     | Alarm | its state, since when, and optionally when it was last armed, disarmed or triggered |
     | Doors & windows | open (red) or closed |
     | Motion | last motion per sensor, blue when recent |
     | Cameras | last motion per camera |
+    | Spacer | nothing: a gap of the height you set (in px), to move the sections under it down the column, e.g. the home battery to the bottom of the sidebar |
     | Announcements | the newest items of a company RSS or Atom feed (intranet news, SharePoint, a blog): headline, short summary, when posted. The server reads the feed, at most every 10 minutes, and keeps the last good copy if it's down |
 
-  The kitchen dashboard (**Start from… → Kitchen panel**) is the panel's own Status, Heating and Security; the demo's kitchen panel adds Energy and Presence. As the display draws them (see [Viewport screens](../viewport/screens.md)):
+  The kitchen dashboard (**Start from… → Kitchen dashboard**) is the panel's own Status, Heating and Security; the demo's kitchen panel adds Energy and Presence. As the display draws them (see [Viewport screens](../viewport/screens.md)):
 
   <div class="shots wide">
     <figure><div class="panel"><img src="../images/viewport/device/kitchen-panel-status.png" alt="Status"></div><figcaption>Status</figcaption></figure>

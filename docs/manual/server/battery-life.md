@@ -2,6 +2,15 @@
 
 Every device reports its battery on its requests (`X-Battery`), and the server learns from those readings how many days each one has left. No firmware support is needed beyond that header, so remotes and viewports both get it.
 
+## How long a charge lasts
+
+| Device | On a charge | Why |
+|---|---|---|
+| **Remote** (Xteink X4 Pro) | about **30 days** with light use | The screen sleeps soon after you put it down, and the Wi-Fi radio goes off while it's idle. A press wakes both. Use it a lot, or shorten its **Timeouts**, and it lasts less. |
+| **Viewport** (reTerminal E1002) | around **3 months** | It's in deep sleep between refreshes. When a screen hasn't changed, the server answers `304` and the panel isn't redrawn. During [quiet hours](../viewport/buttons.md#quiet-hours) it wakes less often. Refreshing more often, or showing live sections that wake it every few minutes, costs battery. |
+
+E-ink only uses power to change the picture, and the server does the work: the devices never talk to Home Assistant themselves, and everything they draw arrives ready. Your own figures depend on how you use them, which is what the estimate below is for.
+
 ## Where it shows
 
 <figure class="shot"><img src="../images/admin/home.png" alt="Home page devices"><figcaption>The Home page: each battery with the days it has left. The Kitchen remote is low, so it also shows under <b>Needs attention</b>.</figcaption></figure>

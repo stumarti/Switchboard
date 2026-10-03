@@ -1,6 +1,6 @@
 # Buttons, refresh and sleep
 
-A viewport runs on battery, so it spends nearly all its time in deep sleep. It wakes on a timer the server sets, or when you press a button, fetches what changed, redraws if it has to, and goes back to sleep. A full refresh of the colour panel takes about 20 seconds. If a screen hasn't changed, the server answers `304` and the panel isn't touched.
+A viewport runs on battery, so it spends nearly all its time in deep sleep. It wakes on a timer the server sets, or when you press a button, fetches what changed, redraws if it has to, and goes back to sleep. A full refresh of the colour panel takes about 20 seconds. If a screen hasn't changed, the server answers `304` and the panel isn't touched. That's how a charge lasts around three months (see [Battery life](../server/battery-life.md)).
 
 ## The buttons
 

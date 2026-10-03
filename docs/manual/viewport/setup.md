@@ -52,4 +52,4 @@ If you approve it without a layout, it shows **Not set up yet** with a QR code f
 
 ## 4. Choose what it shows
 
-Everything a viewport shows comes from its [viewport layout](../server/viewports.md) on the server: the screens, what's in them, the carousel, quiet hours, and how often it refreshes. The display keeps nothing of its own except its Wi-Fi, its pairing, and a cache of what it last drew. The kitchen dashboard layout (**Start from… → Kitchen panel**) is the screen set the panel shipped with: [Status, Heating and Security](screens.md).
+Everything a viewport shows comes from its [viewport layout](../server/viewports.md) on the server: the screens, what's in them, the carousel, quiet hours, and how often it refreshes. The display keeps nothing of its own except its Wi-Fi, its pairing, and a cache of what it last drew. The kitchen dashboard layout (**Start from… → Kitchen dashboard**) is the screen set the panel shipped with: [Status, Heating and Security](screens.md).
