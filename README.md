@@ -1,56 +1,106 @@
 # Switchboard
 
-A smart-home remote for the **Xteink X4 Pro** e-reader. One e-ink panel, four buttons and a touchscreen, driving your lights, blinds, music, TV and climate through Home Assistant — no app, no phone, just pick it up off the wall dock and tap.
+**Your smart home, on paper.** Switchboard puts Home Assistant on e-ink: remotes you pick up off the wall, and colour wall displays that show your whole house at a glance. One small server sets them all up. No app, no phone, no tablet with a charger cable hanging off it.
 
-**[⚡ Flash it from your browser](https://stumarti.github.io/Switchboard/)** — no PlatformIO install needed (Chrome/Edge on desktop only).
+**[⚡ Flash one from your browser](https://stumarti.github.io/Switchboard/)** · **[Read the manual](https://stumarti.github.io/Switchboard/manual/)** · **[Try the demo, no hardware needed](https://stumarti.github.io/Switchboard/manual/demo.html)**
 
-## Gallery
+<p>
+  <img src="docs/images/standby.jpg" width="250" alt="A Switchboard remote on the wall">
+  <img src="docs/manual/images/viewport/device/kitchen-panel-status.png" width="500" alt="A Switchboard viewport: the kitchen dashboard">
+</p>
+
+## Forget about charging
+
+E-ink only uses power to change the picture. Switchboard is built around that:
+
+| | On a charge | |
+|---|---|---|
+| 🔋 **Remote** (Xteink X4 Pro) | **about 30 days** with light use | The screen and the Wi-Fi go to sleep as soon as you put it down. A press wakes it. |
+| 🔋 **Viewport** (Seeed reTerminal E1002) | **around 3 months** | It sleeps between refreshes, and when nothing has changed it doesn't redraw at all. It refreshes on the clock, and less often overnight. |
+
+The server does all the heavy lifting, so the devices don't have to. It talks to Home Assistant, works out every value, colour and icon, and dithers the album art. The devices just wake up, draw and go back to sleep.
+
+You'll know before a battery runs out. The server learns how fast each device drains, shows **the days each one has left**, warns you a few days ahead, and can send the battery levels to Home Assistant for your own automations.
+
+## The remote
+
+A smart-home remote on the **Xteink X4 Pro** e-reader. It has a crisp e-ink panel, four buttons and a touchscreen, and it controls each room's lights, blinds, music, TV and heating.
 
 <table>
 <tr>
-  <td><img src="docs/images/standby.jpg" width="220" alt="Standby screen"><br><sub>Standby</sub></td>
-  <td><img src="docs/images/lighting.jpg" width="220" alt="Lighting screen"><br><sub>Lighting</sub></td>
-  <td><img src="docs/images/climate.jpg" width="220" alt="Climate screen"><br><sub>Climate</sub></td>
+  <td><img src="docs/images/lighting.jpg" width="220" alt="Lighting"><br><sub>Lighting: every light, dimmers and colour</sub></td>
+  <td><img src="docs/images/climate.jpg" width="220" alt="Climate"><br><sub>Climate: the room's heating and setpoint</sub></td>
+  <td><img src="docs/images/blinds.jpg" width="220" alt="Blinds"><br><sub>Blinds: open, close, or anywhere between</sub></td>
 </tr>
 <tr>
-  <td><img src="docs/images/blinds.jpg" width="220" alt="Blinds screen"><br><sub>Blinds</sub></td>
-  <td><img src="docs/images/music.jpg" width="220" alt="Music screen"><br><sub>Music</sub></td>
-  <td><img src="docs/images/tv.jpg" width="220" alt="TV screen"><br><sub>TV</sub></td>
-</tr>
-<tr>
-  <td><img src="docs/images/menu.jpg" width="220" alt="Jump to menu"><br><sub>Jump to menu</sub></td>
+  <td><img src="docs/images/music.jpg" width="220" alt="Music"><br><sub>Music: now playing, with album art</sub></td>
+  <td><img src="docs/images/tv.jpg" width="220" alt="TV"><br><sub>TV: power, inputs, volume, the remote you lost</sub></td>
+  <td><img src="docs/images/menu.jpg" width="220" alt="Jump to menu"><br><sub>Quick Access: anything, in two taps</sub></td>
 </tr>
 </table>
 
-## What you need
+- **One remote per room, or one for the whole house.** Pick its room in Settings and it changes in seconds, with nothing to re-flash.
+- **Pages for everything:** Status, Lighting, Blinds, Music, TV, Receiver, Xbox, a Wi-Fi QR code for guests, and Climate. Flip through them with the buttons, or jump straight to one from Quick Access.
+- **Readable in any light**, with a backlight shade for the dark.
+- **It updates itself** over Wi-Fi from your server. If a new version can't reach home, it rolls back on its own.
 
-- An **Xteink X4 Pro**.
-- A **Home Assistant** instance on your network.
-- **[Switchboard Server](https://github.com/stumarti/Switchboard-Server)** running somewhere on your LAN (a Docker container — a spare mini PC, NAS, or Unraid box all work). This is what tells your remote which lights/blinds/TV etc. actually exist in the room it's in — the firmware doesn't know anything about your house on its own.
+## The viewport
 
-## Quick start
+A colour e-ink wall display on the **Seeed reTerminal E1002**. Its 7.3" Spectra 6 panel shows six colours, it has no glow, and it reads from across the room. Put one in the kitchen, the hall or beside a meeting room door.
 
-1. **Get Switchboard Server running first.** Follow its [README](https://github.com/stumarti/Switchboard-Server) — it's a couple of minutes with `docker compose up -d`. Set an admin password on first open, then create at least one room (e.g. "Kitchen") and fill in its Home Assistant entities before moving on.
-2. **Flash the device.** Plug the X4 Pro into your computer over USB and use the [browser flasher](https://stumarti.github.io/Switchboard/) (Chrome or Edge on desktop). Prefer to build it yourself? See [Building the firmware](https://stumarti.github.io/Switchboard/manual/remote/building.html).
-3. **First boot.** The device shows a splash, then walks you through joining your Wi-Fi (pick your network, type the password on the on-screen keyboard).
-4. **Pair with the server.** The device registers itself and asks you to approve it. Open Switchboard Server's **Remotes** page, approve it there (optionally picking its room in the same step), then **press any button on the remote** to continue.
-5. **(Optional) Pick a different room later**, or if you didn't assign one at approval time: tap the **Home** key → **Settings** → **Select room**.
+<table>
+<tr>
+  <td><img src="docs/manual/images/viewport/device/kitchen-panel-heating.png" width="380" alt="Heating"><br><sub>Heating: which zones are calling, at a glance</sub></td>
+  <td><img src="docs/manual/images/viewport/device/kitchen-panel-security.png" width="380" alt="Security"><br><sub>Security: the alarm, doors, windows, motion and cameras</sub></td>
+</tr>
+<tr>
+  <td><img src="docs/manual/images/viewport/device/kitchen-panel-energy.png" width="380" alt="Energy"><br><sub>Energy: solar against the forecast, and where your power went</sub></td>
+  <td><img src="docs/manual/images/viewport/device/kitchen-panel-presence.png" width="380" alt="Presence and departures"><br><sub>Who's home, the room temperatures, now playing, the next buses</sub></td>
+</tr>
+<tr>
+  <td><img src="docs/manual/images/viewport/device/boardroom-meeting.png" width="380" alt="Meeting room"><br><sub>A meeting room sign: free or busy, and what's next</sub></td>
+  <td><img src="docs/manual/images/viewport/device/reception-home.png" width="380" alt="Reception"><br><sub>Reception: the weather, today's meetings and company news</sub></td>
+</tr>
+</table>
 
-That's it — the carousel now shows whatever you set up for that room on the server. Move the remote to a different room later by repeating step 5; nothing needs re-flashing.
+- **Build any screen.** Choose from twenty section types: weather, energy totals and graph, the home battery, status icons, "what needs attention now", heating, calendar, alarm, doors and windows, motion, cameras, people, now playing, bus and train departures, announcements and more. Arrange them in one, two or three columns, or in the kitchen dashboard's sidebar layout.
+- **Three buttons:** previous, next and home, on every screen. It can also move through its screens on its own.
+- **Set up with your phone:** scan the QR code on the panel, then pick your Wi-Fi. No keyboard needed.
+- **It's a room sensor too:** its temperature and humidity can go to Home Assistant, along with its battery.
 
-## Using it
+## The server
 
-- **Left/Right** step through the room's pages: Status, Lighting, Blinds, Music, TV, Receiver, Xbox, Wi-Fi and Climate.
-- **Tap Home** for Quick Access (or the jump list); **hold Home** for the backlight shade.
-- **Settings** (from Quick Access) picks the room, shows device info, and holds the timeouts and developer tools.
+[**Switchboard Server**](https://github.com/stumarti/Switchboard-Server) is a small Docker container on your network, and it holds every device's whole setup. Build a room's remote or a wall display's screens in the browser, with a **live preview from Home Assistant**, and every device picks it up on its own.
 
-## Manual
+<p><img src="docs/manual/images/admin/home.png" width="760" alt="The server's Home page: every device, its battery and days left"></p>
 
-**[The Switchboard manual](https://stumarti.github.io/Switchboard/manual/)** covers the remote and the server, with screenshots of every screen. It's served by GitHub Pages from [`docs/manual/`](docs/manual/), beside the web flasher.
+- **Every device on one page:** battery and days left, Wi-Fi signal, firmware, and anything that needs attention.
+- **Approve devices with one click.** They find the server by themselves (mDNS), so there are no addresses to type.
+- **Firmware updates for everything:** update one device at a time or all at once, from GitHub releases.
+- **Make them yours** with themed icons and fonts.
 
-- [Getting started](https://stumarti.github.io/Switchboard/manual/getting-started.html)
-- The remote: [screens](https://stumarti.github.io/Switchboard/manual/remote/screens.html), [Quick Access and the shade](https://stumarti.github.io/Switchboard/manual/remote/navigation.html), [settings](https://stumarti.github.io/Switchboard/manual/remote/settings.html), [updates](https://stumarti.github.io/Switchboard/manual/remote/updates.html)
-- [Building the firmware](https://stumarti.github.io/Switchboard/manual/remote/building.html) and [releases](https://stumarti.github.io/Switchboard/manual/remote/releases.html)
-- [Try the demo](https://stumarti.github.io/Switchboard/manual/demo.html): the server with a pretend Home Assistant, no hardware needed
+## Get started
 
-The remote is a client: it doesn't talk to Home Assistant directly and carries no room setup on board. All of that lives in [Switchboard Server](https://github.com/stumarti/Switchboard-Server), which it finds on your network via mDNS (`switchboard.local:45678` by default).
+1. **Run the server.** Follow the [Switchboard Server README](https://github.com/stumarti/Switchboard-Server): with `docker compose up -d`, it takes a couple of minutes. Connect it to Home Assistant and create a room (for a remote) or a viewport layout.
+2. **Flash the device** from the [browser flasher](https://stumarti.github.io/Switchboard/) over USB (Chrome or Edge, on a desktop). It has a button for the remote and one for the viewport.
+3. **Put it on your Wi-Fi.** The remote has an on-screen keyboard; the viewport shows two QR codes for your phone.
+4. **Approve it** on the server, and pick its room or layout. That's it.
+
+The [Getting started](https://stumarti.github.io/Switchboard/manual/getting-started.html) guide walks through it with screenshots. Would you rather build the firmware yourself? See [Building the firmware](https://stumarti.github.io/Switchboard/manual/remote/building.html).
+
+## The manual
+
+**[The Switchboard manual](https://stumarti.github.io/Switchboard/manual/)** covers the remote, the viewport and the server, with a screenshot of every screen. It's served from [`docs/manual/`](docs/manual/) with GitHub Pages.
+
+- **The remote:** [screens](https://stumarti.github.io/Switchboard/manual/remote/screens.html), [Quick Access and the shade](https://stumarti.github.io/Switchboard/manual/remote/navigation.html), [settings](https://stumarti.github.io/Switchboard/manual/remote/settings.html), [updates](https://stumarti.github.io/Switchboard/manual/remote/updates.html)
+- **The viewport:** [setting up](https://stumarti.github.io/Switchboard/manual/viewport/setup.html), [screens](https://stumarti.github.io/Switchboard/manual/viewport/screens.html), [buttons, refresh and sleep](https://stumarti.github.io/Switchboard/manual/viewport/buttons.html), [updates](https://stumarti.github.io/Switchboard/manual/viewport/updates.html)
+- **The server:** [Home](https://stumarti.github.io/Switchboard/manual/server/home.html), [remote layouts](https://stumarti.github.io/Switchboard/manual/server/remote-layouts.html), [viewport layouts](https://stumarti.github.io/Switchboard/manual/server/viewports.html), [battery life](https://stumarti.github.io/Switchboard/manual/server/battery-life.html)
+- **Builders:** [building the firmware](https://stumarti.github.io/Switchboard/manual/remote/building.html), [releases](https://stumarti.github.io/Switchboard/manual/remote/releases.html), [the demo](https://stumarti.github.io/Switchboard/manual/demo.html)
+
+## The repositories
+
+| | |
+|---|---|
+| **Switchboard** (this one) | The remote's firmware, the browser flasher and the manual |
+| [Switchboard Server](https://github.com/stumarti/Switchboard-Server) | The server: setup, Home Assistant, updates, the admin UI |
+| [Switchboard Viewport](https://github.com/stumarti/Switchboard-Viewport) | The viewport's firmware |
