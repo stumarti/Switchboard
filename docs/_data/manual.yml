@@ -14,6 +14,14 @@
     - { title: Updates, page: remote/updates }
     - { title: When something's wrong, page: remote/errors }
 
+- title: The viewport
+  pages:
+    - { title: Setting up, page: viewport/setup }
+    - { title: Screens, page: viewport/screens }
+    - { title: Buttons, refresh and sleep, page: viewport/buttons }
+    - { title: Updates, page: viewport/updates }
+    - { title: When something's wrong, page: viewport/errors }
+
 - title: The server
   pages:
     - { title: Home, page: server/home }
@@ -35,6 +43,7 @@
   pages:
     - { title: Building the firmware, page: remote/building }
     - { title: Releases, page: remote/releases }
+    - { title: Building the viewport, page: viewport/building }
     - { title: Server development, page: server/development }
     - { title: API, page: server/api }
     - { title: Profile format, page: server/profile-format }

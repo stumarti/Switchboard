@@ -23,8 +23,8 @@ Every Switchboard remote already talks to this: `Settings → Select room` calls
 | GET | `/api/ha/status` | Whether the server can reach Home Assistant with the saved connection | session |
 | GET | `/api/ha/entities` | Search HA's entities (`domains`, `q`, `deviceClass`, `limit`) for the admin UI's pickers | session |
 | POST | `/api/ha/lookup` | Look up specific entity ids (`{ids: [...]}`): each entity, or `null` if HA doesn't have it | session |
-| GET | `/api/viewports/<mac>/bundle` | A viewport's layout (carousel + screens) plus every icon it can show, Wi-Fi networks, NTP server and time zone (`me` = the calling device; `304` when unchanged) | session or device |
-| GET | `/api/viewports/<mac>/state` | Every screen's finished values, each with its own `etag`, and `refreshInSec`; `?screen=<id>` returns one screen with `ETag` and `X-Refresh-In` headers, and a bodyless `304` when unchanged | session or device |
+| GET | `/api/viewports/<mac>/bundle` | A viewport's layout (carousel + screens) plus every icon it can show, Wi-Fi networks, NTP server, time zone and its current UTC offset (`utcOffsetMin`), and any firmware offer (`me` = the calling device; `304` when unchanged) | session or device |
+| GET | `/api/viewports/<mac>/state` | Every screen's finished values, each with its own `etag`, and `refreshInSec`; `?screen=<id>` returns one screen with `ETag`, `X-Refresh-In` and (during quiet hours) `X-Quiet: 1` headers, and a bodyless `304` when unchanged | session or device |
 | POST | `/api/viewports/<mac>/preview` | The state an unsaved layout (`{layout}`) would produce — the admin UI's live preview | session |
 | POST | `/api/viewports/import` | A kitchen panel's own `/api/config` JSON (`{config}`) as a layout, to review and save | session |
 | GET | `/api/dashboards` | Every viewport layout ("dashboard" in the API), with its screens and the displays using it | session |
@@ -41,8 +41,8 @@ Every Switchboard remote already talks to this: `Settings → Select room` calls
 | POST | `/api/pairing/<mac>/approve` | Approve a pending device, optionally assign its room | session |
 | POST | `/api/pairing/<mac>/assign` \| `/rename` \| `/revoke` | Change room / rename / revoke | session |
 | DELETE | `/api/pairing/<mac>` | Remove a device record | session |
-| GET | `/api/theme` | Current icon/font pack version stamps | session or device |
-| GET | `/api/theme/icons.pack` \| `/fonts.pack` | The compiled binary a device downloads | session or device |
+| GET | `/api/theme` | Current icon/font pack version stamps, for the calling device's kind (`?kind=viewport` from a session) | session or device |
+| GET | `/api/theme/icons.pack` \| `/fonts.pack` | The compiled binary a device downloads: a remote gets the remotes' pack, a viewport the viewports' | session or device |
 | GET | `/api/assets/icon-slots` | The ~107 named icon slots, for Settings → Theme | session |
 | GET | `/api/assets/icons/search?q=` | Search MDI icons (with previews) | session |
 | POST | `/api/assets/icons/compile` \| `/api/assets/fonts/compile` | Compile + publish a new theme | session |
@@ -62,4 +62,4 @@ Every Switchboard remote already talks to this: `Settings → Select room` calls
 
 ## Health headers
 
-Any paired device — remote or viewport — can send `X-Battery`, `X-Temperature`, `X-RSSI` and `X-Firmware` headers on its requests. The Home page and the device's page show them, warn on a low battery or weak signal, and learn [battery life](battery-life.md) from `X-Battery`.
+Any paired device — remote or viewport — can send `X-Battery`, `X-Temperature`, `X-Humidity`, `X-RSSI`, `X-Firmware` and `X-Board` headers on its requests. The Home page and the device's page show them, warn on a low battery or weak signal, and learn [battery life](battery-life.md) from `X-Battery`.

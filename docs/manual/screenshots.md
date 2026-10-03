@@ -25,4 +25,14 @@ It needs `g++` and zlib. On first run it downloads ArduinoJson and Nayuki's QR c
 node tools/demo/screenshots.js ../Switchboard/docs/manual/images
 ```
 
-The viewport screens are the server's own preview of what a display would draw. The display firmware itself isn't part of these repositories.
+These viewport screens are the server's own preview of what a display would draw.
+
+## The viewport's own renders
+
+The images in [The viewport](viewport/screens.md) are drawn by the viewport firmware itself, built for the computer instead of the panel (in [Switchboard-Viewport](https://github.com/stumarti/Switchboard-Viewport)):
+
+```sh
+./test/host/run.sh        # every screen in test/fixtures -> test/host/out/
+```
+
+Copy them to `images/viewport/device/` (`kitchen-panel--status.png` becomes `kitchen-panel-status.png`). The fixtures are the demo's screen states, as the server sends them (`test/fixtures/*.json`), and the per-item icons they use (`test/fixtures/icons/`).
