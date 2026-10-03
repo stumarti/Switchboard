@@ -16,7 +16,7 @@ The kitchen panel's three screens. **Start from… → Kitchen panel** in the la
 
 - **Weather.** The temperature in large type: blue below 0°, red above 20°. Beside it is the condition's colour icon. Under that are humidity, wind speed with an arrow pointing where the wind comes from, and UV. The next line says when rain is due, or shows today's solar forecast if no rain is due. Below that are the next three days.
 - **Energy.** Solar generated, house use, grid import and grid export today. An icon turns its colour once its value reaches 1 kWh.
-- **Home battery.** The charge level, its status (*Charging*, *Discharging*, *Idle*) in the status's colour, and when charging finishes ("full at 16:21") or discharging runs out. The finish times come from the battery's own Home Assistant timestamp entities when it has them, or are worked out from its power otherwise.
+- **Home battery.** The charge level and its status, from the battery's power meter. Below −100 W it's *Charging* (green), above +100 W *Discharging* (red), and in between *Idle* (black). While charging, it says when the battery will be full ("full at 16:21"); while discharging, when it will be empty ("empty at 04:05"). Each time comes from its own Home Assistant sensor. If the power can't be read, the status is left blank.
 - **Status icons.** Up to nine icons along the top, each following an entity. Its rules set the colour or swap the icon.
 - **Now.** What needs attention, newest first: the alarm, heating that's calling, hot water, open doors and windows, plants that need water, a robot that's cleaning or mowing, or any entity you add.
 - **Today.** Today's calendar events, timed events first, each in its calendar's colour.

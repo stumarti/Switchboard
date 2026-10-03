@@ -14,7 +14,7 @@ A viewport is a colour wall-mounted e-ink display, for example the reTerminal E1
     | Weather | now, "later" and the next days |
     | Energy totals | predicted and generated solar, house use, grid import and export, as tiles or a sidebar list |
     | Energy graph | two panels: actual solar against the prediction; below it, what the house used, stacked by source (solar, battery, grid), with export to the grid below the line |
-    | Home battery | charge, status (*Charging*, *Discharging*, *Idle*, from its power sensor) and when charging finishes or discharging runs out (the battery's own timestamp entities, else worked out from its power) |
+    | Home battery | charge, and status from the battery's power meter (W or kW; negative while charging, or positive for inverters that report it that way): *Charging* or *Discharging* beyond ± the idle watts, else *Idle*. While charging, "full at 16:20"; while discharging, "empty at 04:05". Each comes from its own sensor, as a time (timestamp sensor or input_datetime) or the time left (s, min, h, or 1:45:00) |
     | Status icons | up to 12 icons, each following any entity or attribute (or several, e.g. any door open); rules set the colour, a different icon, or hide it |
     | Now | what needs attention: the alarm, heating calling, hot water, open doors and windows, plants needing water, a robot at work, or any entity, each a coloured two-line item |
     | Heating | on or off, flooded red while any zone calls, how many are calling, optionally the whole house's temperature and setpoint, hot water, and each zone's bar |
