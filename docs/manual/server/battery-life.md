@@ -31,6 +31,8 @@ Switch on **Publish battery to Home Assistant** (Settings → Home Assistant; of
 | `sensor.switchboard_<name>_battery` | the battery, in % | `device_class: battery`, so it shows with a battery icon and works in battery cards and alerts |
 | `sensor.switchboard_<name>_battery_days_left` | the days left, or `unknown` while it's still learning | `device_class: duration`, in days |
 
+A viewport also gets the readings its own firmware used to send straight to Home Assistant: `sensor.switchboard_<name>_temperature` (°C) and `…_humidity` (%) from its built-in sensor, and `…_voltage` (V, the battery's). If automations used the kitchen panel's old `sensor.dashboard_battery`, `_voltage`, `_temperature` or `_humidity`, point them at these.
+
 `<name>` is the device's name on the server (`Kitchen remote` → `kitchen_remote`); two devices with the same name get the end of their MAC address added. Both sensors carry the device's MAC, type, room (or viewport layout), firmware and last check-in as attributes; the battery sensor also has the drain rate, days since the last charge and whether the estimate is measured or learned.
 
 Use them like any other sensor: an automation that sends a notification when `…_battery_days_left` drops below 2, or a dashboard card of every Switchboard battery.

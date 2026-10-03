@@ -17,7 +17,7 @@ Builds and remotes from before boards count as `x4pro`.
 ## Releasing
 
 1. **Add a build**: upload a `switchboard-<board>-app-<version>.bin`, or pick a release from one of the **GitHub repositories** listed on the page.
-   - The list starts with the Switchboard firmware. Add others as `owner/name` or their GitHub URL: a fork, or the repository of another kind of device.
+   - The list starts with the Switchboard firmware and [Switchboard Viewport](../viewport/updates.md) (`e1002`). Add others as `owner/name` or their GitHub URL: a fork, or the repository of another kind of device.
    - A release carries `switchboard-<board>-app-<version>.bin` and its `.sha256` for each board it builds (older ones, `switchboard-app-<version>.bin`, are the X4 Pro's). Every image is checked against its published checksum and against the board and version inside it; if any fails, none of the release is added.
    - **Get latest release** checks every repository in the list.
    - Only listed repositories are ever read, and only when you press a button.

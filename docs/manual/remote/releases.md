@@ -17,6 +17,8 @@ GitHub Actions (`.github/workflows/release.yaml`) then:
 
 `docs/firmware/` is what the [browser flasher](../../) serves, and `docs/manual/` is this manual, once GitHub Pages is turned on for this repo (Settings → Pages → `develop` / `/docs`). The flasher needs Chrome or Edge on a desktop: Web Serial isn't available elsewhere.
 
+The flasher also installs the viewport. Its firmware, `docs/firmware/viewport/`, is the latest [Switchboard Viewport](https://github.com/stumarti/Switchboard-Viewport/releases) release. The **Viewport web flasher** workflow copies it there every six hours, or when you run it by hand (Actions → Viewport web flasher → Run workflow). It only commits when a new release is out. To have each viewport release update the flasher straight away, give the Switchboard-Viewport repository a `SWITCHBOARD_FLASHER_TOKEN` secret: a fine-grained token for this repository with *Contents: read and write*. Its release workflow then triggers the update when it publishes.
+
 ## Locking it down
 
 Anything tagged on `develop` can reach every remote once it's released on the server, so it's worth protecting:
