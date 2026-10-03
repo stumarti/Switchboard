@@ -22,7 +22,7 @@
     - { title: Viewports, page: server/viewports }
     - { title: Settings, page: server/settings }
     - { title: Theme, page: server/theme }
-    - { title: Remote updates, page: server/remote-updates }
+    - { title: Updates, page: server/remote-updates }
     - { title: Battery life, page: server/battery-life }
     - { title: Pairing & auth, page: server/pairing-and-auth }
 

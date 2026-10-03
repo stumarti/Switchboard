@@ -51,7 +51,10 @@ Every Switchboard remote already talks to this: `Settings → Select room` calls
 | GET | `/api/firmware/offer` | The update on offer for the calling remote, if any | session or device |
 | GET | `/api/firmware/image/<version>` | A build's image, for the remote to install | session or device |
 | POST | `/api/firmware/report` | A remote's result for an update attempt | session or device |
-| GET | `/api/firmware` | Remote updates: settings, builds and every remote's update state | session |
+| GET | `/api/firmware` | Updates: settings, builds and every device's update state | session |
+| GET/PUT | `/api/security` | Allowed networks (`{enabled, allowed}`), with the address you're seen from and the other security settings | session |
+| PUT | `/api/security/settings` | `{sessionHours, loginLockout, acceptNewDevices}` | session |
+| POST | `/api/security/sign-out-others` | Sign out every other browser | session |
 | PUT | `/api/firmware/settings` | Save the update settings (on/off, release, stage, pilots, schedule, button, minimum battery, repositories) | session |
 | POST | `/api/firmware/upload` | Add a build from an uploaded `.bin` | session |
 | DELETE | `/api/firmware/builds/<version>` | Remove a build (not the current release) | session |

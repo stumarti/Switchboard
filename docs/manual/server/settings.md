@@ -22,9 +22,15 @@ The network remotes join, and the household's networks, which the remote's [Wi-F
 
 Remotes set their clock from the server, so this tab says if the server's clock drifts or its time zone differs from your browser's. It also sets the NTP server devices use.
 
-## Theme and Remote updates
+## Theme and Updates
 
-See [Theme](theme.md) and [Remote updates](remote-updates.md).
+See [Theme](theme.md) and [Updates](remote-updates.md).
+
+## Security
+
+<figure class="shot"><img src="../images/admin/settings-security.png" alt="Settings, Security"><figcaption>Allowed networks, sign-in, and new devices.</figcaption></figure>
+
+Which networks the server answers, how sign-in is protected, and whether new devices may ask to pair. See [Security](security.md).
 
 ## Account
 

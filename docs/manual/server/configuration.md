@@ -11,6 +11,8 @@
 | `MDNS_IP` / `MDNS_INTERFACE` | auto | Force the advertised IP/NIC if auto-detect picks wrong (common on multi-NIC boxes) |
 | `DISABLE_MDNS` | off | Set `1` to turn off discovery entirely |
 | `ADMIN_PASSWORD` | unset | Seeds/overwrites the admin UI's password on every start. Leave unset to set it once from the UI's own setup screen instead. |
+| `ALLOWED_NETWORKS` | unset | Replaces Settings → Security's allowed networks while set: comma-separated ranges or addresses, or `any` to turn the check off. The way back in if a list ever shuts you out. |
+| `TRUST_PROXY` | unset | Behind a reverse proxy: its address(es), comma-separated (or `loopback`). The allowed networks then check the address the proxy forwards, not the proxy's. |
 
 ## On Unraid
 

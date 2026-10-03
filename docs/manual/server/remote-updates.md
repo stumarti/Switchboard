@@ -1,8 +1,8 @@
-# Remote updates (over the air)
+# Updates (over the air)
 
-**Settings → Remote updates** sends new firmware to remotes, and to any other device that asks, over Wi-Fi. It's **off until you switch it on**.
+**Settings → Updates** sends new firmware to remotes and displays, and to any other device that asks, over Wi-Fi. It's **off until you switch it on**.
 
-<figure class="shot"><img src="../images/admin/settings-updates.png" alt="Settings, Remote updates"><figcaption><b>Settings → Remote updates</b>: each board's release and how it rolls out, and every device's state.</figcaption></figure>
+<figure class="shot"><img src="../images/admin/settings-updates.png" alt="Settings, Updates"><figcaption><b>Settings → Updates</b>: each board's release and how it rolls out, and every device's state.</figcaption></figure>
 
 ## Boards
 

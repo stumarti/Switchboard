@@ -12,6 +12,8 @@ This stays plain HTTP by design (LAN-only, same trust model as everything else h
 
 A physical remote pairs with this server once: on first boot it registers itself by MAC address and shows up under **Remotes** as waiting for approval. Approve it there (optionally assigning its room in the same step — that's also the MAC → default room mapping) and the server hands it a long-lived token, which it stores and sends on every request from then on. A revoked or deleted device's old token stops working immediately.
 
+To stop strangers asking at all, switch off **Accept new devices** (Settings → Security; see [Security](security.md#new-devices)): known devices keep working, and nothing new appears until you switch it back on. The same tab sets how long a sign-in lasts and pauses sign-in after 5 wrong passwords.
+
 If a paired device ever loses its stored token (e.g. a factory reset), it re-registers with the same MAC and gets a fresh token automatically — no need to re-approve it, since the trust decision was already made the first time.
 
 Deleting a device record (`DELETE /api/pairing/<mac>`) also drops its [battery history](battery-life.md).
