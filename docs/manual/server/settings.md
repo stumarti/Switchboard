@@ -22,11 +22,15 @@ The network remotes join, and the household's networks, which the remote's [Wi-F
 
 Remotes set their clock from the server, so this tab says if the server's clock drifts or its time zone differs from your browser's. It also sets the NTP server devices use.
 
-**Time zone.** Every time a device shows (clocks, calendars, "since", quiet hours) is in the server's time zone. Unless the container sets `TZ`, the server uses Home Assistant's own time zone (checked at startup and every hour), so a container left on UTC still shows local time.
+## Theme and Updates
 
-## Theme and Remote updates
+See [Theme](theme.md) and [Updates](remote-updates.md).
 
-See [Theme](theme.md) and [Remote updates](remote-updates.md).
+## Security
+
+<figure class="shot"><img src="../images/admin/settings-security.png" alt="Settings, Security"><figcaption>Allowed networks, sign-in, and new devices.</figcaption></figure>
+
+Which networks the server answers, how sign-in is protected, and whether new devices may ask to pair. See [Security](security.md).
 
 ## Account
 
