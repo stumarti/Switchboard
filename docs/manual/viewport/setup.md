@@ -9,14 +9,16 @@ A viewport is a colour e-ink wall display that shows a layout from Switchboard S
 
 ## 1. Install the firmware
 
-Download the latest release from the [Switchboard Viewport releases](https://github.com/stumarti/Switchboard-Viewport/releases). There are two files:
+The easiest way is the [browser flasher](../../): plug the reTerminal in by USB-C, open the flasher in Chrome or Edge on a desktop, and press **Connect & flash the viewport**. It installs the latest Switchboard Viewport release.
+
+Or download the release yourself from the [Switchboard Viewport releases](https://github.com/stumarti/Switchboard-Viewport/releases). There are two files:
 
 | File | What it's for |
 |---|---|
 | `switchboard-viewport-<version>.bin` | The whole flash image. Use this the first time, over USB. |
 | `switchboard-e1002-app-<version>.bin` (and `.sha256`) | The app alone. This is what the server installs [over Wi-Fi](updates.md). |
 
-Connect the reTerminal by USB-C and write the whole image at offset 0. Either use a browser flasher such as [ESP Tool](https://espressif.github.io/esptool-js/), or run:
+Connect the reTerminal by USB-C and write the whole image at offset 0, for example:
 
 ```
 esptool.py --chip esp32s3 write_flash 0x0 switchboard-viewport-<version>.bin

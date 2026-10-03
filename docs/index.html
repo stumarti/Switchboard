@@ -14,9 +14,11 @@
     padding: 0 1.5rem;
   }
   h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.15rem; margin: 2.5rem 0 0.5rem; }
   p.tag { color: #888; margin-top: 0; }
   p.note { color: #888; font-size: 0.9rem; }
   esp-web-install-button { display: block; margin: 2rem 0; }
+  [hidden] { display: none !important; }
   esp-web-install-button button {
     font-size: 1rem;
     padding: 0.75rem 1.5rem;
@@ -33,13 +35,14 @@
   <h1>Switchboard</h1>
   <p class="tag">One tap. Every room.</p>
 
+  <h2>The remote</h2>
   <p>
     Plug your X4 Pro in over USB, then click below. This flashes the latest
     tagged release straight from the browser — no PlatformIO install needed.
   </p>
 
   <esp-web-install-button manifest="firmware/manifest.json">
-    <button slot="activate">Connect &amp; flash</button>
+    <button slot="activate">Connect &amp; flash the remote</button>
     <span slot="unsupported">
       Your browser doesn't support Web Serial — try Chrome or Edge on desktop.
     </span>
@@ -49,13 +52,48 @@
     </span>
   </esp-web-install-button>
 
+  <h2>The viewport</h2>
+  <p>
+    A colour e-ink wall display: the Seeed reTerminal E1002. Plug it in over
+    USB-C, then click below for the latest
+    <a href="https://github.com/stumarti/Switchboard-Viewport/releases">Switchboard Viewport</a>
+    release<span id="viewport-version"></span>. Once it starts, it shows two
+    QR codes to put it on your Wi-Fi
+    (<a href="manual/viewport/setup.html">setting up a viewport</a>).
+  </p>
+
+  <esp-web-install-button id="viewport-install" manifest="firmware/viewport/manifest.json">
+    <button slot="activate">Connect &amp; flash the viewport</button>
+    <span slot="unsupported">
+      Your browser doesn't support Web Serial — try Chrome or Edge on desktop.
+    </span>
+    <span slot="not-allowed">
+      Web Serial is blocked here — this page needs to be served over HTTPS
+      (GitHub Pages does this automatically).
+    </span>
+  </esp-web-install-button>
+  <p class="note" id="viewport-none" hidden>
+    No viewport release has been published here yet.
+  </p>
+
   <p class="note">
     Works in Chrome or Edge on desktop only — Web Serial isn't available in
     Firefox, Safari, or on mobile browsers.
   </p>
   <p class="note">
-    See <a href="https://github.com/stumarti/Switchboard/releases">Releases</a>
-    for version history and notes.
+    See the <a href="https://github.com/stumarti/Switchboard/releases">remote's</a>
+    and the <a href="https://github.com/stumarti/Switchboard-Viewport/releases">viewport's</a>
+    releases for version history and notes.
   </p>
+  <script>
+    // The viewport's version, or a note while there's no release here yet.
+    fetch('firmware/viewport/manifest.json', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((m) => { document.getElementById('viewport-version').textContent = ` (${m.version})`; })
+      .catch(() => {
+        document.getElementById('viewport-install').hidden = true;
+        document.getElementById('viewport-none').hidden = false;
+      });
+  </script>
 </body>
 </html>

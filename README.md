@@ -31,7 +31,7 @@ A smart-home remote for the **Xteink X4 Pro** e-reader. One e-ink panel, four bu
 ## Quick start
 
 1. **Get Switchboard Server running first.** Follow its [README](https://github.com/stumarti/Switchboard-Server) — it's a couple of minutes with `docker compose up -d`. Set an admin password on first open, then create at least one room (e.g. "Kitchen") and fill in its Home Assistant entities before moving on.
-2. **Flash the device.** Plug the X4 Pro into your computer over USB and use the [browser flasher](https://stumarti.github.io/Switchboard/) (Chrome or Edge on desktop). Prefer to build it yourself? See [Building the firmware](https://stumarti.github.io/Switchboard/manual/remote/building.html).
+2. **Flash the device.** Plug the X4 Pro into your computer over USB and use the [browser flasher](https://stumarti.github.io/Switchboard/) (Chrome or Edge on desktop). It installs the viewport (reTerminal E1002) too. Prefer to build it yourself? See [Building the firmware](https://stumarti.github.io/Switchboard/manual/remote/building.html).
 3. **First boot.** The device shows a splash, then walks you through joining your Wi-Fi (pick your network, type the password on the on-screen keyboard).
 4. **Pair with the server.** The device registers itself and asks you to approve it. Open Switchboard Server's **Remotes** page, approve it there (optionally picking its room in the same step), then **press any button on the remote** to continue.
 5. **(Optional) Pick a different room later**, or if you didn't assign one at approval time: tap the **Home** key → **Settings** → **Select room**.
