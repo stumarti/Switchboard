@@ -6,16 +6,15 @@ A viewport runs on battery, so it spends nearly all its time in deep sleep. It w
 
 <figure class="shot"><div class="panel"><img src="../images/viewport/device/system-info.png" alt="Device info"></div><figcaption>Device info (hold the left button): what each button does, and the display's state.</figcaption></figure>
 
+The E1002 has three buttons along its top edge: left, middle, and the green one on the right.
+
 | Button | Press | Hold (1 second) |
 |---|---|---|
-| **Left** | Previous screen (direct buttons: the last screen) | **Device info**: what each button does, the refresh interval, battery, firmware, server, Wi-Fi network and signal, MAC |
-| **Middle** (green) | Refresh: fetch the latest and redraw this screen (direct buttons: the first screen) | **Wi-Fi setup**: start the hotspot and QR codes again ([Setting up](setup.md)) |
-| **Right** | Next screen (direct buttons: the second screen) | **Clear screen**: fill the panel white. The next wake redraws it |
+| **Left** (KEY2) | Previous screen | **Device info**: what each button does, the refresh interval, battery, firmware, server, Wi-Fi network and signal, MAC |
+| **Middle** (KEY1) | Next screen | **Clear screen**: fill the panel white. The next wake redraws it |
+| **Right, green** (KEY0) | Home: the first screen, fetched afresh | **Wi-Fi setup**: start the hotspot and QR codes again ([Setting up](setup.md)) |
 
-The layout's **Carousel → Buttons** setting picks how they work:
-
-- **Step** (the default): right and left step through the layout's screens in order, wrapping round at either end, and the middle refreshes the one on show.
-- **Straight to a screen**: each button always shows the same screen, whichever is on show: the middle the first, the right the second, the left the last. The kitchen dashboard uses this, so it works as the panel's own firmware did: middle for Status, right for Heating, left for Security. Device info then names each button's screen.
+They work the same on every screen, wrapping round at either end. With the kitchen dashboard, that's the panel's own buttons from Status (green for Status, middle for Heating, left for Security), and from Heating or Security the middle and left step on and back.
 
 ## The carousel
 

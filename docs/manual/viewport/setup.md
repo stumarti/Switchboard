@@ -35,7 +35,7 @@ With no Wi-Fi saved, the display starts its own hotspot and shows two QR codes:
 
 On the page, pick your network (or type its name) and enter its password. **Switchboard Server** can be left empty: the display finds the server on your network by mDNS (`_switchboard._tcp`, or `switchboard.local`). Fill it in (`192.168.1.20:45678`) only if your network blocks mDNS.
 
-The display joins the network and goes on to pair. Setup gives up after 10 minutes. To start it again at any time, for example to move the display to another network, **hold the middle button** for a second.
+The display joins the network and goes on to pair. Setup gives up after 10 minutes. To start it again at any time, for example to move the display to another network, **hold the green button** (on the right) for a second.
 
 Once the display is paired, it also uses every network saved on the server (**Settings → Wi-Fi**), the strongest first. If a network goes away, the display can still join another one it knows.
 

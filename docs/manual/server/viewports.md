@@ -4,7 +4,7 @@ A viewport is a colour wall-mounted e-ink display, for example the reTerminal E1
 
 <figure class="shot"><img src="../images/admin/viewport-layout.png" alt="Building a viewport layout"><figcaption>The kitchen panel's layout in the builder: its screens, then the selected screen's sections beside a live preview from Home Assistant.</figcaption></figure>
 
-- **Carousel.** The screens the device's left/right buttons step through, in order, each with an icon for the footer's carousel marks. Between presses it stays on the current screen and just refreshes it. Optionally, every N minutes (30 by default) it can move to the next screen or go back to the first.
+- **Carousel.** The screens the display's buttons step through, in order (left previous, middle next, the green one home to the first), each with an icon for the footer's carousel marks. Between presses it stays on the current screen and just refreshes it. Optionally, every N minutes (30 by default) it can move to the next screen or go back to the first.
 - **Quiet hours.** Overnight (or any span), the display wakes only every 30, 60, 120 or 240 minutes, and shows a bed icon in its footer. See [Buttons, refresh and sleep](../viewport/buttons.md#quiet-hours).
 - **Screens** come in two kinds:
   - **Sections.** A layout (sidebar + main, two columns, three columns, or a single column) whose columns hold any sections, in any order. The same type can appear any number of times, each with its own settings. The types:
