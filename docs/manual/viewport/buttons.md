@@ -35,6 +35,8 @@ The server decides the time of each wake and sends it with every screen (`refres
 - sooner when something is due: a meeting starting or ending, a departure becoming imminent, or a conditional section that's on show (every few minutes, so it stays current);
 - never sooner than a minute, and never later than 12 hours.
 
+**On the clock.** With the layout's **On the clock** switched on, the display refreshes at the interval's marks instead: :00 and :30 for 30 minutes, on the hour for an hour, and in quiet hours at that interval's marks. Like remotes, each display is 7 seconds after the one before (after all the remotes), so they don't all ask the server at once: with two remotes, the first display wakes at :00:14 and :30:14. It takes the time it spent drawing off its sleep, so it stays on its mark.
+
 If the display can't reach Wi-Fi, the server or Home Assistant, it tries again after its usual interval (quiet hours included), remembered from the last time it reached the server. While it waits to be approved, it checks every 2 minutes.
 
 ## Quiet hours
