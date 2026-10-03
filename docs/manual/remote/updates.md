@@ -1,6 +1,6 @@
 # Updates
 
-Remotes can update their firmware over Wi-Fi from the server. It's off until it's switched on in the server's **Settings → Remote updates**, and firmware always comes from your own server, never straight from the internet. See [Remote updates](../server/remote-updates.md) for choosing a release, pilot remotes and the schedule.
+Remotes can update their firmware over Wi-Fi from the server. It's off until it's switched on in the server's **Settings → Updates**, and firmware always comes from your own server, never straight from the internet. See [Updates](../server/remote-updates.md) for choosing a release, pilot remotes and the schedule.
 
 <div class="shots">
   <figure><div class="remote"><img src="../images/remote/update-offer.png" alt="An update is ready"></div><figcaption>An update is ready</figcaption></figure>
