@@ -22,6 +22,8 @@ The network remotes join, and the household's networks, which the remote's [Wi-F
 
 Remotes set their clock from the server, so this tab says if the server's clock drifts or its time zone differs from your browser's. It also sets the NTP server devices use.
 
+**Time zone.** Every time a remote or viewport shows (clocks, calendars, meetings, quiet hours) is in the server's time zone. Leave it on **Automatic** and the server takes Home Assistant's, re-checked hourly. Without Home Assistant (meeting-room signs on calendar links, for example), choose it here: a container is otherwise on UTC, and the Home page warns that times are shown in it. `TZ` in the server's environment wins over this setting. A change takes effect at once, and on each display at its next refresh.
+
 ## Theme and Updates
 
 See [Theme](theme.md) and [Updates](remote-updates.md).

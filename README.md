@@ -1,6 +1,6 @@
 # Switchboard
 
-**Your smart home, on paper.** Switchboard puts Home Assistant on e-ink: remotes you pick up off the wall, and colour wall displays that show your whole house at a glance. One small server sets them all up. No app, no phone, no tablet with a charger cable hanging off it.
+**Your smart home, on paper.** Switchboard puts Home Assistant on e-ink: remotes you pick up off the wall, colour wall displays that show your whole house at a glance, and meeting-room signs for the office. One small server sets them all up. No app, no phone, no tablet with a charger cable hanging off it.
 
 **[⚡ Flash one from your browser](https://stumarti.github.io/Switchboard/)** · **[Read the manual](https://stumarti.github.io/Switchboard/manual/)** · **[Try the demo, no hardware needed](https://stumarti.github.io/Switchboard/manual/demo.html)**
 
@@ -67,6 +67,21 @@ A colour e-ink wall display on the **Seeed reTerminal E1002**. Its 7.3" Spectra 
 - **Three buttons:** previous, next and home, on every screen. It can also move through its screens on its own.
 - **Set up with your phone:** scan the QR code on the panel, then pick your Wi-Fi. No keyboard needed.
 - **It's a room sensor too:** its temperature and humidity can go to Home Assistant, along with its battery.
+
+### In the office
+
+<p><img src="docs/images/office-door.jpg" width="800" alt="A render of a Switchboard viewport on a glass meeting-room door, showing the Boardroom in use until 12:00"></p>
+<sub>A render: a viewport on a meeting room's glass door, showing the room's real screen as the firmware draws it.</sub>
+
+The viewport makes a meeting-room sign that reads like paper from across the corridor, with no glow and no cable.
+
+- **Straight from your calendar.** Each sign reads its room's calendar from a Google Calendar, Outlook / Microsoft 365 or iCloud link, or any app's iCal link. You don't need Home Assistant for this. Recurring meetings, moved ones and cancellations come through as they do in the calendar.
+- **On time.** A sign changes two minutes before each meeting starts or ends, so the redraw is finished by the time people arrive. Back-to-back meetings read as one block.
+- **Free rooms at the press of a button.** The second screen lists the other rooms, free ones first.
+- **A whole floor at once.** Paste the list of rooms from a spreadsheet. Each room gets its sign, and its display is named and assigned before it's even switched on.
+- **Months on a charge.** Signs sleep through nights and weekends, and only wake to redraw when something has changed.
+
+See [Viewports in the office](https://stumarti.github.io/Switchboard/manual/viewport/office.html).
 
 ## The server
 
