@@ -5,6 +5,8 @@ A viewport makes a good meeting-room sign: it reads like paper from across a cor
 - when the signs change;
 - how to put up many of them at once.
 
+<figure class="shot"><img src="../../images/office-door.jpg" alt="A render of a viewport on a glass meeting-room door"><figcaption>A render: a sign on a meeting room's glass door</figcaption></figure>
+
 <div class="shots wide">
   <figure><div class="panel"><img src="../images/viewport/device/boardroom-meeting.png" alt="A meeting-room sign"></div><figcaption>A room's sign</figcaption></figure>
   <figure><div class="panel"><img src="../images/viewport/device/boardroom-rooms.png" alt="The other rooms"></div><figcaption>Its second screen: the other rooms, free ones first</figcaption></figure>

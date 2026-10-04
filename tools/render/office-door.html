@@ -1,0 +1,104 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1600px; height: 1000px; overflow: hidden; background: #d9d4cc; font-family: 'Helvetica Neue', Arial, sans-serif; }
+  .scene { position: absolute; inset: 0; overflow: hidden;
+    background: linear-gradient(180deg, #e8e4dd 0%, #ddd7ce 62%, #cfc8bd 78%, #8d8273 78.2%, #9a8e7e 100%); }
+  /* the corridor's floor boards and a soft light pool */
+  .floor { position: absolute; left: 0; right: 0; top: 78.2%; bottom: 0;
+    background: repeating-linear-gradient(90deg, rgba(0,0,0,0.05) 0 2px, transparent 2px 160px),
+                linear-gradient(180deg, #a59886, #8a7d6c); }
+  .light { position: absolute; inset: 0; background: radial-gradient(ellipse 60% 55% at 50% 30%, rgba(255,250,240,0.55), rgba(255,250,240,0) 70%); }
+  .skirting { position: absolute; left: 0; right: 0; top: 76.6%; height: 1.6%; background: #f3f0ea; box-shadow: 0 2px 3px rgba(0,0,0,0.12); }
+
+  /* the glass partition and its door */
+  .partition { position: absolute; left: 230px; right: 230px; top: 0; bottom: 21.8%; overflow: hidden; }
+  .frame { position: absolute; background: linear-gradient(90deg, #3d4247, #5c6268 45%, #2f3337); box-shadow: 0 0 6px rgba(0,0,0,0.25); }
+  .room { position: absolute; left: 22px; right: 22px; top: 22px; bottom: 0; overflow: hidden;
+    background: linear-gradient(180deg, #f2efe8 0%, #e9e4da 60%, #b9ad9c 60.5%, #a89b88 100%); }
+  .room .blur { position: absolute; inset: -20px; filter: blur(7px); }
+  .window { position: absolute; left: 34%; top: 9%; width: 38%; height: 44%; background: linear-gradient(180deg, #f8fbfd, #dfeef5); border: 10px solid #d6d2ca; box-shadow: 0 0 60px rgba(255,255,255,0.9); }
+  .screen-tv { position: absolute; left: 6%; top: 18%; width: 20%; height: 26%; background: #1d2126; border-radius: 4px; }
+  .table { position: absolute; left: 18%; top: 61%; width: 70%; height: 14%; background: radial-gradient(ellipse at 50% 40%, #7a5b3f, #4e3826); border-radius: 50%; }
+  .chair { position: absolute; width: 7.5%; height: 15%; background: #2f3b45; border-radius: 30% 30% 12% 12%; }
+  .plant { position: absolute; right: 4%; top: 36%; width: 9%; height: 30%; background: radial-gradient(circle at 50% 40%, #4f7a45, #2e4d2a 70%); border-radius: 45% 45% 20% 20%; }
+  .pot { position: absolute; right: 5.2%; top: 62%; width: 6.6%; height: 9%; background: #e7e2d9; border-radius: 4px 4px 12px 12px; }
+  .glass { position: absolute; inset: 0; background: linear-gradient(115deg, rgba(190,222,218,0.30), rgba(160,200,196,0.22)); }
+  .streak { position: absolute; top: -10%; height: 130%; transform: rotate(18deg); background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.32), rgba(255,255,255,0)); }
+
+  /* the door itself: a frameless glass leaf with a top and bottom rail */
+  .door { position: absolute; left: 560px; width: 520px; top: 22px; bottom: 0; }
+  .door .edge { position: absolute; top: 0; bottom: 0; width: 3px; background: rgba(120,160,155,0.65); }
+  .rail { position: absolute; left: 0; right: 0; height: 26px; background: linear-gradient(180deg, #6a7076, #474c51); }
+  .handle { position: absolute; right: 34px; top: 58%; width: 16px; height: 230px; border-radius: 8px;
+    background: linear-gradient(90deg, #8e959b, #f2f4f5 40%, #a9afb4 60%, #6f767c); box-shadow: 6px 6px 12px rgba(0,0,0,0.25); }
+  .standoff { position: absolute; right: 38px; width: 8px; height: 14px; background: #b8bec3; }
+
+  /* frosted manifestation band, with the room's name in the frost */
+  .frost { position: absolute; left: 22px; right: 22px; top: 63%; height: 64px;
+    backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px); background: rgba(255,255,255,0.42);
+    display: flex; align-items: center; padding-left: 40px; gap: 18px; }
+  .frost span { font-size: 22px; letter-spacing: 0.32em; color: rgba(255,255,255,0.95); text-shadow: 0 0 1px rgba(80,90,95,0.35); text-transform: uppercase; font-weight: 300; }
+  .frost .dots { flex: 1; height: 100%; background-image: radial-gradient(rgba(255,255,255,0.75) 2.4px, transparent 2.6px); background-size: 16px 16px; }
+
+  /* the sign on the glass: an e-paper panel in its white frame */
+  .sign { position: absolute; left: 584px; top: 118px; width: 472px; padding: 20px 20px 28px; background: linear-gradient(180deg, #fbfaf7, #edebe6);
+    border-radius: 14px; box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 -1px 0 rgba(0,0,0,0.06) inset, 0 18px 30px rgba(20,30,35,0.30), 0 4px 8px rgba(20,30,35,0.18); }
+  .sign::after { /* its buttons, on top */ content: ''; position: absolute; top: -4px; right: 40px; width: 70px; height: 5px; border-radius: 3px 3px 0 0;
+    background: linear-gradient(90deg, #d8d6d1 0 18px, transparent 18px 26px, #d8d6d1 26px 44px, transparent 44px 52px, #69a85f 52px); }
+  .panel { position: relative; width: 432px; height: 259px; overflow: hidden; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,0.12) inset; }
+  .panel img { width: 100%; height: 100%; display: block; image-rendering: auto; filter: saturate(0.88) contrast(0.96) brightness(0.985); }
+  .panel::after { /* e-paper: matte, a little grain, no glow */ content: ''; position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(0,0,0,0.035) 0.6px, transparent 0.8px); background-size: 3px 3px; mix-blend-mode: multiply; }
+  .logo { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 8px; letter-spacing: 0.3em; color: #a7a49d; }
+
+  .reflect { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.10) 45%, rgba(255,255,255,0) 60%); }
+  .vignette { position: absolute; inset: 0; background: radial-gradient(ellipse 85% 75% at 50% 45%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.22)); }
+
+  /* a corridor plant outside */
+  .pplant { position: absolute; left: 70px; top: 470px; width: 120px; height: 300px; }
+  .pplant .leaves { position: absolute; inset: 0 0 90px 0; background: radial-gradient(circle at 40% 45%, #557f4a, #2c4a28 72%); border-radius: 50% 50% 30% 30%; filter: blur(0.6px); }
+  .pplant .potout { position: absolute; left: 22px; right: 22px; bottom: 0; height: 100px; background: linear-gradient(90deg, #2f2f2f, #4a4a4a 50%, #2a2a2a); border-radius: 6px 6px 14px 14px; }
+</style></head>
+<body><div class="scene">
+  <div class="light"></div>
+  <div class="floor"></div>
+  <div class="skirting"></div>
+  <div class="partition">
+    <div class="room"><div class="blur">
+      <div class="window"></div>
+      <div class="screen-tv"></div>
+      <div class="chair" style="left:22%;top:52%"></div>
+      <div class="chair" style="left:36%;top:50%"></div>
+      <div class="chair" style="left:52%;top:50%"></div>
+      <div class="chair" style="left:68%;top:52%"></div>
+      <div class="table"></div>
+      <div class="chair" style="left:30%;top:72%;height:18%;width:9%"></div>
+      <div class="chair" style="left:58%;top:72%;height:18%;width:9%"></div>
+      <div class="plant"></div><div class="pot"></div>
+    </div></div>
+    <div class="glass" style="left:22px;right:22px;top:22px"></div>
+    <div class="streak" style="left:16%;width:70px"></div>
+    <div class="streak" style="left:22%;width:24px"></div>
+    <div class="streak" style="left:74%;width:110px;opacity:.7"></div>
+    <div class="frost"><span>Boardroom</span><div class="dots"></div></div>
+    <!-- frame: top, left, right, mullions either side of the door -->
+    <div class="frame" style="left:0;right:0;top:0;height:22px"></div>
+    <div class="frame" style="left:0;width:22px;top:0;bottom:0"></div>
+    <div class="frame" style="right:0;width:22px;top:0;bottom:0"></div>
+    <div class="frame" style="left:538px;width:22px;top:0;bottom:0"></div>
+    <div class="frame" style="left:1080px;width:22px;top:0;bottom:0"></div>
+    <div class="door">
+      <div class="edge" style="left:0"></div><div class="edge" style="right:0"></div>
+      <div class="rail" style="top:0"></div>
+      <div class="rail" style="bottom:0"></div>
+      <div class="standoff" style="top:calc(58% + 26px)"></div>
+      <div class="standoff" style="top:calc(58% + 190px)"></div>
+      <div class="handle"></div>
+    </div>
+    <div class="sign"><div class="panel"><img src="../../docs/manual/images/viewport/device/boardroom-meeting.png"></div><div class="logo">SWITCHBOARD</div></div>
+    <div class="reflect"></div>
+  </div>
+  <div class="pplant"><div class="leaves"></div><div class="potout"></div></div>
+  <div class="vignette"></div>
+</div></body></html>

@@ -36,3 +36,7 @@ The images in [The viewport](viewport/screens.md) are drawn by the viewport firm
 ```
 
 Copy them to `images/viewport/device/` (`kitchen-panel--status.png` becomes `kitchen-panel-status.png`). The fixtures are the demo's screen states, as the server sends them (`test/fixtures/*.json`), and the per-item icons they use (`test/fixtures/icons/`).
+
+## The office door
+
+The render of a viewport on a glass office door (`docs/images/office-door.jpg`, in the READMEs) is a page, `tools/render/office-door.html`, that shows the firmware's own meeting-room screen (`images/viewport/device/boardroom-meeting.png`) on a sign on the door. To make it again, after the screen changes, take a 1600×1000 screenshot of it at twice the scale with Playwright, and save it as a JPEG 1600 wide.
