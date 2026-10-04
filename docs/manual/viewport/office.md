@@ -84,14 +84,15 @@ For signs that need to last longer, turn the timeline off, or refresh every hour
 
 ## Putting up many at once
 
-1. **Install the firmware** on each display from the [browser flasher](../../). Do it once per display, over USB.
-2. **Put each one on the Wi-Fi.** Each display shows two QR codes; join its hotspot with a phone and pick the network ([Setting up](setup.md#2-connect-it-to-wi-fi)). This takes about a minute per display.
+1. **Set the time zone.** With no Home Assistant, choose the office's in **Settings → Clock → Time zone**. Otherwise the server runs on UTC and every sign's times are out; the Home page warns about this.
+2. **Install the firmware** on each display from the [browser flasher](../../). Do it once per display, over USB.
+3. **Put each one on the Wi-Fi.** Each display shows two QR codes; join its hotspot with a phone and pick the network ([Setting up](setup.md#2-connect-it-to-wi-fi)). This takes about a minute per display.
    - Displays need a network with a password (WPA2 or WPA3 Personal). They can't sign in to enterprise Wi-Fi (802.1X). Many offices have an IoT or devices network for this.
    - The network must be able to reach the server. If it's a separate network (VLAN), multicast usually doesn't cross to the server's, so the display can't find the server by itself. Type the server's address in **Switchboard Server** on the setup page, for example `10.20.0.5:45678`.
    - Once paired, displays also use every network saved under the server's **Settings → Wi-Fi**.
-3. **Write down each display's MAC address.** A display shows it on its screen while it waits to be approved.
-4. **Add the rooms.** On the **Layouts** page, under **Viewport layouts**, press **Add many meeting rooms** and paste the list of rooms: one per line, columns straight from a spreadsheet.
-5. **Hang them up.** Each sign starts as soon as it's approved, or at its next check (every 2 minutes) if it was already waiting.
+4. **Write down each display's MAC address.** A display shows it on its screen while it waits to be approved.
+5. **Add the rooms.** On the **Layouts** page, under **Viewport layouts**, press **Add many meeting rooms** and paste the list of rooms: one per line, columns straight from a spreadsheet.
+6. **Hang them up.** Each sign starts as soon as it's approved, or at its next check (every 2 minutes) if it was already waiting.
 
 <figure class="shot"><img src="../images/admin/meeting-rooms-bulk.png" alt="Add many meeting rooms"><figcaption><b>Layouts → Add many meeting rooms</b>: each line read as you type, and anything wrong with it shown before anything is made.</figcaption></figure>
 
