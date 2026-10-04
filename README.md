@@ -67,6 +67,7 @@ A colour e-ink wall display on the **Seeed reTerminal E1002**. Its 7.3" Spectra 
 - **Three buttons:** previous, next and home, on every screen. It can also move through its screens on its own.
 - **Set up with your phone:** scan the QR code on the panel, then pick your Wi-Fi. No keyboard needed.
 - **It's a room sensor too:** its temperature and humidity can go to Home Assistant, along with its battery.
+- **Meeting-room signs for the office:** each room's sign reads its calendar straight from a Google Calendar, Outlook / Microsoft 365 or iCloud link (no Home Assistant needed), changes two minutes before each meeting so it's never caught mid-redraw, and sleeps through nights and weekends. Paste a list of rooms to set up a whole floor at once ([Viewports in the office](https://stumarti.github.io/Switchboard/manual/viewport/office.html)).
 
 ## The server
 

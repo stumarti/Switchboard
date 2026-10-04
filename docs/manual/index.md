@@ -29,6 +29,7 @@
 - **No hardware yet?** [Try the demo](demo.md) runs the server with a pretend Home Assistant and a whole house of devices.
 - **Using a remote?** Start with its [screens](remote/screens.md).
 - **Putting up a viewport?** Start with [Setting up a viewport](viewport/setup.md).
+- **Meeting-room signs for an office?** See [Viewports in the office](viewport/office.md): room calendars from Google, Outlook or iCloud links, when signs change, and setting up many at once.
 - **Setting things up?** Start with the server's [Home page](server/home.md) and [remote layouts](server/remote-layouts.md).
 
 The screenshots in this manual come from the real code: the remote's screens are drawn by its own firmware, and the admin pages come from the server, both running against the [demo](demo.md). See [Screenshots](screenshots.md) for how to make them again.

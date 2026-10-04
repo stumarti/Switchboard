@@ -40,7 +40,7 @@ If the display can't reach Wi-Fi, the server or Home Assistant, it tries again a
 
 ## Quiet hours
 
-During the layout's **Quiet hours** (11pm to 6am for the kitchen dashboard), the display wakes less often: every 30, 60, 120 or 240 minutes, as you choose. The footer shows a bed-and-clock icon while they last. The display wakes at the end of quiet hours to go back to its normal interval, and a button press still works as usual.
+During the layout's **Quiet hours** (11pm to 6am for the kitchen dashboard), the display wakes less often: every 30, 60, 120 or 240 minutes, as you choose. Switch on **All weekend too** and Saturday and Sunday are quiet from start to finish, as an office's are. A meeting-room sign still wakes for a meeting during quiet hours. The footer shows a bed-and-clock icon while they last. The display wakes at the end of quiet hours to go back to its normal interval, and a button press still works as usual.
 
 ## Health
 

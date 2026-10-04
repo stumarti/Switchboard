@@ -32,6 +32,10 @@ Every Switchboard remote already talks to this: `Settings → Select room` calls
 | GET/PUT/DELETE | `/api/dashboards/<slug>` | Read, save (`{name, layout}`) or delete one (its displays go back to "not set up") | session |
 | POST | `/api/dashboards/preview` | The state an unsaved layout would produce — the builder's live preview | session |
 | GET | `/api/viewports/defaults` | The kitchen panel's default layout, or `?kind=meetingRoom` for a meeting-room sign | session |
+| POST | `/api/meeting-rooms/parse` | Read a pasted room list (`{text}`: a line per room — name, then a calendar link or `calendar.` entity, an occupancy sensor and the display's MAC, in any order): each room, anything wrong with its line, whether its layout exists, and what its display is now | session |
+| POST | `/api/meeting-rooms` | Set up a sign per room: `{text}` or `{rooms: [{name, calendar, occupancy, mac}]}`, with `finder` (each sign lists the others; default on), `approve` (approve the listed displays now, even before they connect) and `settings` (`refreshIntervalMin`, `refreshAligned`, `quietHours`, `aheadMin`). Rooms whose names have a layout already are updated. Returns a line per room | session |
+| POST | `/api/calendars/check` | Read a calendar link (`{calendar}`): its name, how many events in the next two weeks and the next few, or why it can't be read | session |
+| POST | `/api/pairing/approve-many` | Approve several waiting displays as viewports: `{devices: [{mac, name, dashboard}]}` | session |
 | GET | `/api/health` | Liveness, version, mDNS info | none |
 | GET | `/api/auth/status` | `{authenticated, setupRequired}` | none |
 | POST | `/api/auth/setup` | Set the admin password (first run only) | none |

@@ -19,6 +19,7 @@
     - { title: Setting up, page: viewport/setup }
     - { title: Screens, page: viewport/screens }
     - { title: Buttons, refresh and sleep, page: viewport/buttons }
+    - { title: In the office, page: viewport/office }
     - { title: Updates, page: viewport/updates }
     - { title: When something's wrong, page: viewport/errors }
 
