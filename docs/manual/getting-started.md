@@ -33,7 +33,7 @@ This file is `docker-compose.yml` in the server repository. On Unraid, use its `
 
 1. Open `http://<your-server-ip>:45678` and set an admin password.
 2. **Settings → Home Assistant:** enter its address and token, save, then press **Test**.
-3. **Settings → Wi-Fi:** the network remotes should join, and any guest networks to show as QR codes.
+3. **Settings → Wi-Fi networks:** the network remotes should join, and any guest networks to show as QR codes.
 4. **Layouts:** create a room and fill in its Home Assistant entities. Entity fields search Home Assistant as you type.
 
 <figure class="shot"><img src="images/admin/settings-home-assistant.png" alt="Settings, Home Assistant tab"><figcaption>Settings → Home Assistant, connected.</figcaption></figure>

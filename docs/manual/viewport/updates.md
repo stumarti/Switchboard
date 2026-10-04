@@ -2,7 +2,7 @@
 
 <figure class="shot"><div class="panel"><img src="../images/viewport/device/system-updating.png" alt="Updating"></div><figcaption>Installing an update</figcaption></figure>
 
-Viewports update over Wi-Fi from the server, the same way remotes do. Firmware always comes from your own server, never straight from the internet. Everything is set up in the server's **Settings → Remote updates**, which covers every kind of device. Each build is for one board, and a viewport's board is `e1002`. See [Remote updates](../server/remote-updates.md) for releases, pilot devices and the update window.
+Viewports update over Wi-Fi from the server, the same way remotes do. Firmware always comes from your own server, never straight from the internet. Everything is set up in the server's **Settings → Firmware updates**, which covers every kind of device. Each build is for one board, and a viewport's board is `e1002`. See [Remote updates](../server/remote-updates.md) for releases, pilot devices and the update window.
 
 ## Getting a release onto the server
 

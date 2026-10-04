@@ -86,17 +86,17 @@ For signs that need to last longer, turn the timeline off, or refresh every hour
 
 ## Putting up many at once
 
-1. **Set the time zone.** With no Home Assistant, choose the office's in **Settings → Clock → Time zone**. Otherwise the server runs on UTC and every sign's times are out; the Home page warns about this.
+1. **Set the time zone.** With no Home Assistant, choose the office's in **Settings → Clock and time zone**. Otherwise the server runs on UTC and every sign's times are out; the Home page warns about this.
 2. **Install the firmware** on each display from the [browser flasher](../../). Do it once per display, over USB.
 3. **Put each one on the Wi-Fi.** Each display shows two QR codes; join its hotspot with a phone and pick the network ([Setting up](setup.md#2-connect-it-to-wi-fi)). This takes about a minute per display.
    - Displays need a network with a password (WPA2 or WPA3 Personal). They can't sign in to enterprise Wi-Fi (802.1X). Many offices have an IoT or devices network for this.
    - The network must be able to reach the server. If it's a separate network (VLAN), multicast usually doesn't cross to the server's, so the display can't find the server by itself. Type the server's address in **Switchboard Server** on the setup page, for example `10.20.0.5:45678`.
-   - Once paired, displays also use every network saved under the server's **Settings → Wi-Fi**.
+   - Once paired, displays also use every network saved under the server's **Settings → Wi-Fi networks**.
 4. **Write down each display's MAC address.** A display shows it on its screen while it waits to be approved.
-5. **Add the rooms.** On the **Layouts** page, under **Viewport layouts**, press **Add many meeting rooms** and paste the list of rooms: one per line, columns straight from a spreadsheet.
+5. **Add the rooms.** Under **Layouts**, press **Add many meeting rooms** (in the column, under **Office**) and paste the list of rooms: one per line, columns straight from a spreadsheet.
 6. **Hang them up.** Each sign starts as soon as it's approved, or at its next check (every 2 minutes) if it was already waiting.
 
-<figure class="shot"><img src="../images/admin/meeting-rooms-bulk.png" alt="Add many meeting rooms"><figcaption><b>Layouts → Add many meeting rooms</b>: each line read as you type, and anything wrong with it shown before anything is made.</figcaption></figure>
+<figure class="shot"><img src="../images/admin/meeting-rooms-bulk.png" alt="Add many meeting rooms"><figcaption><b>Layouts → Office → Add many meeting rooms</b>: each line read as you type, and anything wrong with it shown before anything is made.</figcaption></figure>
 
 Each line is a room's name, then its calendar, then optionally an occupancy sensor and the display's MAC address. After the name, the columns can be in any order: the server recognises a calendar link, a `calendar.` entity, a sensor and a MAC address. Separate them with commas, semicolons or tabs; a header row is skipped.
 
@@ -116,7 +116,7 @@ Switch on **Approve the listed displays now** and each one starts the moment it 
 
 Running it again with the same room names updates those rooms' signs rather than making new ones. That's the way to change many calendars at once, or to add a room to everyone's list. It sets each sign's room and other-rooms screens afresh, with the office timing; any other screens you've added to a sign stay.
 
-**Displays already waiting.** When two or more displays are waiting to pair, the **Layouts** page lists them together. Give each a name and a layout, and approve them in one go. Each display shows its MAC address on its screen while it waits, so you can tell which is which.
+**Displays already waiting.** **Layouts → Office → Displays waiting** lists every display waiting to pair (the Layouts page shows them too, when there are two or more). Give each a name and a layout, and approve them in one go. Each display shows its MAC address on its screen while it waits, so you can tell which is which.
 
 **Why a layout per room.** Signs that look the same still need a layout each, because each has its own room's calendar. The room list makes them for you. To change something on every sign, such as the status words, edit the signs' layouts; to change the rooms, run the list again.
 
@@ -124,4 +124,4 @@ Running it again with the same room names updates those rooms' signs rather than
 
 - **Keep the server on the office network.** Don't expose it to the internet ([Security](../server/security.md)): it holds the calendar links, and approves displays.
 - **Approving ahead is a trade-off.** A display approved by MAC address before it connects saves a trip to the server. But anyone who copies that address onto another device on the same network gets what that sign shows: the room's bookings, no more. Only approve ahead on a network you control, or approve each display when it appears.
-- **No new devices.** To stop new devices asking to pair once the signs are up, switch off **Settings → Security → Accept new devices**. Displays you've listed still connect.
+- **No new devices.** To stop new devices asking to pair once the signs are up, switch off **Settings → Pairing → New devices**. Displays you've listed still connect.
