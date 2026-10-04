@@ -18,7 +18,7 @@ They work the same on every screen, wrapping round at either end. With the kitch
 
 ## The carousel
 
-The layout's **Carousel → Between presses** setting decides what happens when nobody presses a button:
+The layout's **Timing → Between presses** setting decides what happens when nobody presses a button:
 
 - **Stay on the current screen:** keep it on show and refresh it.
 - **Move to the next screen:** every N minutes.

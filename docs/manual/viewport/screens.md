@@ -4,7 +4,7 @@ A viewport draws whatever its [layout](../server/viewports.md) says, in the pane
 
 ## The kitchen dashboard
 
-The kitchen panel's three screens. **Start from… → Kitchen dashboard** in the layout builder sets them up, then you swap the example entities for your own. The firmware draws them pixel for pixel the same as the panel's original firmware (its tests check this against the same Home Assistant).
+The kitchen panel's three screens. **Start from or import → Kitchen dashboard** in the layout builder sets them up, then you swap the example entities for your own. The firmware draws them pixel for pixel the same as the panel's original firmware (its tests check this against the same Home Assistant).
 
 <div class="shots wide">
   <figure><div class="panel"><img src="../images/viewport/device/kitchen-panel-status.png" alt="Status"></div><figcaption>Status</figcaption></figure>

@@ -37,7 +37,7 @@ On the page, pick your network (or type its name) and enter its password. **Swit
 
 The display joins the network and goes on to pair. Setup gives up after 10 minutes. To start it again at any time, for example to move the display to another network, **hold the green button** (on the right) for a second.
 
-Once the display is paired, it also uses every network saved on the server (**Settings → Wi-Fi**), the strongest first. If a network goes away, the display can still join another one it knows.
+Once the display is paired, it also uses every network saved on the server (**Settings → Wi-Fi networks**), the strongest first. If a network goes away, the display can still join another one it knows.
 
 ## 3. Approve it on the server
 

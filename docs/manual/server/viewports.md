@@ -2,9 +2,25 @@
 
 A viewport is a colour wall-mounted e-ink display, for example the reTerminal E1002 kitchen panel or a sign beside a meeting room door, running [Switchboard Viewport](../viewport/setup.md). It pairs like a remote but registers as `"type": "viewport"`. The device only draws. Its whole UI is a **viewport layout** (a "dashboard" in the API and data folder). It's built on the Layouts page, before or after any display exists, and assigned to one or more displays on their Viewports page. A display without a layout shows "not set up". Viewports saved before layouts were separate move into a layout of their own automatically at startup.
 
-<figure class="shot"><img src="../images/admin/viewport-layout.png" alt="Building a viewport layout"><figcaption>The kitchen panel's layout in the builder: its screens, then the selected screen's sections beside a live preview from Home Assistant.</figcaption></figure>
+<figure class="shot"><img src="../images/admin/viewport-layout.png" alt="Building a viewport layout"><figcaption>The kitchen panel's layout in the builder: its screens and timing on the left; the picked screen's name, icon and template above its live preview, and each column's sections below.</figcaption></figure>
 
-- **Carousel.** The screens the display's buttons step through, in order (left previous, middle next, the green one home to the first), each with an icon for the footer's carousel marks. Between presses it stays on the current screen and just refreshes it. Optionally, every N minutes (30 by default) it can move to the next screen or go back to the first.
+## The builder
+
+Open a viewport layout from **Layouts**. On the left:
+
+- **Screens:** the screens the display steps through. Drag a row to reorder it, switch one off to skip it, and use its **⋯** menu to move, duplicate or delete it. **Add a screen** adds a sections screen, a meeting room or a room finder (up to 12).
+- **Timing:** what the display does between presses, how often it refreshes, on the clock or not, and quiet hours (below).
+
+On the right, the picked screen. Its **name**, **icon** (its mark in the display's footer) and **template** (Sidebar, Two, Three or Single columns) sit in one row just above its live preview. Under the preview, each column is a list of its sections, headed with its width on the 800-pixel panel (*Sidebar · 250 px*). Drag a section to reorder it within its column; its **⋯** menu moves it to another column, duplicates or removes it. **Add a section** opens the list of types. A meeting room or room finder screen has its own settings under the preview instead.
+
+<figure class="shot"><img src="../images/admin/viewport-layout-section.png" alt="A section's settings in the drawer"><figcaption>Click a section and its settings open in a drawer at the side; the preview outlines it. Esc closes the drawer.</figcaption></figure>
+
+The layout's column also has **Thresholds** (when values change colour: battery critical and low, an imminent departure, recent motion, the climate tolerance) and **Start from or import**, the displays using the layout, and the other layouts. **Save** keeps your changes, and displays pick them up at their next refresh; **Discard** throws them away.
+
+## What a layout holds
+
+
+- **Screens and timing.** The screens the display's buttons step through, in order (left previous, middle next, the green one home to the first), each with an icon for the footer's carousel marks. Between presses it stays on the current screen and just refreshes it. Optionally, every N minutes (30 by default) it can move to the next screen or go back to the first.
 - **Quiet hours.** Overnight (or any span), and all weekend if you like (for an office), the display wakes only every 30, 60, 120 or 240 minutes, and shows a bed icon in its footer. See [Buttons, refresh and sleep](../viewport/buttons.md#quiet-hours).
 - **Screens** come in two kinds:
   - **Sections.** A layout (sidebar + main, two columns, three columns, or a single column) whose columns hold any sections, in any order. The same type can appear any number of times, each with its own settings. The types:
@@ -33,7 +49,7 @@ A viewport is a colour wall-mounted e-ink display, for example the reTerminal E1
     | Spacer | nothing: a gap of the height you set (in px), to move the sections under it down the column, e.g. the home battery to the bottom of the sidebar |
     | Announcements | the newest items of a company RSS or Atom feed (intranet news, SharePoint, a blog): headline, short summary, when posted. The server reads the feed, at most every 10 minutes, and keeps the last good copy if it's down |
 
-  The kitchen dashboard (**Start from… → Kitchen dashboard**) is the panel's own Status, Heating and Security; the demo's kitchen panel adds Energy and Presence. As the display draws them (see [Viewport screens](../viewport/screens.md)):
+  The kitchen dashboard (**Start from or import → Kitchen dashboard**) is the panel's own Status, Heating and Security; the demo's kitchen panel adds Energy and Presence. As the display draws them (see [Viewport screens](../viewport/screens.md)):
 
   <div class="shots wide">
     <figure><div class="panel"><img src="../images/viewport/device/kitchen-panel-status.png" alt="Status"></div><figcaption>Status</figcaption></figure>
@@ -54,7 +70,7 @@ A viewport is a colour wall-mounted e-ink display, for example the reTerminal E1
 
 **Conditional sections.** Any section can show only some of the time: *Now playing* only while one of its players is playing, or any section only while an entity matches (e.g. the alarm panel section only while armed). A hidden section is simply left out, so the rest of its column closes up; a calendar in the same column shrinks to fewer lines (*Lines while a conditional section shows*, default 2) to make room while it's there. While a conditional section shows, the display wakes every few minutes (3 by default) to keep it current, and goes back to its normal refresh once it's gone — a viewport is on battery, so a section appears at the next wake after its condition starts, not the instant it does. The server does all of this: the display only draws what it's sent.
 
-The layout builder shows a live 800×480 preview of each screen, in the panel's six colours and with its own colour weather art, from Home Assistant's current state and including unsaved changes. **Start from…** loads the kitchen panel's defaults or a meeting-room sign, or imports an existing panel's own settings.
+The layout builder shows a live 800×480 preview of each screen, in the panel's six colours and with its own colour weather art, from Home Assistant's current state and including unsaved changes. **Start from or import** loads the kitchen panel's defaults or a meeting-room sign, or imports an existing panel's own settings.
 
 **The server does all the evaluating.** `GET /api/viewports/me/state` returns every screen's finished values: colour indices (0 white, 1 black, 2 red, 3 yellow, 4 green, 5 blue), which icon to draw, alert sentences, times, countdowns and graph buckets. So the device needs no Home Assistant template sensors and no rules of its own. Per refresh, the server makes one `GET /api/states` for every entity. It adds only what the screens need beyond that — weather forecasts, calendar events, and one history request per energy graph — all in parallel. Calendar links are read by the server itself (each at most every 2 minutes), so a layout made only of meeting rooms on calendar links needs no Home Assistant at all.
 

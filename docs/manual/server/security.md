@@ -26,7 +26,7 @@ Off until you switch it on. On, the server answers only requests from the networ
 
 ### New devices
 
-**Accept new devices**, on by default. Off, a device the server has never seen can't ask to pair, so nothing new turns up on the Remotes page. Devices it already knows keep working, and can get a new token after a reset. Switch it on while you add a device.
+**Settings → Pairing → New devices**, on by default. Off, a device the server has never seen can't ask to pair, so nothing new turns up on the Remotes page. Devices it already knows keep working, and can get a new token after a reset, and displays listed with their MAC address in a [room list](../viewport/office.md#putting-up-many-at-once) still connect. Switch it on while you add a device.
 
 ## Locking down releases
 

@@ -1,8 +1,10 @@
 # Updates (over the air)
 
-**Settings → Updates** sends new firmware to remotes and displays, and to any other device that asks, over Wi-Fi. It's **off until you switch it on**.
+**Settings → Firmware updates** sends new firmware to remotes and displays, and to any other device that asks, over Wi-Fi. It's **off until you switch it on**.
 
-<figure class="shot"><img src="../images/admin/settings-updates.png" alt="Settings, Updates"><figcaption><b>Settings → Updates</b>: each board's release and how it rolls out, and every device's state.</figcaption></figure>
+<figure class="shot"><img src="../images/admin/settings-updates.png" alt="Settings, Updates"><figcaption><b>Settings → Firmware updates</b>: each board's release, its stage and how many have it; every device's state, and the pilots; the rules; and the builds.</figcaption></figure>
+
+The switch at the top turns updates on and off. Beside it, **Sources** opens the list of GitHub repositories, and **Get latest releases** adds the newest release from each.
 
 ## Boards
 
@@ -16,16 +18,18 @@ Builds and remotes from before boards count as `x4pro`.
 
 ## Releasing
 
-1. **Add a build**: upload a `switchboard-<board>-app-<version>.bin`, or pick a release from one of the **GitHub repositories** listed on the page.
+<figure class="shot"><img src="../images/admin/settings-updates-sources.png" alt="Firmware sources"><figcaption><b>Sources</b>: the repositories releases come from. <b>Pick a release…</b> lists one repository's releases to add one.</figcaption></figure>
+
+1. **Add a build**: press **Get latest releases**, pick one release under **Sources → Pick a release…**, or **Upload .bin** a `switchboard-<board>-app-<version>.bin` on the Builds card.
    - The list starts with the Switchboard firmware and [Switchboard Viewport](../viewport/updates.md) (`e1002`). Add others as `owner/name` or their GitHub URL: a fork, or the repository of another kind of device.
    - A release carries `switchboard-<board>-app-<version>.bin` and its `.sha256` for each board it builds (older ones, `switchboard-app-<version>.bin`, are the X4 Pro's). Every image is checked against its published checksum and against the board and version inside it; if any fails, none of the release is added.
-   - **Get latest release** checks every repository in the list.
+   - **Get latest releases** checks every repository in the list, top first; the arrow in **Sources** moves one to the top.
    - Only listed repositories are ever read, and only when you press a button.
    - The server only accepts a Switchboard app image for an ESP32 chip that fits the update slot, and takes the board and version from the image itself. A build from uncommitted changes (`-dirty`) is refused.
-2. **Choose each board's release**: the version its devices should run. An older build rolls them back to it.
-3. **Pilot first**: tick a device or two as pilots. A new release goes only to that board's pilots. When they've updated and still work, press **Release to everyone** for that board.
-4. **How devices install it**: from **Settings → Device info → Check for update** on the remote (can be switched off here), and/or **on a schedule**: during a window you set, on a device's normal timer wake.
-5. **Update now**: while devices are still due a release, the Home page's Devices card has **Update N remotes to vX now**, one row per board (named when there's more than one). Each of them installs it at its next timer wake (within its refresh interval), whatever the schedule, and even with no schedule set. It keeps to the minimum battery, and to the board's stage: while the release is with the pilots the button updates just them, and **Update all N now (skip pilot)** releases it to everyone in the same step (after asking), so every device of that board not on it installs it at its next wake. A device that tries and fails isn't asked again at every wake; press the button again to retry. **Cancel** takes it back, and choosing another release clears it. Needs remote firmware that knows about it (later than v0.2.3); older remotes keep to the schedule.
+2. **Choose each board's release** in the Releases table: the version its devices should run. An older build rolls them back to it. When there's a newer build than the release, the row offers **Send vX to pilots**.
+3. **Pilot first**: tick a device or two as pilots in the Devices table. A new release goes only to that board's pilots. When they've updated and still work, press **Release to everyone** for that board.
+4. **How devices install it** (the Rules card): from **Settings → Device info → Check for update** on the remote (**From the remote**), and/or **on a schedule**: during a window you set, on a device's normal timer wake.
+5. **Update now**: while devices are still due a release, the Home page's **Firmware rollout** card has **Update N remotes to vX now**, one row per board (named when there's more than one). Each of them installs it at its next timer wake (within its refresh interval), whatever the schedule, and even with no schedule set. It keeps to the minimum battery, and to the board's stage: while the release is with the pilots the button updates just them, and **Update all N now (skip pilot)** releases it to everyone in the same step (after asking), so every device of that board not on it installs it at its next wake. A device that tries and fails isn't asked again at every wake; press the button again to retry. **Cancel** takes it back, and choosing another release clears it. Needs remote firmware that knows about it (later than v0.2.3); older remotes keep to the schedule.
 
 On the device:
 - **Battery:** it needs the minimum battery set here (30% by default).
@@ -49,7 +53,7 @@ A device from another repository takes part by doing what the Switchboard firmwa
 | **Report** | `POST /api/firmware/report` with `{version, from, ok, error, board}` after each attempt. |
 | **Releases** | Publish `switchboard-<board>-app-<tag>.bin` and `switchboard-<board>-app-<tag>.bin.sha256` (from `sha256sum`) on each GitHub release, so this server can add them. |
 
-Then add its repository to the list here. Its builds show under its own board, and its devices under Devices.
+Then add its repository under **Sources**. Its builds show under its own board, and its devices under Devices.
 
 ## Where builds are kept
 
