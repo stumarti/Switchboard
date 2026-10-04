@@ -63,7 +63,7 @@ A colour e-ink wall display on the **Seeed reTerminal E1002**. Its 7.3" Spectra 
 </tr>
 </table>
 
-- **Build any screen.** Choose from twenty section types: weather, energy totals and graph, the home battery, status icons, "what needs attention now", heating, calendar, alarm, doors and windows, motion, cameras, people, now playing, bus and train departures, announcements and more. Arrange them in one, two or three columns, or in the kitchen dashboard's sidebar layout.
+- **Build any screen.** Choose from twenty-five section types: weather, energy totals and graph, the home battery, status icons, "what needs attention now", heating, calendar, alarm, doors and windows, motion, cameras, people, now playing, bus and train departures, bin collection, air quality and pollen, a guest Wi-Fi QR code, your own messages, announcements and more. Arrange them in one, two or three columns, or in the kitchen dashboard's sidebar layout.
 - **Three buttons:** previous, next and home, on every screen. It can also move through its screens on its own.
 - **Set up with your phone:** scan the QR code on the panel, then pick your Wi-Fi. No keyboard needed.
 - **It's a room sensor too:** its temperature and humidity can go to Home Assistant, along with its battery.

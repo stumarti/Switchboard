@@ -39,6 +39,8 @@ The server's other section types and screen kinds work on a viewport too. These 
   <figure><div class="panel"><img src="../images/viewport/device/boardroom-meeting.png" alt="Meeting room"></div><figcaption>Meeting room</figcaption></figure>
   <figure><div class="panel"><img src="../images/viewport/device/boardroom-rooms.png" alt="Room finder"></div><figcaption>Room finder</figcaption></figure>
   <figure><div class="panel"><img src="../images/viewport/device/reception-home.png" alt="Reception"></div><figcaption>Reception, with company news</figcaption></figure>
+  <figure><div class="panel"><img src="../images/viewport/device/reception-visitors.png" alt="Visitors: guest Wi-Fi, a welcome and the air"></div><figcaption>Visitors: guest Wi-Fi, a welcome and the office's air</figcaption></figure>
+  <figure><div class="panel"><img src="../images/viewport/device/hall.png" alt="A hall panel: bins, air and pollen"></div><figcaption>A hall: a reminder, the bins, the air and the pollen</figcaption></figure>
 </div>
 
 **Energy** (the demo's fourth screen) puts the day's totals in the sidebar and the graph beside them:
@@ -49,6 +51,10 @@ The server's other section types and screen kinds work on a viewport too. These 
 - Both graphs have their hours along the bottom, and together they fill the column down to the footer.
 
 **Presence** ends with a stop board: a line per route and destination (what the front of the bus says), with its badge and the next two times. A live time is in the route's colour, a timetabled one in black, and either turns red when it's due.
+
+**Visitors** (Reception's second screen) shows the guest network as a code to scan with a phone's camera, with the network and password in words beside it, a welcome that names today's visitor from Home Assistant, and the office's air.
+
+**The hall** lists the next bin collections, soonest first, today's and tomorrow's in red. It can add *Put out tonight: Recycling* the evening before. Under them are the air and the pollen, each dot green, yellow or red.
 
 A long calendar title or description in a narrow column, such as the sidebar, is cut short with "..." rather than run over the divider.
 
