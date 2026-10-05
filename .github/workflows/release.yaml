@@ -20,14 +20,14 @@ jobs:
           path: switchboard
           fetch-depth: 0   # full history so `git describe` (gen_version.py) sees the tag
 
-      # Only a commit already on develop (reviewed, CI green) may become a
+      # Only a commit already on main (reviewed, CI green) may become a
       # release: a tag pushed on some other branch stops here.
-      - name: The tagged commit must be on develop
+      - name: The tagged commit must be on main
         working-directory: switchboard
         run: |
-          git fetch --no-tags origin develop
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/develop || {
-            echo "::error::${{ github.ref_name }} isn't on develop; tag a commit from develop."
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "::error::${{ github.ref_name }} isn't on main; tag a commit from main."
             exit 1
           }
 
@@ -111,7 +111,7 @@ jobs:
           generate_release_notes: true
 
       # Push the latest merged image + manifest to docs/firmware/ on
-      # `develop` so the web flasher (docs/index.html) always serves the
+      # `main` so the web flasher (docs/index.html) always serves the
       # newest tagged release. Done as a fresh checkout of the branch
       # (not the detached tag commit) to avoid fighting a moving branch tip.
       - name: Update web flasher (docs/firmware)
@@ -136,8 +136,8 @@ jobs:
           }
           EOF
 
-          git fetch origin develop:develop
-          git checkout develop
+          git fetch origin main:main
+          git checkout main
           mkdir -p docs/firmware
           cp /tmp/webflasher/switchboard-latest.bin docs/firmware/switchboard-latest.bin
           cp /tmp/webflasher/manifest.json docs/firmware/manifest.json
@@ -146,4 +146,4 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/firmware
           git commit -m "docs: publish web-flasher build for ${{ github.ref_name }}" || echo "nothing to commit"
-          git push origin develop
+          git push origin main
