@@ -76,6 +76,18 @@ You'll know before a battery runs out. The server learns how fast each device dr
 </tr>
 </table>
 
+### Coming: a 13.3" board for events and shops
+
+The **Seeed reTerminal E1004** is the same idea at 13.3", portrait or landscape: event signs that point the way, menus and offers in a shop window, photos from Immich with live information beside them. It's planned, not built yet. These are mock-ups at the panel's real resolution and in its six inks.
+
+<table>
+<tr>
+  <td valign="top"><img src="docs/images/e1004-directory.png" width="250" alt="Mock-up: an event directory with an arrow, room and status for each event"><br><sub><b>Event directory.</b> Every event with its arrow, where it is and what's on now</sub></td>
+  <td valign="top"><img src="docs/images/e1004-pointer.png" width="250" alt="Mock-up: a sign pointing the way to one event, with the distance and directions"><br><sub><b>This way to…</b> One event, the way there and the next talk</sub></td>
+  <td valign="top"><img src="docs/images/e1004-cafe.jpg" width="330" alt="Mock-up: a café's special with a picture, price and an order-ahead QR code"><br><sub><b>Shop or café.</b> Today's special, the price and a QR code, with live weather and opening hours</sub></td>
+</tr>
+</table>
+
 ## The remote
 
 A smart-home remote on the **Xteink X4 Pro** e-reader. It has a crisp e-ink panel, four buttons and a touchscreen, and it controls each room's lights, blinds, music, TV and heating.
