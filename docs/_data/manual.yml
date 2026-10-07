@@ -5,6 +5,20 @@
     - { title: Getting started, page: getting-started }
     - { title: Try the demo, page: demo }
 
+- title: Use cases
+  pages:
+    - { title: All use cases, page: use-cases }
+    - { title: Living room, page: use-cases/living-room }
+    - { title: Bedrooms and kids' rooms, page: use-cases/bedrooms }
+    - { title: Kitchen, page: use-cases/kitchen }
+    - { title: Front door, page: use-cases/front-door }
+    - { title: Family and care, page: use-cases/family-care }
+    - { title: Meeting rooms, page: use-cases/meeting-rooms }
+    - { title: Reception, page: use-cases/reception }
+    - { title: Facilities, page: use-cases/facilities }
+    - { title: Holiday lets and guest rooms, page: use-cases/holiday-lets }
+    - { title: Events and shops (coming), page: use-cases/events-and-shops }
+
 - title: The remote
   pages:
     - { title: Screens, page: remote/screens }

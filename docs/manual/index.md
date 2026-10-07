@@ -26,6 +26,7 @@
 ## Where to go next
 
 - **New here?** [Getting started](getting-started.md) takes you from nothing to a working remote.
+- **Wondering where it fits?** [Use cases](use-cases.md) has a page for each room and place, with its screens and the case for Switchboard there.
 - **No hardware yet?** [Try the demo](demo.md) runs the server with a pretend Home Assistant and a whole house of devices.
 - **Using a remote?** Start with its [screens](remote/screens.md).
 - **Putting up a viewport?** Start with [Setting up a viewport](viewport/setup.md).

@@ -22,6 +22,8 @@ You'll know before a battery runs out. The server learns how fast each device dr
 
 ## Use cases
 
+Each of these has its own page in the manual, with more screens and the case for using Switchboard there: see **[Use cases](https://stumarti.github.io/Switchboard/manual/use-cases.html)** ([source](docs/manual/use-cases.md)).
+
 ### A remote in every room
 
 **One remote replaces the five or six switches by the door.** Every light and dimmer, the scenes, the blinds, the heating, the TV and the music are on one screen you can pick up and carry to the sofa.
