@@ -83,6 +83,10 @@ The viewport makes a meeting-room sign that reads like paper from across the cor
 - **Free rooms at the press of a button.** The second screen lists the other rooms, free ones first.
 - **A whole floor at once.** Paste the list of rooms from a spreadsheet. Each room gets its sign, and its display is named and assigned before it's even switched on.
 - **Months on a charge.** Signs sleep through nights and weekends, and only wake to redraw when something has changed.
+- **A reception screen too.** Guests scan a QR code to join the guest Wi-Fi, a welcome names today's visitor, and the office's air quality and pollen sit beside it.
+
+<p><img src="docs/images/reception-builder.png" width="800" alt="Switchboard Server's layout builder with a reception screen: a guest Wi-Fi QR code, a welcome message and the office's air quality in the live preview, with the screen's sections listed below"></p>
+<sub>Setting up a reception screen in Switchboard Server: the live preview above, each column's sections below.</sub>
 
 See [Viewports in the office](https://stumarti.github.io/Switchboard/manual/viewport/office.html).
 
