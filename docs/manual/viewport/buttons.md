@@ -20,9 +20,11 @@ They work the same on every screen, wrapping round at either end. With the kitch
 
 The layout's **Timing → Between presses** setting decides what happens when nobody presses a button:
 
-- **Stay on the current screen:** keep it on show and refresh it.
+- **Stay on the current screen:** keep it on show and refresh it. The kitchen dashboard does this: the screen someone picked stays until the next press.
 - **Move to the next screen:** every N minutes.
-- **Go back to the first screen:** go back to the first screen N minutes after the last button press. The kitchen dashboard does this: Heating or Security goes back to Status after 30 minutes.
+- **Go back to the first screen:** go back to the first screen N minutes after the last button press. A meeting-room sign does this, after 5 minutes, so it's back on its own room.
+
+Each move is a full redraw of the panel, so **Stay** is the kindest to the battery.
 
 The display wakes in time for the next carousel step even if its normal refresh comes later.
 
