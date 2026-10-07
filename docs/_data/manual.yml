@@ -12,12 +12,18 @@
     - { title: Bedrooms and kids' rooms, page: use-cases/bedrooms }
     - { title: Kitchen, page: use-cases/kitchen }
     - { title: Front door, page: use-cases/front-door }
+    - { title: Energy, page: use-cases/energy }
+    - { title: Chores and pets, page: use-cases/chores-and-pets }
     - { title: Family and care, page: use-cases/family-care }
-    - { title: Meeting rooms, page: use-cases/meeting-rooms }
     - { title: Reception, page: use-cases/reception }
+    - { title: Meeting rooms, page: use-cases/meeting-rooms }
     - { title: Facilities, page: use-cases/facilities }
+    - { title: Co-working spaces, page: use-cases/coworking }
+    - { title: Building sites, page: use-cases/building-sites }
     - { title: Holiday lets and guest rooms, page: use-cases/holiday-lets }
-    - { title: Events and shops (coming), page: use-cases/events-and-shops }
+    - { title: Hotels and B&Bs, page: use-cases/hotels }
+    - { title: Shops and cafés, page: use-cases/shops-and-cafes }
+    - { title: Events (coming), page: use-cases/events }
 
 - title: The remote
   pages:

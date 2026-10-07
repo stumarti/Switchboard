@@ -73,8 +73,37 @@ Each of these has its own page in the manual, with more screens and the case for
   <td valign="top"><img src="docs/manual/images/viewport/device/boardroom-rooms.png" width="380" alt="Room finder"><br><sub><b>By the lifts.</b> Which rooms are free now</sub></td>
 </tr>
 <tr>
-  <td valign="top"><img src="docs/manual/images/viewport/device/reception-visitors.png" width="380" alt="Reception visitors"><br><sub><b>Reception.</b> The guest Wi-Fi to scan, a welcome for today's visitor, the office's air</sub></td>
+  <td valign="top"><img src="docs/manual/images/use-cases/reception.png" width="380" alt="Reception board"><br><sub><b>Reception.</b> The guest Wi-Fi to scan, what's on today, a welcome, the weather and company news</sub></td>
   <td valign="top"><img src="docs/manual/images/viewport/device/reception-home.png" width="380" alt="Reception"><br><sub><b>Lobby.</b> The weather, today's meetings and company news</sub></td>
+</tr>
+</table>
+
+And more, each drawn by the firmware from a layout on the demo server:
+
+<table>
+<tr>
+  <td valign="top"><img src="docs/manual/images/use-cases/front-door.png" width="380" alt="Front door board"><br><sub><b>Before you leave.</b> The back door, the washing, the car and the bins, only when they need you</sub></td>
+  <td valign="top"><img src="docs/manual/images/use-cases/energy-advice.png" width="380" alt="Energy advice"><br><sub><b>Energy advice.</b> Run the dishwasher now, and when the car charges</sub></td>
+</tr>
+<tr>
+  <td valign="top"><img src="docs/manual/images/use-cases/chores.png" width="380" alt="Chores and pets"><br><sub><b>Chores and pets.</b> Who fed the dog, and the jobs still to do</sub></td>
+  <td valign="top"><img src="docs/manual/images/use-cases/family-care.png" width="380" alt="Family care"><br><sub><b>Family and care.</b> The day, today's visits and a tablets reminder for a parent</sub></td>
+</tr>
+<tr>
+  <td valign="top"><img src="docs/manual/images/use-cases/facilities.png" width="380" alt="Facilities"><br><sub><b>Facilities.</b> The air in each room, a failed backup, the plant room, free EV chargers</sub></td>
+  <td valign="top"><img src="docs/manual/images/use-cases/comfort.png" width="380" alt="Comfort by room"><br><sub><b>Every sign is a sensor.</b> Temperature and humidity by room, from the signs themselves</sub></td>
+</tr>
+<tr>
+  <td valign="top"><img src="docs/manual/images/use-cases/coworking.png" width="380" alt="Co-working"><br><sub><b>Co-working.</b> Members' Wi-Fi, free phone booths and today's events</sub></td>
+  <td valign="top"><img src="docs/manual/images/use-cases/building-site.png" width="380" alt="Building site"><br><sub><b>Building site.</b> Wind warnings, deliveries and the safety record, with no mains</sub></td>
+</tr>
+<tr>
+  <td valign="top"><img src="docs/manual/images/use-cases/holiday-let.png" width="380" alt="Holiday let"><br><sub><b>Holiday let.</b> A welcome by name, the Wi-Fi and the house notes</sub></td>
+  <td valign="top"><img src="docs/manual/images/use-cases/hotel-lobby.png" width="380" alt="Hotel lobby"><br><sub><b>Hotel lobby.</b> Breakfast, the Wi-Fi and what's on today</sub></td>
+</tr>
+<tr>
+  <td valign="top"><img src="docs/manual/images/use-cases/hotel-door.png" width="380" alt="Hotel door"><br><sub><b>Hotel room door.</b> <i>Please do not disturb</i>, only while it's on</sub></td>
+  <td valign="top"><img src="docs/manual/images/use-cases/cafe.png" width="380" alt="Café board"><br><sub><b>Café counter.</b> Today's specials, what's sold out and the hours</sub></td>
 </tr>
 </table>
 
