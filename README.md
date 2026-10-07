@@ -4,10 +4,8 @@
 
 **[⚡ Flash one from your browser](https://stumarti.github.io/Switchboard/)** · **[Read the manual](https://stumarti.github.io/Switchboard/manual/)** · **[Try the demo, no hardware needed](https://stumarti.github.io/Switchboard/manual/demo.html)**
 
-<p>
-  <img src="docs/images/standby.jpg" width="250" alt="A Switchboard remote on the wall">
-  <img src="docs/manual/images/viewport/device/kitchen-panel-status.png" width="500" alt="A Switchboard viewport: the kitchen dashboard">
-</p>
+<p><img src="docs/images/fridge-status.jpg" width="800" alt="A Switchboard viewport and remote on a kitchen fridge: the weather, the energy, what's happening now and tomorrow's bins, with the remote on Lighting"></p>
+<sub>A viewport and a remote on a kitchen fridge, in an evening's room light.</sub>
 
 ## Forget about charging
 
@@ -45,6 +43,11 @@ A smart-home remote on the **Xteink X4 Pro** e-reader. It has a crisp e-ink pane
 - **It updates itself** over Wi-Fi from your server. If a new version can't reach home, it rolls back on its own.
 
 ## The viewport
+
+<p>
+  <img src="docs/images/fridge-energy.jpg" width="400" alt="The viewport's energy screen on the fridge: solar against the forecast and where the power went, beside the remote's thermostat">
+  <img src="docs/images/fridge-heating.jpg" width="400" alt="The viewport's heating screen on the fridge, every zone against its setpoint, beside the remote playing music">
+</p>
 
 A colour e-ink wall display on the **Seeed reTerminal E1002**. Its 7.3" Spectra 6 panel shows six colours, it has no glow, and it reads from across the room. Put one in the kitchen, the hall or beside a meeting room door.
 
