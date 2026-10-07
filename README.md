@@ -20,22 +20,65 @@ The server does all the heavy lifting, so the devices don't have to. It talks to
 
 You'll know before a battery runs out. The server learns how fast each device drains, shows **the days each one has left**, warns you a few days ahead, and can send the battery levels to Home Assistant for your own automations.
 
-## The remote
+## Use cases
 
-A smart-home remote on the **Xteink X4 Pro** e-reader. It has a crisp e-ink panel, four buttons and a touchscreen, and it controls each room's lights, blinds, music, TV and heating.
+### A remote in every room
+
+**One remote replaces the five or six switches by the door.** Every light and dimmer, the scenes, the blinds, the heating, the TV and the music are on one screen you can pick up and carry to the sofa.
+
+**There's nothing to learn.** Every button says what it does, in plain English and in your own words: *All lights*, *Movie night*, *Close blinds*, *Kitchen music*. Guests, grandparents and the babysitter can use it without being shown.
 
 <table>
 <tr>
-  <td><img src="docs/images/lighting.jpg" width="220" alt="Lighting"><br><sub>Lighting: every light, dimmers and colour</sub></td>
-  <td><img src="docs/images/climate.jpg" width="220" alt="Climate"><br><sub>Climate: the room's heating and setpoint</sub></td>
-  <td><img src="docs/images/blinds.jpg" width="220" alt="Blinds"><br><sub>Blinds: open, close, or anywhere between</sub></td>
+  <td valign="top"><img src="docs/images/lighting.jpg" width="200" alt="Lighting"><br><sub><b>Living room.</b> Every light and dimmer, and scenes like <i>Movie night</i></sub></td>
+  <td valign="top"><img src="docs/images/tv.jpg" width="200" alt="TV"><br><sub>The TV, its apps and volume: the remote that doesn't get lost</sub></td>
+  <td valign="top"><img src="docs/images/music.jpg" width="200" alt="Music"><br><sub>The speakers, with album art</sub></td>
 </tr>
 <tr>
-  <td><img src="docs/images/music.jpg" width="220" alt="Music"><br><sub>Music: now playing, with album art</sub></td>
-  <td><img src="docs/images/tv.jpg" width="220" alt="TV"><br><sub>TV: power, inputs, volume, the remote you lost</sub></td>
-  <td><img src="docs/images/menu.jpg" width="220" alt="Jump to menu"><br><sub>Quick Access: anything, in two taps</sub></td>
+  <td valign="top"><img src="docs/images/blinds.jpg" width="200" alt="Blinds"><br><sub><b>Bedroom.</b> Blinds down and lights off without getting up</sub></td>
+  <td valign="top"><img src="docs/images/climate.jpg" width="200" alt="Climate"><br><sub>The room's heating for the night</sub></td>
+  <td valign="top"><img src="docs/images/menu.jpg" width="200" alt="Quick Access"><br><sub><b>Kitchen.</b> Island lights, the extractor, the music: two taps away</sub></td>
+</tr>
+<tr>
+  <td valign="top"><img src="docs/manual/images/remote/lighting-colour.png" width="200" alt="Colour lighting"><br><sub><b>Kids' room.</b> Their lights and a colour nightlight, and nothing else to wander into</sub></td>
+  <td valign="top"><img src="docs/manual/images/remote/xbox.png" width="200" alt="Xbox"><br><sub><b>Den or media room.</b> The Xbox and its games</sub></td>
+  <td valign="top"><img src="docs/manual/images/remote/receiver.png" width="200" alt="Receiver"><br><sub>The satellite box's favourite channels</sub></td>
+</tr>
+<tr>
+  <td valign="top"><img src="docs/manual/images/remote/wifi-qr.png" width="200" alt="Guest Wi-Fi QR code"><br><sub><b>Guest room or holiday let.</b> The Wi-Fi as a code to scan</sub></td>
+  <td valign="top"><img src="docs/manual/images/remote/climate.png" width="200" alt="Climate"><br><sub>The heating, without a manual on the bedside table</sub></td>
+  <td valign="top"><img src="docs/manual/images/remote/blinds.png" width="200" alt="Blinds"><br><sub><b>Meeting room.</b> Blinds and lights for a presentation</sub></td>
 </tr>
 </table>
+
+### A viewport wherever you'd glance
+
+<table>
+<tr>
+  <td valign="top"><img src="docs/manual/images/viewport/device/kitchen-panel-status.png" width="380" alt="Kitchen dashboard"><br><sub><b>Kitchen or fridge.</b> The weather, what needs attention now, today's calendar and the home battery</sub></td>
+  <td valign="top"><img src="docs/manual/images/viewport/device/hall.png" width="380" alt="Hall panel"><br><sub><b>Front door.</b> The bins, a reminder on the way out, the air and the pollen</sub></td>
+</tr>
+<tr>
+  <td valign="top"><img src="docs/manual/images/viewport/device/kitchen-panel-energy.png" width="380" alt="Energy"><br><sub><b>Energy.</b> Solar against the forecast, and where your power went</sub></td>
+  <td valign="top"><img src="docs/manual/images/viewport/device/kitchen-panel-heating.png" width="380" alt="Heating"><br><sub><b>Heating.</b> Every zone against its setpoint, and the hot water</sub></td>
+</tr>
+<tr>
+  <td valign="top"><img src="docs/manual/images/viewport/device/kitchen-panel-presence.png" width="380" alt="Presence and departures"><br><sub><b>Family.</b> Who's home, the room temperatures, what's playing, the next bus</sub></td>
+  <td valign="top"><img src="docs/manual/images/viewport/device/kitchen-panel-security.png" width="380" alt="Security"><br><sub><b>Security.</b> The alarm, doors and windows, motion and cameras</sub></td>
+</tr>
+<tr>
+  <td valign="top"><img src="docs/manual/images/viewport/device/boardroom-meeting.png" width="380" alt="Meeting room sign"><br><sub><b>Meeting room door.</b> Free or in use, until when, and what's next</sub></td>
+  <td valign="top"><img src="docs/manual/images/viewport/device/boardroom-rooms.png" width="380" alt="Room finder"><br><sub><b>By the lifts.</b> Which rooms are free now</sub></td>
+</tr>
+<tr>
+  <td valign="top"><img src="docs/manual/images/viewport/device/reception-visitors.png" width="380" alt="Reception visitors"><br><sub><b>Reception.</b> The guest Wi-Fi to scan, a welcome for today's visitor, the office's air</sub></td>
+  <td valign="top"><img src="docs/manual/images/viewport/device/reception-home.png" width="380" alt="Reception"><br><sub><b>Lobby.</b> The weather, today's meetings and company news</sub></td>
+</tr>
+</table>
+
+## The remote
+
+A smart-home remote on the **Xteink X4 Pro** e-reader. It has a crisp e-ink panel, four buttons and a touchscreen, and it controls each room's lights, blinds, music, TV and heating.
 
 - **One remote per room, or one for the whole house.** Pick its room in Settings and it changes in seconds, with nothing to re-flash.
 - **Pages for everything:** Status, Lighting, Blinds, Music, TV, Receiver, Xbox, a Wi-Fi QR code for guests, and Climate. Flip through them with the buttons, or jump straight to one from Quick Access.
@@ -50,21 +93,6 @@ A smart-home remote on the **Xteink X4 Pro** e-reader. It has a crisp e-ink pane
 </p>
 
 A colour e-ink wall display on the **Seeed reTerminal E1002**. Its 7.3" Spectra 6 panel shows six colours, it has no glow, and it reads from across the room. Put one in the kitchen, the hall or beside a meeting room door.
-
-<table>
-<tr>
-  <td><img src="docs/manual/images/viewport/device/kitchen-panel-heating.png" width="380" alt="Heating"><br><sub>Heating: which zones are calling, at a glance</sub></td>
-  <td><img src="docs/manual/images/viewport/device/kitchen-panel-security.png" width="380" alt="Security"><br><sub>Security: the alarm, doors, windows, motion and cameras</sub></td>
-</tr>
-<tr>
-  <td><img src="docs/manual/images/viewport/device/kitchen-panel-energy.png" width="380" alt="Energy"><br><sub>Energy: solar against the forecast, and where your power went</sub></td>
-  <td><img src="docs/manual/images/viewport/device/kitchen-panel-presence.png" width="380" alt="Presence and departures"><br><sub>Who's home, the room temperatures, now playing, the next buses</sub></td>
-</tr>
-<tr>
-  <td><img src="docs/manual/images/viewport/device/boardroom-meeting.png" width="380" alt="Meeting room"><br><sub>A meeting room sign: free or busy, and what's next</sub></td>
-  <td><img src="docs/manual/images/viewport/device/reception-home.png" width="380" alt="Reception"><br><sub>Reception: the weather, today's meetings and company news</sub></td>
-</tr>
-</table>
 
 - **Build any screen.** Choose from twenty-five section types: weather, energy totals and graph, the home battery, status icons, "what needs attention now", heating, calendar, alarm, doors and windows, motion, cameras, people, now playing, bus and train departures, bin collection, air quality and pollen, a guest Wi-Fi QR code, your own messages, announcements and more. Arrange them in one, two or three columns, or in the kitchen dashboard's sidebar layout.
 - **Three buttons:** previous, next and home, on every screen. It can also move through its screens on its own.
