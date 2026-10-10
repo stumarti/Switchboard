@@ -4,7 +4,7 @@ Settings are shared by every room and device. Their pages are listed down the Se
 
 | Group | Pages |
 |---|---|
-| **Connections** | Home Assistant, Wi-Fi networks, Clock and time zone |
+| **Connections** | Home Assistant, Wi-Fi networks, Immich photos, Clock and time zone |
 | **Devices** | Firmware updates, Pairing, Theme |
 | **Server** | Security, Account, About |
 
@@ -23,6 +23,12 @@ The same page can **publish every device's battery to Home Assistant** as sensor
 <figure class="shot"><img src="../images/admin/settings-wifi.png" alt="Settings, Wi-Fi"><figcaption>The network remotes join, and the networks they show as QR codes.</figcaption></figure>
 
 The network remotes join, and the household's networks, which the remote's [Wi-Fi page](../remote/screens.md#wi-fi) shows as join-QR codes for guests.
+
+## Immich photos
+
+<figure class="shot"><img src="../images/admin/settings-immich.png" alt="Settings, Immich photos"><figcaption>Your Immich server's address and an API key.</figcaption></figure>
+
+Your [Immich](https://immich.app) server, for photo sections and photo backgrounds on viewports. The key stays on the server and is never shown again once saved. See [Photos from Immich](../viewport/photos.md).
 
 ## Clock and time zone
 

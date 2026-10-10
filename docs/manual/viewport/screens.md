@@ -31,7 +31,7 @@ The weather and solar icons are the panel's own colour art: a yellow sun, a blue
 
 ## Other screens
 
-The server's other section types and screen kinds work on a viewport too. These come from the demo's other displays:
+The server's other section types and screen kinds work on a viewport too, including [photos from Immich](photos.md). These come from the demo's other displays:
 
 <div class="shots wide">
   <figure><div class="panel"><img src="../images/viewport/device/kitchen-panel-energy.png" alt="Energy"></div><figcaption>Energy totals and graph</figcaption></figure>
