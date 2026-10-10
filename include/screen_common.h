@@ -309,7 +309,7 @@ inline int chipHit(int16_t y0, int n, int16_t tx, int16_t ty) {
 // — three outline rounded buttons; `pressed` fills that one for tap feedback,
 // plus the small glyphs drawn inside each button.
 inline constexpr int16_t kBarBtnH  = 84;
-inline constexpr int16_t kBarBtnY  = Ui::H - 64 - kBarBtnH;  // sits well above the carousel dots
+inline constexpr int16_t kBarBtnY  = Ui::H - 64 - kBarBtnH;  // sits well above the carousel icons
 inline constexpr int16_t kBarGap   = 12;
 inline constexpr int16_t kBarBtnW  = (Ui::W - kShPad * 2 - 2 * kBarGap) / 3;
 
