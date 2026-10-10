@@ -23,6 +23,7 @@ Home shows how the whole setup is doing, and what needs attention, worst first.
   - critical and low batteries (10% and 20%), and any device with about 3 days or less left ([Battery life](battery-life.md));
   - devices not heard from (a remote in a day, a viewport in three of its refresh intervals), weak Wi-Fi, and devices without a room or layout;
   - remotes on different firmware versions, and failed [updates](remote-updates.md);
+  - a newer Switchboard Server, when one is out ([Settings → About](settings.md#about));
   - Home Assistant not set up, unreachable, or failing requests in the last hour (with the recent errors), and any entity a layout names that Home Assistant doesn't have (a typo, or one renamed in Home Assistant).
 - **Firmware rollout:** each board's release, whether it's with the pilots or everyone, and how many of its devices have it, with **Update now** buttons. See [Updates](remote-updates.md).
 - **Devices:** every device with its status, room or layout, battery and the days it has left, Wi-Fi signal, firmware (an icon shows an update waiting, installed or failed) and when it was last seen. Filter to remotes, viewports, low batteries or devices with a problem, or type part of a name. Click a row to open the device.
