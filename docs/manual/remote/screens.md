@@ -1,6 +1,6 @@
 # Screens
 
-The remote's home is the **carousel**: Left and Right step through whichever of these pages its room has turned on, in the order set on the server ([remote layouts](../server/remote-layouts.md)). The dots along the bottom show where you are.
+The remote's home is the **carousel**: Left and Right step through whichever of these pages its room has turned on, in the order set on the server ([remote layouts](../server/remote-layouts.md)). Each page's icon runs along the bottom, the one you're on underlined, as on a viewport (a theme's carousel icons replace them).
 
 ## Status
 

@@ -120,25 +120,34 @@ static const freeink::Icon* carouselIcon(uint8_t page) {
   }
 }
 
-// A row of position dots along the very bottom — the carousel affordance.
-// One dot per page in carouselSequence() order, so a hidden page doesn't
-// leave a "gap" dot nobody can land on.
-static void drawCarouselDots() {
+// The carousel along the very bottom, as on a viewport: each page's icon
+// (its nav_* slot, the one in the status bar), the page showing underlined.
+// In carouselSequence() order, so a hidden page leaves no gap. Centred, a
+// gap between icons that shrinks if a theme's icons are wider.
+static void drawCarouselIcons() {
   uint8_t seq[kCarouselPages];
   const uint8_t visible = carouselSequence(seq);
-  if (visible == 0) return;
+  if (visible <= 1) return;  // nowhere else to go: nothing to show
 
-  const int16_t sp = 20, rad = 4, d = 8;
-  const int16_t total = static_cast<int16_t>((visible - 1) * sp);
-  int16_t x = static_cast<int16_t>(Ui::W / 2 - total / 2);
-  const int16_t y = static_cast<int16_t>(Ui::H - 20);
+  const int16_t kIcon = 22, kTop = static_cast<int16_t>(Ui::H - 38);
+  int16_t gap = 12;
+  int16_t total = static_cast<int16_t>(visible * kIcon + (visible - 1) * gap);
+  if (total > Ui::W - 2 * kPad) {
+    gap = 4;
+    total = static_cast<int16_t>(visible * kIcon + (visible - 1) * gap);
+  }
+  int16_t x = static_cast<int16_t>((Ui::W - total) / 2);
   for (uint8_t k = 0; k < visible; ++k) {
+    const freeink::Icon* ic = carouselIcon(seq[k]);
+    if (ic) {
+      ui.icon(*ic, static_cast<int16_t>(x + (kIcon - ic->w) / 2), static_cast<int16_t>(kTop + (kIcon - ic->h) / 2),
+              Color::Black);
+    } else {
+      ui.strokeRect(static_cast<int16_t>(x + 7), static_cast<int16_t>(kTop + 7), 8, 8, 1, 4);
+    }
     if (seq[k] == carouselPage)
-      ui.fillRect(static_cast<int16_t>(x - rad), static_cast<int16_t>(y - rad), d, d, Color::Black,
-                  rad);
-    else
-      ui.strokeRect(static_cast<int16_t>(x - rad), static_cast<int16_t>(y - rad), d, d, 1, rad);
-    x = static_cast<int16_t>(x + sp);
+      ui.fillRect(x, static_cast<int16_t>(kTop + kIcon + 4), kIcon, 3, Color::Black);
+    x = static_cast<int16_t>(x + kIcon + gap);
   }
 }
 
@@ -189,7 +198,7 @@ static void drawStandbyContent(bool sleeping, int pressed) {
             Color::DarkGray, 1, Ui::kFontSmall);
   }
 
-  drawCarouselDots();
+  drawCarouselIcons();
 }
 
 
