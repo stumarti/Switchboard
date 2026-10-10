@@ -15,8 +15,6 @@ On the right, the picked screen. Its **name**, **icon** (its mark in the display
 
 <figure class="shot"><img src="../images/admin/viewport-layout-section.png" alt="A section's settings in the drawer"><figcaption>Click a section and its settings open in a drawer at the side; the preview outlines it. Esc closes the drawer.</figcaption></figure>
 
-**All viewports, one builder.** Under **Layouts**, **All viewports, one builder** puts every viewport layout's carousel on one page: each layout's screens listed down the left, one layout after another with the displays using it, and the screen you pick from any of them edited on the right with its live preview, just as above. **How it hangs** and **Timing** under the lists are for the picked screen's layout. **Save** saves every layout you changed (each one changed says *unsaved*); **Open** goes to a layout's own page.
-
 The layout's column also has **Thresholds** (when values change colour: battery critical and low, an imminent departure, recent motion, the climate tolerance) and **Start from or import**, the displays using the layout, and the other layouts. **Save** keeps your changes, and displays pick them up at their next refresh; **Discard** throws them away.
 
 ## What a layout holds
