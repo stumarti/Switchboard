@@ -26,6 +26,7 @@ The address and key stay on the server. A display only ever gets the finished pi
 **A photo section.** In a viewport layout, choose **Add a section → Photo** in any column, then pick:
 - **Photos from:** your favourites, an album, a person you've named in Immich, "on this day" (photos taken on today's date in earlier years, or your favourites on a day with none), or anything in the library.
 - **Change:** every 15 minutes to once a week. The display shows the new photo at its next refresh.
+- **Order:** random, or in order (oldest first, then from the start again). In order, every section, background and photo frame on the same album shows the same photo at once, on every display. "Anything in the library" is always random.
 - **Caption:** none, when it was taken, where, or both.
 - **Height:** in pixels, or 0 to fill the rest of the column.
 
