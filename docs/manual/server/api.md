@@ -37,6 +37,8 @@ Every Switchboard remote already talks to this: `Settings → Select room` calls
 | POST | `/api/calendars/check` | Read a calendar link (`{calendar}`): its name, how many events in the next two weeks and the next few, or why it can't be read | session |
 | POST | `/api/pairing/approve-many` | Approve several waiting displays as viewports: `{devices: [{mac, name, dashboard}]}` | session |
 | GET | `/api/health` | Liveness, version, mDNS info | none |
+| GET | `/api/server/version` | Whether a newer Switchboard Server is out: `{enabled, current, latest, newer, url, checkedAt, error}`, from the last check | session |
+| POST | `/api/server/version/check` | Ask GitHub again now; the same answer | session |
 | GET | `/api/auth/status` | `{authenticated, setupRequired}` | none |
 | POST | `/api/auth/setup` | Set the admin password (first run only) | none |
 | POST | `/api/auth/login` / `/api/auth/logout` | Session cookie in/out | none |

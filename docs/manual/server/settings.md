@@ -62,4 +62,6 @@ Change the admin password. If `ADMIN_PASSWORD` is set on the container, it repla
 
 ## About
 
-<figure class="shot"><img src="../images/admin/settings-about.png" alt="Settings, About"><figcaption>This server's version, address and data folder, and where to get help.</figcaption></figure>
+<figure class="shot"><img src="../images/admin/settings-about.png" alt="Settings, About"><figcaption>This server's version, address and data folder, whether a newer version is out, and where to get help.</figcaption></figure>
+
+**Updates** says whether a newer Switchboard Server is out. The server asks GitHub for the latest release a minute after it starts and then twice a day; **Check now** asks again. When there's a newer one, it links to the release notes and it's on the Home page's **Needs attention** too. It only looks: update the way you installed it (`docker compose pull && docker compose up -d`, or `git pull && npm install` and restart). A development build (no version set) can't tell whether it's behind, so it never says so. To stop it asking, set `DISABLE_UPDATE_CHECK=1` ([Configuration](configuration.md)).

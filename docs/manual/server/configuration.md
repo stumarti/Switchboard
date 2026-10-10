@@ -13,6 +13,7 @@
 | `ADMIN_PASSWORD` | unset | Seeds/overwrites the admin UI's password on every start. Leave unset to set it once from the UI's own setup screen instead. |
 | `ALLOWED_NETWORKS` | unset | Replaces Settings → Security's allowed networks while set: comma-separated ranges or addresses, or `any` to turn the check off. The way back in if a list ever shuts you out. |
 | `TZ` | unset | The time zone every device's times are shown in (e.g. `Europe/Dublin`). Wins over **Settings → Clock and time zone**; without either, the server takes Home Assistant's. |
+| `DISABLE_UPDATE_CHECK` | off | Set `1` to stop the server asking GitHub whether a newer Switchboard Server is out (see [Settings → About](settings.md#about)) |
 | `TRUST_PROXY` | unset | Behind a reverse proxy: its address(es), comma-separated (or `loopback`). The allowed networks then check the address the proxy forwards, not the proxy's. |
 
 ## On Unraid
