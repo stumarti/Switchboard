@@ -1,6 +1,6 @@
 {
   "name": "Switchboard",
-  "version": "v3.1.4",
+  "version": "v3.1.5",
   "new_install_prompt_erase": true,
   "builds": [
     {
