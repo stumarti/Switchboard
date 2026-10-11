@@ -22,8 +22,9 @@ E-ink only uses power to change the picture, and the server does the work: the d
 ## How it's worked out
 
 - **History.** Readings are kept at most once every 30 minutes, or whenever the level changes, for 45 days, in `<DATA_DIR>/_battery-history.json` (written at most every 5 minutes, and on shutdown).
-- **Charges.** The level jumping up by 3% or more is a charge, and starts a new discharge from the top of the jump.
+- **Charges.** The level rising 3% or more above the last few readings is a charge once the next reading stays up too, or at once for a rise of 10% or more. It starts a new discharge from the top of the rise. One high reading that falls back is not a charge.
 - **Measured rate.** Once there are 12 hours of readings since the last charge and the level has fallen at least 2%, the drain rate is the least-squares slope of those readings, in % per day. A fuel gauge moves in whole percents, so less than that is noise.
+- **Sure enough to say.** A wall display works its level out from the battery's voltage, so its readings wander a little either side of the true level. The rate only counts once it stands well clear of that wander. Until then the display says "learning…" rather than guessing.
 - **Learned rate.** Each discharge of at least 2 days and a 5% drop is folded into a rate learned across charges. Right after a charge, before there's enough new data, that learned rate answers. The more charges a device has been through, the better it knows itself.
 - **Days left** = (level − 5%) ÷ rate, counting down from the device's last reading. 5% is about where a remote parks on its charge screen.
 
