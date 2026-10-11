@@ -1,5 +1,7 @@
 # Profile format
 
+A remote layout can be edited as this JSON in the server, with **Edit as JSON** in its side column; the server checks it when you press **Apply**.
+
 Each room profile, in full:
 
 ```json

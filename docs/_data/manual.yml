@@ -50,6 +50,7 @@
     - { title: Remote layouts, page: server/remote-layouts }
     - { title: Remotes, page: server/remotes }
     - { title: Viewports, page: server/viewports }
+    - { title: Viewport layout reference, page: server/viewport-reference }
     - { title: Settings, page: server/settings }
     - { title: Theme, page: server/theme }
     - { title: Updates, page: server/remote-updates }

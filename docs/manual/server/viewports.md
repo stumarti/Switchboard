@@ -17,6 +17,10 @@ On the right, the picked screen. Its **name**, **icon** (its mark in the display
 
 The layout's column also has **Thresholds** (when values change colour: battery critical and low, an imminent departure, recent motion, the climate tolerance) and **Start from or import**, the displays using the layout, and the other layouts. **Save** keeps your changes, and displays pick them up at their next refresh; **Discard** throws them away.
 
+**As JSON.** Any section can also be edited as JSON: its settings drawer has a **JSON** tab beside **Settings**. **Edit as JSON** in the layout's side column edits the whole layout. **Apply** checks it on the server (unknown keys are dropped, missing ones get their defaults) and puts it in the builder; **Save** keeps it. Every key is described in the [Viewport layout reference](viewport-reference.md).
+
+Status icons and "now" items can follow an entity's heating state (`@heating`: *calling*, *idle* or *off*) instead of its state; see [the heating state](viewport-reference.md#heating-state).
+
 ## What a layout holds
 
 
