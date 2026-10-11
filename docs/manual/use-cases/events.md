@@ -1,6 +1,6 @@
 # Events and wayfinding
 
-<p class="lead">The <b>Seeed reTerminal E1004</b> is the same idea at 13.3", portrait or landscape: event signs that point the way and say what's on. It is planned, not built yet. These are mock-ups at the panel's real resolution and in its six inks.</p>
+<p class="lead">The <b>Seeed reTerminal E1004</b> is the same idea at 13.3", portrait or landscape: event signs that point the way and say what's on. These full-resolution signs are planned, not built yet: they're mock-ups at the panel's real resolution and in its six inks.</p>
 
 <div class="shots">
   <figure><img src="../../images/e1004-directory.png" alt="Mock-up: an event directory"><figcaption>Event directory: every event with its arrow, where it is and what's on now</figcaption></figure>
@@ -18,4 +18,4 @@ For menus and offers, see [Shops and cafés](shops-and-cafes.md).
 
 ## Status
 
-This is a plan. Follow the project to hear when the E1004 is supported.
+The E1004's first firmware, [Switchboard Board](https://github.com/stumarti/Switchboard-Board), shows any viewport layout at twice the size, landscape, so the screens in this manual work on it today. It's new and not yet tested on the hardware. Full-resolution layouts like the ones above, portrait, and photos come later.

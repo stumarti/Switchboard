@@ -109,7 +109,9 @@ And more, each drawn by the firmware from a layout on the demo server:
 
 ### Coming: a 13.3" board for events and shops
 
-The **Seeed reTerminal E1004** is the same idea at 13.3", portrait or landscape: event signs that point the way, menus and offers in a shop window, photos from Immich with live information beside them. It's planned, not built yet. These are mock-ups at the panel's real resolution and in its six inks.
+The **Seeed reTerminal E1004** is the same idea at 13.3", portrait or landscape: event signs that point the way, menus and offers in a shop window, photos from Immich with live information beside them.
+
+Its first firmware, **[Switchboard Board](https://github.com/stumarti/Switchboard-Board)**, shows any viewport layout at twice the size, landscape. It's new and not yet tested on the hardware. The full-resolution signs below are still planned: these are mock-ups at the panel's real resolution and in its six inks.
 
 <table>
 <tr>
