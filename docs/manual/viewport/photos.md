@@ -28,6 +28,7 @@ The address and key stay on the server. A display only ever gets the finished pi
 - **Change:** every 15 minutes to once a week. The display shows the new photo at its next refresh.
 - **Order:** random, or in order (oldest first, then from the start again). In order, every section, background and photo frame on the same album shows the same photo at once, on every display. "Anything in the library" is always random.
 - **Caption:** none, when it was taken, where, or both.
+- **Colour:** how strong the colours come out on the panel. Six inks lose some colour, so **Standard** gives it a little back. **Natural** leaves the photo as it is, and **Vivid** and **Extra vivid** go further, which suits a muted or hazy photo. The layout builder's preview shows the difference.
 - **Height:** in pixels, or 0 to fill the rest of the column.
 
 <figure class="shot"><img src="../images/admin/viewport-layout-photo-section.png" alt="A photo section's settings"><figcaption>A photo section's settings</figcaption></figure>
@@ -38,7 +39,7 @@ The address and key stay on the server. A display only ever gets the finished pi
 
 ## How a photo reaches the panel
 
-The server asks Immich for the photo and crops it to the space it fills, around the part that matters (faces, detail, colour) rather than its middle. It then turns it into the panel's six colours with the same dithering it uses for album art, matched to how the panel really looks.
+The server asks Immich for the photo and crops it to the space it fills, around the part that matters (faces, detail, colour) rather than its middle. It then turns it into the panel's six colours with the same dithering it uses for album art, matched to how the panel really looks. Its brightness goes onto the panel's range with each colour keeping its strength, and greys stay grey.
 
 The display downloads that picture once and keeps it. Within one change period the photo stays the same, so a display that wakes and finds nothing new goes straight back to sleep. A whole-screen photo is 192 KB. When the display's storage runs low, it clears its old pictures.
 
