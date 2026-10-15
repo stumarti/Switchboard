@@ -1,18 +1,22 @@
 name: Viewport web flasher
 
-# Keeps the web flasher's viewport firmware (docs/firmware/viewport/, the
-# second button on docs/index.html) at the latest release of
-# stumarti/Switchboard-Viewport: its whole flash image,
-# switchboard-viewport-<tag>.bin, as switchboard-viewport-latest.bin, and a
-# manifest for ESP Web Tools.
+# Keeps the web flasher's display firmware at the latest release of each
+# display's repository, for the buttons on docs/index.html:
 #
-# Runs when that repository's release workflow pings it (repository_dispatch
-# "viewport-release", if it has a token for this repository), every six
-# hours in case it can't, and by hand (Actions -> Viewport web flasher ->
-# Run workflow). It only commits when the release changed.
+#   the viewport (reTerminal E1002)  stumarti/Switchboard-Viewport
+#     switchboard-viewport-<tag>.bin -> docs/firmware/viewport/
+#   the board (reTerminal E1004)     stumarti/Switchboard-Board
+#     switchboard-board-<tag>.bin    -> docs/firmware/board/
+#
+# Each whole flash image lands as <name>-latest.bin, with a manifest for ESP
+# Web Tools. Runs when a display's release workflow pings it
+# (repository_dispatch "viewport-release" or "board-release", if that
+# repository has a token for this one), every six hours in case it can't, and
+# by hand (Actions -> Viewport web flasher -> Run workflow). It only commits
+# when a release changed.
 on:
   repository_dispatch:
-    types: [viewport-release]
+    types: [viewport-release, board-release]
   schedule:
     - cron: "17 */6 * * *"
   workflow_dispatch:
@@ -27,30 +31,48 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
+    strategy:
+      # One after the other: both commit to main.
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        include:
+          - display: viewport
+            repo: stumarti/Switchboard-Viewport
+            title: Switchboard Viewport
+          - display: board
+            repo: stumarti/Switchboard-Board
+            title: Switchboard Board
+    env:
+      DISPLAY_NAME: ${{ matrix.display }}
+      REPO: ${{ matrix.repo }}
+      TITLE: ${{ matrix.title }}
+      DIR: docs/firmware/${{ matrix.display }}
     steps:
       - name: Check out main (what GitHub Pages serves)
         uses: actions/checkout@v7
         with:
           ref: main
 
-      - name: The latest viewport release
+      - name: The latest release
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if ! gh api repos/stumarti/Switchboard-Viewport/releases/latest > /tmp/release.json 2>/dev/null; then
-            echo "No Switchboard-Viewport release yet: nothing to publish."
+          if ! gh api "repos/$REPO/releases/latest" > /tmp/release.json 2>/dev/null; then
+            echo "No $REPO release yet: nothing to publish."
             echo "tag=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           TAG=$(jq -r .tag_name /tmp/release.json)
-          URL=$(jq -r --arg n "switchboard-viewport-$TAG.bin" '.assets[] | select(.name == $n) | .browser_download_url' /tmp/release.json)
+          IMAGE="switchboard-$DISPLAY_NAME-$TAG.bin"
+          URL=$(jq -r --arg n "$IMAGE" '.assets[] | select(.name == $n) | .browser_download_url' /tmp/release.json)
           if [ -z "$URL" ]; then
-            echo "::error::$TAG has no switchboard-viewport-$TAG.bin (the whole flash image)"
+            echo "::error::$REPO $TAG has no $IMAGE (the whole flash image)"
             exit 1
           fi
-          CURRENT=$(jq -r .version docs/firmware/viewport/manifest.json 2>/dev/null || true)
+          CURRENT=$(jq -r .version "$DIR/manifest.json" 2>/dev/null || true)
           echo "Latest $TAG, the flasher has ${CURRENT:-nothing}"
           if [ "$TAG" = "$CURRENT" ]; then
             echo "tag=" >> "$GITHUB_OUTPUT"
@@ -66,30 +88,31 @@ jobs:
           URL: ${{ steps.release.outputs.url }}
         run: |
           set -euo pipefail
-          mkdir -p docs/firmware/viewport
-          curl -sSfL -o docs/firmware/viewport/switchboard-viewport-latest.bin "$URL"
+          BIN="switchboard-$DISPLAY_NAME-latest.bin"
+          mkdir -p "$DIR"
+          curl -sSfL -o "$DIR/$BIN" "$URL"
           # An ESP32 image starts with the 0xE9 magic byte; anything else
           # (an HTML error page, say) mustn't reach anyone's display.
-          head -c1 docs/firmware/viewport/switchboard-viewport-latest.bin | od -An -tx1 | grep -q e9
-          cat > docs/firmware/viewport/manifest.json <<EOF
+          head -c1 "$DIR/$BIN" | od -An -tx1 | grep -q e9
+          cat > "$DIR/manifest.json" <<JSON
           {
-            "name": "Switchboard Viewport",
+            "name": "$TITLE",
             "version": "$TAG",
             "new_install_prompt_erase": true,
             "builds": [
               {
                 "chipFamily": "ESP32-S3",
                 "parts": [
-                  { "path": "switchboard-viewport-latest.bin", "offset": 0 }
+                  { "path": "$BIN", "offset": 0 }
                 ]
               }
             ]
           }
-          EOF
+          JSON
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/firmware/viewport
-          git commit -m "docs: publish the viewport's $TAG to the web flasher" || exit 0
-          # The remote's release may have pushed to main meanwhile.
+          git add "$DIR"
+          git commit -m "docs: publish the $DISPLAY_NAME's $TAG to the web flasher" || exit 0
+          # A release (or the other display's job) may have pushed to main meanwhile.
           git pull --rebase origin main
           git push origin main
