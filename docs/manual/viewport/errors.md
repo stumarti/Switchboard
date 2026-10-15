@@ -1,6 +1,8 @@
 # When something's wrong
 
-A viewport never hangs on a problem. It shows a plain screen saying what's wrong, with the date and time it last tried, and tries again after its usual interval (30 minutes, or the quiet-hours one overnight), or straight away if you press a button.
+A viewport never hangs on a problem. It shows a plain screen saying what's wrong and since when, then keeps trying at its usual interval (30 minutes, or the quiet-hours one overnight), or straight away if you press a button. It draws that screen once, when the problem starts or changes, and leaves it up while it retries: a full refresh is the most a wake costs, so a long outage (a power cut, say) costs one refresh rather than one every interval. Pressing a button draws it again. When things are back, the next wake shows the normal screen.
+
+A battery that needs charging always comes first: the display checks it before trying Wi-Fi, and shows the charge screen instead of any error.
 
 <div class="shots wide">
   <figure><div class="panel"><img src="../images/viewport/device/system-error-wifi.png" alt="No WiFi connection"></div><figcaption>No Wi-Fi</figcaption></figure>
