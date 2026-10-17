@@ -1,6 +1,6 @@
 {
   "name": "Switchboard Viewport",
-  "version": "v2.1.5",
+  "version": "v3.1.8",
   "new_install_prompt_erase": true,
   "builds": [
     {
