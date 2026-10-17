@@ -264,6 +264,7 @@ A photo from Immich filling the screen, with a few lines written over it in one 
 | `frame.weather` | string | `""` | A weather entity: its temperature and conditions. |
 | `frame.calendars` | list of strings | `[]` | Up to 8 calendars (entities or calendar links): the next event today or tomorrow. |
 | `frame.message` | string | `""` | Your own words, up to 300 characters. `{entity_id}` is filled in as in a [Message](#message). |
+| `frame.note` | object | none | A corner note of your own: `icon` (an icon name), `text` (one line, up to 120 characters, `{entity_id}` filled in) and `corner` (`topRight` by default; `bottomLeft`, `bottomRight`, `topLeft`). Either can be left blank. In the lines' own corner it becomes their last line. It takes the frame's text colour and outline. |
 
 ```json
 {
