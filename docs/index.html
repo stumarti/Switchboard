@@ -76,24 +76,50 @@
     No viewport release has been published here yet.
   </p>
 
+  <h2>The board</h2>
+  <p>
+    The big colour e-ink wall display: the Seeed reTerminal E1004, 13.3".
+    Plug it in over USB-C, then click below for the latest
+    <a href="https://github.com/stumarti/Switchboard-Board/releases">Switchboard Board</a>
+    release<span id="board-version"></span>. It sets up just like a viewport
+    (<a href="manual/viewport/setup.html">setting up a viewport</a>).
+  </p>
+
+  <esp-web-install-button id="board-install" manifest="firmware/board/manifest.json">
+    <button slot="activate">Connect &amp; flash the board</button>
+    <span slot="unsupported">
+      Your browser doesn't support Web Serial — try Chrome or Edge on desktop.
+    </span>
+    <span slot="not-allowed">
+      Web Serial is blocked here — this page needs to be served over HTTPS
+      (GitHub Pages does this automatically).
+    </span>
+  </esp-web-install-button>
+  <p class="note" id="board-none" hidden>
+    No board release has been published here yet.
+  </p>
+
   <p class="note">
     Works in Chrome or Edge on desktop only — Web Serial isn't available in
     Firefox, Safari, or on mobile browsers.
   </p>
   <p class="note">
     See the <a href="https://github.com/stumarti/Switchboard/releases">remote's</a>
-    and the <a href="https://github.com/stumarti/Switchboard-Viewport/releases">viewport's</a>
+    the <a href="https://github.com/stumarti/Switchboard-Viewport/releases">viewport's</a>
+    and the <a href="https://github.com/stumarti/Switchboard-Board/releases">board's</a>
     releases for version history and notes.
   </p>
   <script>
-    // The viewport's version, or a note while there's no release here yet.
-    fetch('firmware/viewport/manifest.json', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((m) => { document.getElementById('viewport-version').textContent = ` (${m.version})`; })
-      .catch(() => {
-        document.getElementById('viewport-install').hidden = true;
-        document.getElementById('viewport-none').hidden = false;
-      });
+    // Each display's version, or a note while there's no release here yet.
+    for (const d of ['viewport', 'board']) {
+      fetch(`firmware/${d}/manifest.json`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((m) => { document.getElementById(`${d}-version`).textContent = ` (${m.version})`; })
+        .catch(() => {
+          document.getElementById(`${d}-install`).hidden = true;
+          document.getElementById(`${d}-none`).hidden = false;
+        });
+    }
   </script>
 </body>
 </html>
