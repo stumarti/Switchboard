@@ -259,7 +259,8 @@ A photo from Immich filling the screen, with a few lines written over it in one 
 | `frame.corner` | `"bottomLeft"`, `"bottomRight"`, `"topLeft"` or `"topRight"` | `"bottomLeft"` | Where the lines go. |
 | `frame.size` | `"normal"` or `"large"` | `"normal"` | The size of the lines. |
 | `frame.ink` | string | `white` | The lines' colour: `white`, `black`, or `auto`. With `auto` the server looks at each photo where the lines go: black on a light photo, white on a dark one, with no edge. If it can't tell (Immich slow to answer), it uses white with an edge. |
-| `frame.outline` | boolean | `true` | An edge round the text and icons in the other colour (black round white, white round black), so it reads on any photo. Not used with `auto`. |
+| `frame.outline` | boolean | `true` | An edge round the text and icons in the other colour (black round white, white round black), so it reads on any photo. It covers the lines, the corner note and the footer. Not used with `auto`. |
+| `frame.footer` | boolean | `false` | The display's footer in the bottom right: the screens' icons, the time and the battery. It takes the frame's text colour and outline, and the battery is drawn in that colour too, red only when it's low. With `auto`, the server looks at the photo under the footer separately. Lines or a note in the bottom right go above it. Off, the battery shows only when it's low. |
 | `frame.date` | boolean | `true` | Today's date, first and large. |
 | `frame.weather` | string | `""` | A weather entity: its temperature and conditions. |
 | `frame.calendars` | list of strings | `[]` | Up to 8 calendars (entities or calendar links): the next event today or tomorrow. |
