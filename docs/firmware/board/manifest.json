@@ -1,0 +1,13 @@
+{
+  "name": "Switchboard Board",
+  "version": "v3.1.8",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "switchboard-board-latest.bin", "offset": 0 }
+      ]
+    }
+  ]
+}
