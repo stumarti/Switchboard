@@ -248,7 +248,7 @@ Meeting titles are never shown on a room finder.
 
 ### Photo frame (`photoFrame`)
 
-A photo from Immich filling the screen, with a few lines written over it in white in one corner. Its settings are under `frame`. Each line is left out when its key is off or empty.
+A photo from Immich filling the screen, with a few lines written over it in one corner: in white, in black, or in whichever contrasts with the photo under them. Its settings are under `frame`. Each line is left out when its key is off or empty.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
@@ -258,7 +258,8 @@ A photo from Immich filling the screen, with a few lines written over it in whit
 | `frame.caption` | `"none"`, `"date"`, `"place"` or `"both"` | `"none"` | When and where the photo was taken, last and small. |
 | `frame.corner` | `"bottomLeft"`, `"bottomRight"`, `"topLeft"` or `"topRight"` | `"bottomLeft"` | Where the lines go. |
 | `frame.size` | `"normal"` or `"large"` | `"normal"` | The size of the lines. |
-| `frame.outline` | boolean | `true` | A black edge round the white text, so it reads on a light photo. |
+| `frame.ink` | string | `white` | The lines' colour: `white`, `black`, or `auto`. With `auto` the server looks at each photo where the lines go: black on a light photo, white on a dark one, with no edge. If it can't tell (Immich slow to answer), it uses white with an edge. |
+| `frame.outline` | boolean | `true` | An edge round the text and icons in the other colour (black round white, white round black), so it reads on any photo. Not used with `auto`. |
 | `frame.date` | boolean | `true` | Today's date, first and large. |
 | `frame.weather` | string | `""` | A weather entity: its temperature and conditions. |
 | `frame.calendars` | list of strings | `[]` | Up to 8 calendars (entities or calendar links): the next event today or tomorrow. |
@@ -278,6 +279,7 @@ A photo from Immich filling the screen, with a few lines written over it in whit
     "caption": "none",
     "corner": "bottomLeft",
     "size": "normal",
+    "ink": "white",
     "outline": true,
     "date": true,
     "weather": "weather.home",
