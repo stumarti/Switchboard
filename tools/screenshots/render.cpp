@@ -120,6 +120,9 @@ int main(int argc, char** argv) {
   screen_wifi_networks::g_qrIdx = 1;
   screen_wifi_networks::drawQr();
   save("wifi-qr");
+  // Setting up the remote's own Wi-Fi from a phone (Settings -> Wi-Fi setup).
+  wifiprov::phone::draw(ui, "Switchboard-0002", "k7mq2xpa", "http://192.168.4.1");
+  save("wifi-setup-phone");
 
   // Home tap: the Quick Access hub, then the built-in jump list.
   carouselPage = 0;

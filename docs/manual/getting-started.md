@@ -44,13 +44,17 @@ Plug the X4 Pro into your computer over USB and use the [browser flasher](../) (
 
 ## 4. Join Wi-Fi and pair
 
-1. On first boot the remote shows a splash, then walks you through joining Wi-Fi: pick your network, and type the password on the on-screen keyboard.
+1. On first boot the remote shows a splash, then walks you through joining Wi-Fi: pick your network, and type the password on the on-screen keyboard. Or tap **Set up with your phone** under the list:
+   1. Scan the first QR code to join the remote's own Wi-Fi hotspot. The hotspot is called `Switchboard-` followed by four characters, and its password is shown under the code.
+   2. Scan the second code to open the setup page (most phones open it by themselves once they join).
+   3. On the page, pick your network, type its password, and tap **Save and connect**. The remote joins it. If it can't, it shows its list of networks again.
 2. It registers with the server and asks to be approved.
 3. On the server's **Remotes** page, approve it, choosing its room in the same step.
 4. Press any button on the remote.
 
 <div class="shots">
   <figure><div class="remote"><img src="images/remote/splash.png" alt="Splash screen"></div><figcaption>Starting up</figcaption></figure>
+  <figure><div class="remote"><img src="images/remote/wifi-setup-phone.png" alt="Setting up Wi-Fi with a phone"></div><figcaption>Setting up Wi-Fi with your phone</figcaption></figure>
   <figure><div class="remote"><img src="images/remote/pairing.png" alt="Waiting for approval"></div><figcaption>Waiting to be approved</figcaption></figure>
   <figure><div class="remote"><img src="images/remote/status.png" alt="Status page"></div><figcaption>Paired: the room's Status page</figcaption></figure>
 </div>

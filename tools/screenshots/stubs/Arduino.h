@@ -19,6 +19,8 @@ struct String : std::string {
   int toInt() const { return atoi(c_str()); }
   size_t length() const { return size(); }
   bool isEmpty() const { return empty(); }
+  int indexOf(const std::string& x) const { const size_t i = find(x); return i == npos ? -1 : static_cast<int>(i); }
+  void trim() { erase(0, find_first_not_of(" \t\r\n")); erase(find_last_not_of(" \t\r\n") + 1); }
 };
 struct HostSerial {
   template <class... A> void printf(const char* f, A... a) {}

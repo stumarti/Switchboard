@@ -12,15 +12,26 @@
 //   4. Connect with the chosen SSID + typed password. ESP32 persists them, so
 //      next boot step 1 reuses them.
 //
+// Or, from the list, "Set up with your phone": the remote opens its own
+// hotspot (Switchboard-XXXX, a password of its own) and shows two QR codes,
+// one that joins the hotspot and one that opens its page (most phones open it
+// by themselves: the remote answers every name, as a captive portal). The
+// page lists the networks it saw; pick one, type its password, save, and the
+// remote joins it as in step 4.
+//
 // The keyboard is drawn with the same immediate-mode Ui primitives as the rest
 // of the firmware (no dependency on the heavier FreeInkUI activity framework),
 // hit-tested against InputManager tap coordinates.
 // ===========================================================================
 
 #include <Arduino.h>
+#include <DNSServer.h>
+#include <WebServer.h>
 #include <WiFi.h>
+#include <esp_random.h>
 #include <esp_wifi.h>
 #include <InputManager.h>
+#include "qr_draw.h"
 #include "ui.h"
 
 namespace wifiprov {
@@ -257,8 +268,11 @@ struct Keyboard {
 
 // ---- AP scan + list -------------------------------------------------------
 
-// Scan and render a selectable AP list; returns the chosen SSID index, or -3
-// if it sat idle past g_idleTimeoutMs. Fills ssidOut/openOut.
+inline constexpr int16_t kPhoneBtnY = Ui::H - 156, kPhoneBtnH = 60;
+
+// Scan and render a selectable AP list; returns the chosen SSID index, -4 for
+// "Set up with your phone", or -3 if it sat idle past g_idleTimeoutMs. Fills
+// ssidOut/openOut.
 static int pickNetwork(Ui& ui, InputManager& input, char* ssidOut, size_t ssidCap,
                        bool* openOut) {
   for (;;) {
@@ -285,7 +299,7 @@ static int pickNetwork(Ui& ui, InputManager& input, char* ssidOut, size_t ssidCa
 
     // Build a de-duplicated, signal-sorted view (scanNetworks already sorts by
     // RSSI on ESP32). Cap the list to what fits.
-    const int maxShow = 8;
+    const int maxShow = 7;
     if (n > maxShow) n = maxShow;
 
     // selection loop — the first paint after a scan is a full refresh;
@@ -317,10 +331,16 @@ static int pickNetwork(Ui& ui, InputManager& input, char* ssidOut, size_t ssidCa
           ui.text(meta, 48, y + 40, Ui::W - 150, 22, TextAlign::Left, sub);
           if (on) ui.text("select", Ui::W - 130, y + 20, 96, 24, TextAlign::Right, fg);
         }
-        // footer buttons: Rescan
+        // footer buttons: Set up with your phone (highlighted as the entry
+        // after the networks), Rescan
+        const bool phoneOn = (sel == n);
+        if (phoneOn) ui.fillRect(30, kPhoneBtnY, Ui::W - 60, kPhoneBtnH, Color::Black, 12);
+        else         ui.strokeRect(30, kPhoneBtnY, Ui::W - 60, kPhoneBtnH, 2, 12);
+        ui.text("Set up with your phone", 30, kPhoneBtnY + 18, Ui::W - 60, 26, TextAlign::Center,
+                phoneOn ? Color::White : Color::Black);
         ui.strokeRect(30, Ui::H - 84, Ui::W - 60, 60, 2, 12);
         ui.text("Rescan", 30, Ui::H - 66, Ui::W - 60, 26, TextAlign::Center);
-        ui.text("Left/Right: move    tap a row: choose", 30, Ui::H - 108,
+        ui.text("Left/Right: move    tap a row: choose", 30, kPhoneBtnY - 28,
                 Ui::W - 60, 20, TextAlign::Center, Color::DarkGray);
         if (fullRedraw) ui.flushFull();
         else            ui.flushFast();
@@ -333,12 +353,15 @@ static int pickNetwork(Ui& ui, InputManager& input, char* ssidOut, size_t ssidCa
       float nx, ny;
       // nav keys move the highlight
       if (input.wasAnyPressed()) noteInput();
-      if ((input.wasPressed(InputManager::BTN_UP) ||
-           input.wasPressed(InputManager::BTN_LEFT)) && n > 0) {
-        sel = (sel + n - 1) % n; needRedraw = true;
-      } else if ((input.wasPressed(InputManager::BTN_DOWN) ||
-                  input.wasPressed(InputManager::BTN_RIGHT)) && n > 0) {
-        sel = (sel + 1) % n; needRedraw = true;
+      // (n + 1 entries: the networks, then the phone button)
+      if (input.wasPressed(InputManager::BTN_UP) ||
+          input.wasPressed(InputManager::BTN_LEFT)) {
+        sel = (sel + n) % (n + 1); needRedraw = true;
+      } else if (input.wasPressed(InputManager::BTN_DOWN) ||
+                 input.wasPressed(InputManager::BTN_RIGHT)) {
+        sel = (sel + 1) % (n + 1); needRedraw = true;
+      } else if (input.wasPressed(InputManager::BTN_CONFIRM) && sel == n) {
+        return -4;
       } else if (input.wasPressed(InputManager::BTN_CONFIRM) && n > 0) {
         strncpy(ssidOut, WiFi.SSID(sel).c_str(), ssidCap - 1);
         ssidOut[ssidCap - 1] = 0;
@@ -351,8 +374,9 @@ static int pickNetwork(Ui& ui, InputManager& input, char* ssidOut, size_t ssidCa
         (void)px;  // list is full-width; only the row (y) matters here
         // rescan button?
         if (py >= Ui::H - 84 && py < Ui::H - 24) { needRedraw = true; break; }  // rebreak -> rescan
+        if (py >= kPhoneBtnY && py < kPhoneBtnY + kPhoneBtnH) return -4;
         const int16_t rowTop = 100, rowH = 72;
-        if (py >= rowTop) {
+        if (py >= rowTop && py < kPhoneBtnY - 28) {
           int idx = (py - rowTop) / rowH;
           if (idx >= 0 && idx < n) {
             strncpy(ssidOut, WiFi.SSID(idx).c_str(), ssidCap - 1);
@@ -366,6 +390,213 @@ static int pickNetwork(Ui& ui, InputManager& input, char* ssidOut, size_t ssidCa
     }
     // fell out of selection loop -> rescan
   }
+}
+
+// ---- set up from a phone --------------------------------------------------
+//
+// The remote's own hotspot, a captive-portal DNS that answers every name with
+// its address, and a page to choose the network on. As the viewport does it
+// (Switchboard-Viewport's net/wifi.cpp), minus the server address: the remote
+// only ever finds its server by mDNS.
+
+namespace phone {
+
+inline WebServer* g_web = nullptr;
+inline bool g_saved = false;
+inline char g_ssid[33] = "";
+inline char g_pass[65] = "";
+inline String g_options;  // the networks it saw, as <option>s
+
+inline String escape(const String& s) {
+  String o;
+  for (size_t i = 0; i < s.length(); ++i) {
+    const char c = s[i];
+    if (c == '&') o += "&amp;";
+    else if (c == '<') o += "&lt;";
+    else if (c == '>') o += "&gt;";
+    else if (c == '"') o += "&quot;";
+    else o += c;
+  }
+  return o;
+}
+
+// The networks in range, strongest first (as scanNetworks() sorts them),
+// each name once.
+inline void scan() {
+  int n = 0;
+  for (int attempt = 0; attempt < 3; ++attempt) {  // as pickNetwork does
+    WiFi.scanDelete();
+    WiFi.disconnect(/*wifioff=*/false, /*eraseap=*/false);
+    delay(120);
+    n = WiFi.scanNetworks(/*async=*/false);
+    if (n > 0) break;
+    delay(300);
+  }
+  if (n < 0) n = 0;
+  g_options = "";
+  for (int i = 0; i < n; ++i) {
+    const String name = escape(WiFi.SSID(i));
+    if (!name.length() || g_options.indexOf("value=\"" + name + "\"") >= 0) continue;
+    g_options += "<option value=\"" + name + "\">" + name + " (" + String((int)WiFi.RSSI(i)) + " dBm)</option>";
+  }
+  WiFi.scanDelete();
+}
+
+inline const char* kHead =
+    "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
+    "<title>Switchboard Remote</title><style>"
+    "body{font-family:system-ui,sans-serif;margin:0;background:#f4f4f4;color:#111}"
+    "main{max-width:420px;margin:0 auto;padding:24px}h1{font-size:22px;letter-spacing:.08em}"
+    "label{display:block;margin:16px 0 6px;font-weight:600}select,input{width:100%;box-sizing:border-box;font-size:17px;padding:10px;"
+    "border:1px solid #999;border-radius:8px;background:#fff}button{margin-top:22px;width:100%;font-size:18px;padding:12px;"
+    "border:0;border-radius:8px;background:#111;color:#fff}p{color:#444}</style></head><body><main>"
+    "<h1>SWITCHBOARD</h1>";
+
+inline void page() {
+  noteInput();
+  String html = kHead;
+  html += "<p>Choose the Wi-Fi network this remote should join.</p><form method=post action=/save>";
+  html += "<label>Network</label><select name=pick><option value=''>Type one below</option>" + g_options + "</select>";
+  html += "<label>Or its name</label><input name=ssid autocomplete=off maxlength=32>";
+  html += "<label>Password</label><input name=pass type=password maxlength=64>";
+  html += "<button>Save and connect</button></form><p><a href=/rescan>Look for networks again</a></p></main></body></html>";
+  g_web->send(200, "text/html", html);
+}
+
+inline void save() {
+  noteInput();
+  String ssid = g_web->arg("ssid");
+  ssid.trim();
+  if (!ssid.length()) ssid = g_web->arg("pick");
+  if (!ssid.length()) {
+    g_web->send(400, "text/html", String(kHead) + "<p>Choose a network or type its name.</p><p><a href=/>Back</a></p></main></body></html>");
+    return;
+  }
+  snprintf(g_ssid, sizeof(g_ssid), "%s", ssid.c_str());
+  snprintf(g_pass, sizeof(g_pass), "%s", g_web->arg("pass").c_str());
+  g_web->send(200, "text/html",
+              String(kHead) + "<p>Saved. The remote is joining <b>" + escape(ssid) +
+                  "</b> now.</p><p>If it can't join it, it shows its list of networks again.</p></main></body></html>");
+  g_saved = true;
+}
+
+// Eight characters, no look-alikes.
+inline void password(char* out) {
+  static const char A[] = "abcdefghjkmnpqrstuvwxyz23456789";
+  for (int i = 0; i < 8; ++i) out[i] = A[esp_random() % (sizeof(A) - 1)];
+  out[8] = 0;
+}
+
+inline constexpr int16_t kQrBox = 232;
+inline constexpr int16_t kKeyboardBtnY = Ui::H - 84;
+
+// The setup screen: the hotspot's QR code (and its name and password, to
+// type), then the page's (and its address).
+inline void draw(Ui& ui, const char* apName, const char* apPass, const char* url) {
+  ui.clear();
+  ui.centered("Set up with your phone", 22, 32);
+  ui.hline(30, 64, Ui::W - 60, 2);
+
+  ui.centered("1. Scan to join the remote's Wi-Fi", 76, 24);
+  char uri[96];
+  qrdraw::wifiUri(uri, sizeof(uri), apName, apPass, false);
+  qrdraw::draw(ui, uri, 106, kQrBox);
+  char line[64];
+  snprintf(line, sizeof(line), "%s   password %s", apName, apPass);
+  ui.centered(line, 106 + kQrBox + 6, 24, Color::DarkGray);
+
+  const int16_t y2 = 106 + kQrBox + 46;
+  ui.centered("2. Then scan to open the setup page", y2, 24);
+  qrdraw::draw(ui, url, y2 + 30, kQrBox - 40);
+  ui.centered(url, y2 + 30 + kQrBox - 40 + 6, 24, Color::DarkGray);
+
+  ui.strokeRect(30, kKeyboardBtnY, Ui::W - 60, 60, 2, 12);
+  ui.text("Use the keyboard instead", 30, kKeyboardBtnY + 18, Ui::W - 60, 26, TextAlign::Center);
+  ui.flushFull();  // a dense module grid ghosts badly under a partial refresh
+}
+
+}  // namespace phone
+
+// Runs the phone setup until a network is saved on the page (1, ssidOut/passOut
+// filled), "Use the keyboard instead" or a button (0: back to the list), or
+// it sits idle past g_idleTimeoutMs (-3). The hotspot is gone again either way.
+static int phoneSetup(Ui& ui, InputManager& input, char* ssidOut, size_t ssidCap, char* passOut,
+                      size_t passCap) {
+  ui.clear();
+  ui.centered("Set up with your phone", 300, 32);
+  ui.centered("starting...", 352, 26, Color::DarkGray);
+  ui.flushFull();
+  phone::scan();
+
+  char apName[24], apPass[9];
+  {
+    uint8_t m[6];
+    WiFi.macAddress(m);
+    snprintf(apName, sizeof(apName), "Switchboard-%02X%02X", m[4], m[5]);
+  }
+  phone::password(apPass);
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAP(apName, apPass);
+  delay(200);
+  const IPAddress ip = WiFi.softAPIP();
+  char url[32];
+  snprintf(url, sizeof(url), "http://%s", ip.toString().c_str());
+  Serial.printf("[wifi] phone setup: %s at %s\n", apName, url);
+
+  DNSServer dns;
+  WebServer web(80);
+  phone::g_web = &web;
+  phone::g_saved = false;
+  dns.start(53, "*", ip);
+  web.on("/", HTTP_GET, phone::page);
+  web.on("/save", HTTP_POST, phone::save);
+  web.on("/rescan", HTTP_GET, [] {
+    phone::scan();
+    phone::g_web->sendHeader("Location", "/");
+    phone::g_web->send(302, "text/plain", "");
+  });
+  // Every other address (a phone checking for a captive portal) lands here.
+  const String home = String(url) + "/";
+  web.onNotFound([home] {
+    phone::g_web->sendHeader("Location", home);
+    phone::g_web->send(302, "text/plain", "");
+  });
+  web.begin();
+  phone::draw(ui, apName, apPass, url);
+
+  int result = 0;
+  uint32_t savedAt = 0;
+  noteInput();
+  for (;;) {
+    dns.processNextRequest();
+    web.handleClient();
+    if (phone::g_saved && !savedAt) savedAt = millis();
+    // Let the "Saved" page reach the phone, then join.
+    if (savedAt && millis() - savedAt > 1500) {
+      snprintf(ssidOut, ssidCap, "%s", phone::g_ssid);
+      snprintf(passOut, passCap, "%s", phone::g_pass);
+      result = 1;
+      break;
+    }
+    input.update();
+    if (idleExpired()) { result = -3; break; }
+    float nx, ny;
+    if (input.wasTouchTap(nx, ny)) {
+      noteInput();
+      int16_t px, py;
+      Ui::touchToLogical(nx, ny, px, py);
+      if (py >= phone::kKeyboardBtnY) break;
+    } else if (input.wasAnyPressed()) {
+      break;
+    }
+    delay(5);
+  }
+  web.stop();
+  dns.stop();
+  phone::g_web = nullptr;
+  WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_STA);
+  return result;
 }
 
 // ---- public entry ---------------------------------------------------------
@@ -410,18 +641,25 @@ static bool run(Ui& ui, InputManager& input, uint32_t savedTimeoutMs,
   // --- 2/3/4. Scan, pick, type password, connect ------------------------
   for (;;) {
     char ssid[33] = "";
-    bool open = false;
-    if (pickNetwork(ui, input, ssid, sizeof(ssid), &open) == -3) return false;  // idle
-    if (ssid[0] == 0) continue;  // (rescan path returns via loop)
-
-    // Copied out of the Keyboard: its buffer dies with it at the end of the
-    // if-block, before WiFi.begin() below reads the password.
     char pass[65] = "";
-    if (!open) {
-      Keyboard kb(ui, input);
-      const char* typed = kb.run(ssid);
-      if (!typed) return false;  // idle
-      snprintf(pass, sizeof(pass), "%s", typed);
+    bool open = false;
+    const int picked = pickNetwork(ui, input, ssid, sizeof(ssid), &open);
+    if (picked == -3) return false;  // idle
+    if (picked == -4) {
+      // From a phone: the page gives both the network and its password.
+      const int r = phoneSetup(ui, input, ssid, sizeof(ssid), pass, sizeof(pass));
+      if (r == -3) return false;  // idle
+      if (r == 0) continue;       // back to the list
+    } else {
+      if (ssid[0] == 0) continue;  // (rescan path returns via loop)
+      // Copied out of the Keyboard: its buffer dies with it at the end of the
+      // if-block, before WiFi.begin() below reads the password.
+      if (!open) {
+        Keyboard kb(ui, input);
+        const char* typed = kb.run(ssid);
+        if (!typed) return false;  // idle
+        snprintf(pass, sizeof(pass), "%s", typed);
+      }
     }
 
     // connecting screen

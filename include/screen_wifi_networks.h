@@ -14,13 +14,10 @@
 // screen_settings_info), since a dense module grid wants the whole panel and
 // a Full refresh, not a partial-refresh carousel repaint.
 //
-// QR rendering uses the ESP-IDF `espressif__qrcode` component, which ships
-// as a transitive dependency of the Arduino-ESP32 framework (esp_wifi's own
-// provisioning uses it) — no extra lib_deps entry needed, just <qrcode.h>.
+// The QR code itself is qr_draw.h's.
 // ===========================================================================
 
-#include <qrcode.h>
-
+#include "qr_draw.h"
 #include "screen_common.h"
 #include "refresh_policy.h"
 #include "app/input.h"
@@ -64,22 +61,7 @@ inline int hitTest(int16_t tx, int16_t ty) {
 
 // --- QR screen -------------------------------------------------------------
 
-// Escape the WIFI: URI's reserved characters (\ ; , " :) with a backslash, per
-// the de-facto "MECARD-like" Wi-Fi QR format most phone camera apps parse.
-inline void escapeInto(char* out, size_t outCap, const char* in) {
-  size_t o = 0;
-  for (const char* p = in; *p && o + 2 < outCap; ++p) {
-    if (strchr("\\;,\":", *p)) out[o++] = '\\';
-    out[o++] = *p;
-  }
-  out[o] = 0;
-}
-
 inline int g_qrIdx = -1;
-// The handle esp_qrcode_generate() hands to display_func — only valid inside
-// that call and immediately after it returns (the library owns the buffer).
-inline esp_qrcode_handle_t g_qrHandle = nullptr;
-inline void onQrReady(esp_qrcode_handle_t h) { g_qrHandle = h; }
 
 inline void drawQr() {
   ui.clear();
@@ -90,46 +72,17 @@ inline void drawQr() {
   }
   const globalsclient::WifiNetItem& n = globalsclient::wifiNets[g_qrIdx];
 
-  char ssidEsc[80], passEsc[160];
-  escapeInto(ssidEsc, sizeof(ssidEsc), n.ssid);
-  escapeInto(passEsc, sizeof(passEsc), n.password);
   char uri[320];
-  snprintf(uri, sizeof(uri), "WIFI:T:%s;S:%s;P:%s;;", n.open ? "nopass" : "WPA", ssidEsc, passEsc);
-
-  g_qrHandle = nullptr;
-  esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT();
-  cfg.display_func = onQrReady;
-  cfg.max_qrcode_version = 10;  // plenty for a WIFI: URI at MED ECC
-  cfg.qrcode_ecc_level = ESP_QRCODE_ECC_MED;
-  const bool ok = esp_qrcode_generate(&cfg, uri) == ESP_OK && g_qrHandle != nullptr;
+  qrdraw::wifiUri(uri, sizeof(uri), n.ssid, n.password, n.open);
 
   ui.text(n.name, 0, static_cast<int16_t>(kStatusBarH + 12 + kPad), Ui::W, 30, TextAlign::Center,
           Color::Black, 1, Ui::kFont28);
   ui.text(n.ssid, 0, static_cast<int16_t>(kStatusBarH + 12 + kPad + 34), Ui::W, 22,
           TextAlign::Center, Color::DarkGray, 1, Ui::kFontSmall);
 
-  if (ok) {
-    const int size = esp_qrcode_get_size(g_qrHandle);
-    // Scale to fill most of the width, leaving room for the labels above/
-    // below; snap the module size down so the quiet zone (2 modules) plus the
-    // code fits without overflowing the panel width.
-    const int16_t maxBox = static_cast<int16_t>(Ui::W - 2 * kShPad);
-    int16_t scale = static_cast<int16_t>(maxBox / (size + 4));
-    if (scale < 1) scale = 1;
-    const int16_t boxW = static_cast<int16_t>((size + 4) * scale);
-    const int16_t x0 = static_cast<int16_t>((Ui::W - boxW) / 2);
-    const int16_t y0 = static_cast<int16_t>(kStatusBarH + 12 + kPad + 74);
-    ui.fillRect(x0, y0, boxW, boxW, Color::White);
-    ui.strokeRect(x0, y0, boxW, boxW, 2, 4);
-    const int16_t qx0 = static_cast<int16_t>(x0 + 2 * scale), qy0 = static_cast<int16_t>(y0 + 2 * scale);
-    for (int y = 0; y < size; ++y) {
-      for (int x = 0; x < size; ++x) {
-        if (esp_qrcode_get_module(g_qrHandle, x, y))
-          ui.fillRect(static_cast<int16_t>(qx0 + x * scale), static_cast<int16_t>(qy0 + y * scale),
-                     scale, scale, Color::Black);
-      }
-    }
-  } else {
+  // Scale to fill most of the width, leaving room for the labels above/below.
+  if (!qrdraw::draw(ui, uri, static_cast<int16_t>(kStatusBarH + 12 + kPad + 74),
+                    static_cast<int16_t>(Ui::W - 2 * kShPad))) {
     ui.text("Couldn't generate QR code", 0, 400, Ui::W, 28, TextAlign::Center, Color::DarkGray);
   }
 
