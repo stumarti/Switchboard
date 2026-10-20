@@ -16,6 +16,7 @@ E-ink only uses power to change the picture, and the server does the work: the d
 <figure class="shot"><img src="../images/admin/home.png" alt="Home page devices"><figcaption>The Home page: each battery with the days it has left. The Kitchen remote is low, so it also shows under <b>Needs attention</b>.</figcaption></figure>
 
 - **Home:** each device's battery bar has a "~N days" hint. Hover it for how fast the battery is falling, how long since the last charge, and how long a full charge lasts. A device that's still learning says "learning…".
+- **Last charged:** the Home table's **Last charged** column, and a badge on each device's page, say when the server last saw it charged ("today", "yesterday", "8 days ago"; hover for the date and time). It's the top of the last charge the server spotted in the readings (below), so a top-up of only a couple of percent doesn't count. A dash means no charge has been seen since the server first heard from the device.
 - **A remote's page:** the battery badge reads, for example, "72% · ~33 days".
 - **Needs attention:** Home warns when a device has about 3 days or less left, and the low (20%) and critical (10%) battery warnings say how many days are left.
 
@@ -43,7 +44,7 @@ Switch on **Publish battery to Home Assistant** (Settings → Home Assistant; of
 
 A viewport also gets the readings its own firmware used to send straight to Home Assistant: `sensor.switchboard_<name>_temperature` (°C) and `…_humidity` (%) from its built-in sensor, and `…_voltage` (V, the battery's). If automations used the kitchen panel's old `sensor.dashboard_battery`, `_voltage`, `_temperature` or `_humidity`, point them at these.
 
-`<name>` is the device's name on the server (`Kitchen remote` → `kitchen_remote`); two devices with the same name get the end of their MAC address added. Both sensors carry the device's MAC, type, room (or viewport layout), firmware and last check-in as attributes; the battery sensor also has the drain rate, days since the last charge and whether the estimate is measured or learned.
+`<name>` is the device's name on the server (`Kitchen remote` → `kitchen_remote`); two devices with the same name get the end of their MAC address added. Both sensors carry the device's MAC, type, room (or viewport layout), firmware and last check-in as attributes; the battery sensor also has the drain rate, days since the last charge, when it was last charged (`last_charged`, a timestamp, empty until a charge is seen) and whether the estimate is measured or learned.
 
 Use them like any other sensor: an automation that sends a notification when `…_battery_days_left` drops below 2, or a dashboard card of every Switchboard battery.
 
