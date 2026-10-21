@@ -2,7 +2,7 @@
 #include "Arduino.h"
 #include "ESPmDNS.h"
 enum { WL_IDLE_STATUS = 0, WL_NO_SSID_AVAIL = 1, WL_CONNECTED = 3, WL_CONNECT_FAILED = 4, WL_DISCONNECTED = 6 };
-enum { WIFI_MODE_NULL = 0, WIFI_OFF = 0, WIFI_STA = 1, WIFI_AP = 2 };
+enum { WIFI_MODE_NULL = 0, WIFI_OFF = 0, WIFI_STA = 1, WIFI_AP = 2, WIFI_AP_STA = 3 };
 enum { WIFI_AUTH_OPEN = 0, WIFI_AUTH_WPA2_PSK = 3 };
 typedef int wl_status_t;
 struct HostWiFi {
@@ -29,5 +29,8 @@ struct HostWiFi {
   void persistent(bool) {}
   void setHostname(const char*) {}
   void setTxPower(int) {}
+  bool softAP(const char*, const char* = nullptr) { return true; }
+  IPAddress softAPIP() { return IPAddress(192, 168, 4, 1); }
+  bool softAPdisconnect(bool = false) { return true; }
 };
 inline HostWiFi WiFi;
