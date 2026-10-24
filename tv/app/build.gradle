@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Signing: the release key from CI's secrets (see ../README.md), so every
+// release installs over the last one; without them (a build on your own
+// machine) the release is signed with the debug key.
+def keystore = System.getenv('SB_TV_KEYSTORE')
+
+android {
+    namespace 'io.github.stumarti.switchboardtv'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'io.github.stumarti.switchboardtv'
+        minSdk 23
+        targetSdk 35
+        // The release workflow sets both from the tag (tv-v1.2.3) and its run.
+        versionCode((System.getenv('SB_TV_VERSION_CODE') ?: '1') as int)
+        versionName(System.getenv('SB_TV_VERSION') ?: '0.1.0')
+    }
+
+    signingConfigs {
+        release {
+            if (keystore) {
+                storeFile file(keystore)
+                storePassword System.getenv('SB_TV_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('SB_TV_KEY_ALIAS')
+                keyPassword System.getenv('SB_TV_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig keystore ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        // A TV app with no touchscreen: lint's phone-first warnings don't
+        // stop a release.
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}

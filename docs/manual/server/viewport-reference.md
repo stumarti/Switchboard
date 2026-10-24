@@ -123,6 +123,7 @@ If `columns` has more lists than the template has columns, the extra sections ar
 | `background.every` | number, 5–10080 | `60` | Minutes between photos. |
 | `background.order` | `"random"` or `"sequential"` | `"random"` | `"random"`: any photo each time. `"sequential"`: one after another, oldest first, and round again at the end. |
 | `background.caption` | `"none"`, `"date"`, `"place"` or `"both"` | `"none"` | A caption: when the photo was taken, where, or both. |
+| `background.motion` | boolean | `false` | On a TV ([Switchboard TV](../tv/index.md)): the photo slowly zooms and drifts. An e-ink panel draws it still. |
 | `background.cards` | `"white"` or `"none"` | `"white"` | `"white"`: each section on a white card over the photo. `"none"`: the sections straight on the photo, with a white edge round what they draw. |
 
 ```json
@@ -256,6 +257,7 @@ A photo from Immich filling the screen, with a few lines written over it in one 
 | `frame.every` | number, 5–10080 | `60` | Minutes between photos. |
 | `frame.order` | `"random"` or `"sequential"` | `"random"` | As for a background. |
 | `frame.caption` | `"none"`, `"date"`, `"place"` or `"both"` | `"none"` | When and where the photo was taken, last and small. |
+| `frame.motion` | boolean | `false` | On a TV ([Switchboard TV](../tv/index.md)): the photo slowly zooms and drifts. An e-ink panel draws it still. |
 | `frame.corner` | `"bottomLeft"`, `"bottomRight"`, `"topLeft"` or `"topRight"` | `"bottomLeft"` | Where the lines go. |
 | `frame.size` | `"normal"` or `"large"` | `"normal"` | The size of the lines. |
 | `frame.ink` | string | `white` | The lines' colour: `white`, `black`, or `auto`. With `auto` the server looks at each photo where the lines go: black on a light photo, white on a dark one, with no edge. If it can't tell (Immich slow to answer), it uses white with an edge. |
@@ -1117,6 +1119,7 @@ A photo from Immich that changes on its own. See [Photos from Immich](../viewpor
 | `every` | number, 5–10080 | `60` | Minutes between photos. |
 | `order` | `"random"` or `"sequential"` | `"random"` | `"random"`: any photo each time. `"sequential"`: one after another, oldest first, and round again at the end. |
 | `caption` | `"none"`, `"date"`, `"place"` or `"both"` | `"none"` | When the photo was taken, where, or both. |
+| `motion` | boolean | `false` | On a TV ([Switchboard TV](../tv/index.md)): the photo slowly zooms and drifts. An e-ink panel draws it still. |
 | `height` | number, 0–480 | `0` | The photo's height in pixels. `0`: the rest of its column. |
 
 ```json
