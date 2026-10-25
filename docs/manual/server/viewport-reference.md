@@ -94,6 +94,17 @@ Every screen has these keys:
 | `icon` | string | by kind (below) | Its mark in the display's footer, beside the other screens'. |
 | `enabled` | boolean | `true` | Off: the display skips it. |
 | `kind` | `"sections"`, `"meetingRoom"`, `"roomFinder"` or `"photoFrame"` | `"sections"` | What the screen is. The rest of its keys depend on it. |
+| `switchWhen` | object | never | When the display switches to this screen by itself (below). |
+
+**Switching to a screen by itself.** While a screen's rule holds, the display shows it at its next wake. When the rule ends, the display goes back to the screen it was on. If several screens' rules hold, the first in the list wins. A button press stays where you put it, and that screen doesn't take over again until its rule has ended and started again.
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `switchWhen.mode` | `"never"`, `"playing"` or `"entity"` | `"never"` | `playing`: while a player in one of this screen's Now playing sections is playing. `entity`: while `entity` matches (as a section's `showWhen`). |
+| `switchWhen.entity` | string | `""` | The entity, for `entity`, such as `binary_sensor.weather_warning`. |
+| `switchWhen.cond` | string | `"eq"` | How it's compared: `eq`, `ne`, `contains`, `gt`, `lt`, `in` or `startsWith`. |
+| `switchWhen.value` | string | `""` | What it's compared with, such as `on`. |
+| `switchWhen.checkMin` | number, 0–30 | `5` | How often the display wakes to look, and to keep the screen current while it shows. 0: only at its normal refresh. A battery viewport pays for every extra wake; a TV looks every minute anyway. |
 
 The default icons are `view-dashboard-outline` (sections), `calendar-account-outline` (meeting room), `door-sliding-open` (room finder) and `image-frame` (photo frame).
 
@@ -800,6 +811,7 @@ What each player is playing or has paused: the app, the title and the artist, wi
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `players` | list | `[]` | Up to 3 players, each with `id`, `name` (blank: the friendly name), `entity` (a `media_player.*`) and `icon`. |
+| `style` | `"list"` or `"large"` | `"list"` | `list`: a line for each player playing. `large`: the first one playing (or paused), its cover as wide as the column (beside the track in a column 520 px or wider), then where it's playing, the title, artist and album, and a bar with how far into the track. It takes the rest of its column, so on its own in a column it fills it: the right of a `sidebar` or `columns` screen, say. |
 
 This is the only type that can use `showWhen.mode` `"playing"`.
 
