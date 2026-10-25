@@ -44,6 +44,10 @@
     - { title: Updates, page: viewport/updates }
     - { title: When something's wrong, page: viewport/errors }
 
+- title: The TV
+  pages:
+    - { title: Switchboard TV, page: tv/index }
+
 - title: The server
   pages:
     - { title: Home, page: server/home }

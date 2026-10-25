@@ -29,6 +29,7 @@ The address and key stay on the server. A display only ever gets the finished pi
 - **Order:** random, or in order (oldest first, then from the start again). In order, every section, background and photo frame on the same album shows the same photo at once, on every display. "Anything in the library" is always random.
 - **Caption:** none, when it was taken, where, or both.
 - **Colour:** how strong the colours come out on the panel. Six inks lose some colour, so **Standard** gives it a little back. **Natural** leaves the photo as it is, and **Vivid** and **Extra vivid** go further, which suits a muted or hazy photo. The layout builder's preview shows the difference.
+- **Slow motion on a TV:** on a TV running [Switchboard TV](../tv/index.md), the photo slowly zooms or pans, a different movement for each photo. An e-ink panel shows it still.
 - **Height:** in pixels, or 0 to fill the rest of the column.
 
 <figure class="shot"><img src="../images/admin/viewport-layout-photo-section.png" alt="A photo section's settings"><figcaption>A photo section's settings</figcaption></figure>

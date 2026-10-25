@@ -1,0 +1,76 @@
+name: TV app
+
+# The Switchboard TV app (tv/): an Android TV app that shows a viewport
+# layout from Switchboard Server. Built on every push that touches it; a
+# tv-vX.Y.Z tag also publishes the APK as a GitHub release. (Path filters
+# don't apply to tags, so a tag always builds.)
+#
+# Signing: with the repository secrets SB_TV_KEYSTORE_B64 (the keystore,
+# base64), SB_TV_KEYSTORE_PASSWORD, SB_TV_KEY_ALIAS and SB_TV_KEY_PASSWORD,
+# every release is signed with the same key, so it installs over the last.
+# Without them it's signed with a throwaway debug key (see tv/README.md).
+on:
+  push:
+    branches: ["**"]
+    tags: ["tv-v*"]
+    paths: ["tv/**", ".github/workflows/tv-app.yaml"]
+  pull_request:
+    paths: ["tv/**", ".github/workflows/tv-app.yaml"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/tv-v* ]]; then
+            echo "SB_TV_VERSION=${GITHUB_REF_NAME#tv-v}" >> "$GITHUB_ENV"
+          else
+            echo "SB_TV_VERSION=0.0.0-dev.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          fi
+          echo "SB_TV_VERSION_CODE=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+
+      - name: Release key
+        env:
+          KEYSTORE_B64: ${{ secrets.SB_TV_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/switchboard-tv.jks"
+            echo "SB_TV_KEYSTORE=$RUNNER_TEMP/switchboard-tv.jks" >> "$GITHUB_ENV"
+          else
+            echo "::notice::No SB_TV_KEYSTORE_B64 secret: signing with a debug key (each build's differs)."
+          fi
+
+      - name: Build the APK
+        working-directory: tv
+        env:
+          SB_TV_KEYSTORE_PASSWORD: ${{ secrets.SB_TV_KEYSTORE_PASSWORD }}
+          SB_TV_KEY_ALIAS: ${{ secrets.SB_TV_KEY_ALIAS }}
+          SB_TV_KEY_PASSWORD: ${{ secrets.SB_TV_KEY_PASSWORD }}
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "switchboard-tv-${SB_TV_VERSION}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: switchboard-tv-${{ env.SB_TV_VERSION }}
+          path: tv/switchboard-tv-*.apk
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/tv-v')
+        uses: softprops/action-gh-release@v3
+        with:
+          name: Switchboard TV ${{ env.SB_TV_VERSION }}
+          files: tv/switchboard-tv-*.apk
+          body: |
+            The Switchboard TV app for Android TV / Google TV. Install it with Downloader or `adb install`; see the manual's TV page.

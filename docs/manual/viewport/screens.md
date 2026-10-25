@@ -58,6 +58,19 @@ The server's other section types and screen kinds work on a viewport too, includ
 
 A long calendar title or description in a narrow column, such as the sidebar, is cut short with "..." rather than run over the divider.
 
+**Now playing, large.** Set a Now playing section's **Style** to **Large (album art)**. It shows the player that's playing, with its cover as wide as the column and the title, artist, album and how far into the track under it. In a wide column the track sits beside the cover instead. On its own in a column it fills it, for example the right-hand side of a two-column screen. On the panel the cover is dithered into its six colours like a photo; on a TV it's in its own colours.
+
+## Switching to a screen by itself
+
+A screen can take over the display while something is true, then hand back to the screen it was on. Under any screen in the layout builder, open **Switch to this screen** and choose:
+
+- **While this screen's Now playing is playing:** for example, a music screen while a speaker plays.
+- **While an entity…:** for example, a detailed weather screen while `binary_sensor.weather_warning` is `on`, or a door camera screen while the doorbell rings.
+
+**Look** sets how often the display wakes to check, and to keep the screen up to date while it shows. A battery viewport only notices at its next wake, so a shorter time switches sooner but uses more battery. A TV checks every minute anyway.
+
+If several screens want the display at once, the first in the list wins. Pressing a button moves away as usual, and that screen won't take over again until its condition ends and starts again.
+
 ## The footer
 
 Every screen ends with a footer in its bottom-right corner. Dotted bars separate its three groups, which are (from left to right):
