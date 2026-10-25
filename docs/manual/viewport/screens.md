@@ -60,6 +60,8 @@ A long calendar title or description in a narrow column, such as the sidebar, is
 
 **Now playing, large.** Set a Now playing section's **Style** to **Large (album art)**. It shows the player that's playing, with its cover as wide as the column and the title, artist, album and how far into the track under it. In a wide column the track sits beside the cover instead. On its own in a column it fills it, for example the right-hand side of a two-column screen. On the panel the cover is dithered into its six colours like a photo; on a TV it's in its own colours.
 
+**Now playing, cover.** Set **Style** to **Cover (fills the column)** and put the section first, on its own, in a sidebar screen's left column. The album cover then fills the whole left of the screen, top to bottom, with where it's playing, the title, the artist and how far into the track written over its foot in white with a black edge. The cover is cropped to the column around what matters in it. Pair it with **Switch to this screen** while playing for a screen that appears whenever music is on.
+
 ## Switching to a screen by itself
 
 A screen can take over the display while something is true, then hand back to the screen it was on. Under any screen in the layout builder, open **Switch to this screen** and choose:
