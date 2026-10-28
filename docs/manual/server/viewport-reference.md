@@ -811,7 +811,7 @@ What each player is playing or has paused: the app, the title and the artist, wi
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `players` | list | `[]` | Up to 3 players, each with `id`, `name` (blank: the friendly name), `entity` (a `media_player.*`) and `icon`. |
-| `style` | `"list"` or `"large"` | `"list"` | `list`: a line for each player playing. `large`: the first one playing (or paused), its cover as wide as the column (beside the track in a column 520 px or wider), then where it's playing, the title, artist and album, and a bar with how far into the track. It takes the rest of its column, so on its own in a column it fills it: the right of a `sidebar` or `columns` screen, say. |
+| `style` | `"list"`, `"large"` or `"cover"` | `"list"` | `list`: a line for each player playing. `large`: the first one playing (or paused), its cover as wide as the column (beside the track in a column 520 px or wider), then where it's playing, the title, artist and album, and a bar with how far into the track. It takes the rest of its column, so on its own in a column it fills it: the right of a `sidebar` or `columns` screen, say. `cover`: the same player, its cover filling the column edge to edge with no heading, and where it's playing, the title, artist and progress over its lower part in white with a black edge. In a left-hand column (a `sidebar`'s) it reaches the bottom of the panel, so first and on its own there it fills the whole left of the screen. |
 
 This is the only type that can use `showWhen.mode` `"playing"`.
 
