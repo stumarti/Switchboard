@@ -61,7 +61,7 @@ jobs:
           ./gradlew --no-daemon assembleRelease
           cp app/build/outputs/apk/release/app-release.apk "switchboard-tv-${SB_TV_VERSION}.apk"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: switchboard-tv-${{ env.SB_TV_VERSION }}
           path: tv/switchboard-tv-*.apk
