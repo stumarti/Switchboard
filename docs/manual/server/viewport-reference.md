@@ -362,6 +362,7 @@ The weather now, "later" and the next days, and optionally when rain starts or s
 | `entity` | string | `""` | The weather entity. |
 | `later` | boolean | `true` | A *Later* forecast, about three hours ahead, from the hourly forecast. |
 | `days` | number, 0–5 | `2` | How many days of the daily forecast, from tomorrow. |
+| `highLow` | boolean | `false` | Today's high and low under the temperature, and each day's low beside its high. Today's come from the daily forecast, or from the rest of today's hourly forecast when the daily one starts tomorrow. |
 | `hourlyEntity` | string | `""` | Another weather entity for the hourly forecast. Blank: `entity`. |
 | `rain` | boolean | `false` | *Rain at 14:00*, *Rain stops 16:00* or *Rain continuing*: the first change between wet and dry in the hourly forecast. |
 | `rainHours` | number, 1–24 | `12` | How many hours ahead to look for rain. |
@@ -376,6 +377,7 @@ The weather now, "later" and the next days, and optionally when rain starts or s
   "entity": "weather.home",
   "later": true,
   "days": 2,
+  "highLow": false,
   "hourlyEntity": "",
   "rain": true,
   "rainHours": 12,
