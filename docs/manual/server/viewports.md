@@ -56,6 +56,7 @@ Status icons and "now" items can follow an entity's heating state (`@heating`: *
     | Message | a few lines of your own, in one of three sizes, left or centred, with a colour and an icon. Put an entity in braces to fill in its state: *Welcome, {input_text.visitor}*. A message that comes out blank isn't shown, so an empty `input_text` hides it |
     | Bin collection | each bin's next collection, soonest first, today's and tomorrow's in red. From your council's calendar (a Home Assistant calendar or a calendar link, events matched by words in their title, such as *recycling*) or each bin's own sensor (a date, or days until). *Put out tonight* from an hour you choose the evening before |
     | Air quality | CO2, PM2.5, PM10, VOC, an air quality index, humidity and pollen, each with a dot in green, yellow or red, and Good, Fair or Poor. The usual limits come from the sensor's kind (CO2: fair from 1000 ppm, poor from 1500; PM2.5: 15 and 35 µg/m³), or set your own. Pollen and other sensors that give words (low, moderate, high) are coloured by the word |
+    | Batteries | the batteries running low, lowest first, red when critical, and the devices gone offline. It finds every battery Home Assistant has by itself; add others (a home battery's charge) or leave some out. Hidden while none are low |
 
   The kitchen dashboard (**Start from or import → Kitchen dashboard**) is the panel's own Status, Heating and Security; the demo's kitchen panel adds Energy and Presence. As the display draws them (see [Viewport screens](../viewport/screens.md)):
 
