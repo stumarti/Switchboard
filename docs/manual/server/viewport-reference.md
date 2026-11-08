@@ -1187,6 +1187,47 @@ The kinds' own limits (fair from, poor from): CO2 1000 and 1500 ppm, PM2.5 15 an
 }
 ```
 
+<a id="batteries"></a>
+### Batteries (`batteries`)
+
+The batteries running low, lowest first, then the devices whose battery has gone offline. Each has a battery icon, red at or below the layout's `thresholds.batteryCritical`. It finds Home Assistant's batteries by itself, so no script or text helper is needed.
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `auto` | boolean | `true` | Every battery Home Assistant has: each sensor with device class *battery* in %, and each battery binary sensor (shown as *Low* while it's on). Off: only `entities`. |
+| `entities` | list | `[]` | Up to 16 more (below), such as a home battery's charge, which Home Assistant may not call a battery. |
+| `exclude` | list of strings | `[]` | Up to 40 entity ids to leave out. |
+| `below` | number, 1–100 | `20` | Show those at or below this %. |
+| `offline` | boolean | `true` | Also show those whose sensor is unavailable, as *Offline*. |
+| `count` | number, 1–12 | `6` | At most this many lines; *and 2 more* under them for the rest. |
+| `hideWhenFine` | boolean | `true` | Don't show the section while none are low or offline; the rest of its column closes up. Off: it says *All batteries above 20%*. |
+
+Each of `entities`:
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `id` | string | a random id | Its id. |
+| `name` | string | `""` | Its name. Blank: the friendly name. |
+| `entity` | string | `""` | A sensor in %, or a battery binary sensor. |
+
+Names lose a trailing *Battery*, *Battery level* or *Batt*, so *Hall Dimmer Battery* reads *Hall Dimmer*.
+
+```json
+{
+  "id": "batteries-1",
+  "type": "batteries",
+  "title": "Low batteries",
+  "auto": true,
+  "entities": [{ "id": "battery-1", "name": "Home battery", "entity": "sensor.givenergy_soc" }],
+  "exclude": ["sensor.ipad_battery_level"],
+  "below": 20,
+  "offline": true,
+  "count": 6,
+  "hideWhenFine": true,
+  "showWhen": { "mode": "always", "entity": "", "cond": "eq", "value": "", "liveMin": 0 }
+}
+```
+
 ## "Now" items
 
 Each item in a [Now](#now) section has a `kind`, and shows only while its kind says it's active (the alarm always). Every item has the same keys; each kind uses some of them.
